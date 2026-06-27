@@ -68,6 +68,9 @@ class AppStoreDb
     public AppSettings Settings => _settings;
     public bool IsBillingConfigured => _settings.IsBillingConfigured;
     public bool IsStripeConfigured => _settings.IsStripeConfigured;
+    public string StripeSecretKeyStatus => _settings.DescribeStripeSecretKey();
+    public string StripePublishableKeyStatus => _settings.DescribeStripePublishableKey();
+    public string StripeWebhookSecretStatus => _settings.DescribeStripeWebhookSecret();
 
     public DbUser? GetCurrentDbUser() => GetCurrentUser();
 

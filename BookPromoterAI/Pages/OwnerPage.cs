@@ -71,7 +71,15 @@ static class OwnerPage
         var stripeStatus = store.IsStripeConfigured ? "Connected" : "Not configured";
         var billingStatus = store.IsBillingConfigured
             ? $"""<p class="notice success">Stripe: {stripeStatus}. Customers can subscribe with card checkout.</p>"""
-            : """<p class="notice error">Billing is not live yet. Add Stripe API keys in Railway (see setup steps below).</p>""";
+            : $"""
+                <p class="notice error">Billing is not live yet. The app cannot read a valid <code>Stripe__SecretKey</code> from Railway.</p>
+                <ul class="plan-features">
+                    <li><strong>Secret key:</strong> {H.Encode(store.StripeSecretKeyStatus)}</li>
+                    <li><strong>Publishable key:</strong> {H.Encode(store.StripePublishableKeyStatus)}</li>
+                    <li><strong>Webhook secret:</strong> {H.Encode(store.StripeWebhookSecretStatus)}</li>
+                </ul>
+                <p class="muted">After fixing variables, click <strong>Redeploy</strong> in Railway so the app restarts with the new values.</p>
+                """;
 
         var payout = store.GetOwnerPayoutSettings();
         var payoutSummary = payout.IsConfigured
