@@ -1,8 +1,9 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
-COPY BookPromoterAI.csproj .
-RUN dotnet restore
-COPY . .
+COPY BookPromoterAI/BookPromoterAI.csproj BookPromoterAI/
+RUN dotnet restore BookPromoterAI/BookPromoterAI.csproj
+COPY BookPromoterAI/ BookPromoterAI/
+WORKDIR /src/BookPromoterAI
 RUN dotnet publish -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
