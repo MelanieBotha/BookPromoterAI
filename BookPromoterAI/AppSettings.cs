@@ -14,14 +14,17 @@ class AppSettings
         SendGridApiKey != "YOUR_SENDGRID_API_KEY_HERE" &&
         !string.IsNullOrWhiteSpace(SendGridSenderEmail);
 
-    public static AppSettings FromConfiguration(IConfiguration config) => new()
+    public static AppSettings FromConfiguration(IConfiguration config)
     {
-        SendGridApiKey = config["SendGrid:ApiKey"] ?? "",
-        SendGridSenderEmail = config["SendGrid:SenderEmail"] ?? config["SendGrid:FromEmail"] ?? "",
-        SendGridSenderName = config["SendGrid:SenderName"] ?? config["SendGrid:FromName"] ?? "BookPromoter AI",
         var ownerPin = config["Owner:Pin"];
-        OwnerPin = string.IsNullOrWhiteSpace(ownerPin) ? "" : ownerPin.Trim(),
-        PublicBaseUrl = config["App:PublicBaseUrl"] ?? "",
-        ShowSoftLaunchBanner = config.GetValue("Launch:ShowBetaBanner", true)
-    };
+        return new()
+        {
+            SendGridApiKey = config["SendGrid:ApiKey"] ?? "",
+            SendGridSenderEmail = config["SendGrid:SenderEmail"] ?? config["SendGrid:FromEmail"] ?? "",
+            SendGridSenderName = config["SendGrid:SenderName"] ?? config["SendGrid:FromName"] ?? "BookPromoter AI",
+            OwnerPin = string.IsNullOrWhiteSpace(ownerPin) ? "" : ownerPin.Trim(),
+            PublicBaseUrl = config["App:PublicBaseUrl"] ?? "",
+            ShowSoftLaunchBanner = config.GetValue("Launch:ShowBetaBanner", true)
+        };
+    }
 }
