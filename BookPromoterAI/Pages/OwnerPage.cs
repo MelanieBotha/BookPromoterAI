@@ -115,7 +115,7 @@ static class OwnerPage
                         <li><code>Stripe__SecretKey</code>, <code>Stripe__PublishableKey</code>, <code>Stripe__WebhookSecret</code></li>
                     </ul>
                     <p class="muted"><strong>Stripe webhook URL:</strong> use your live app URL + <code>/webhooks/stripe</code> (example: <code>https://bookpromoterai-production.up.railway.app/webhooks/stripe</code>). Events: checkout.session.completed, customer.subscription.updated, customer.subscription.deleted, invoice.payment_failed</p>
-                    <p class="muted">Stripe uses your plan price automatically if no Stripe Price ID is set. Payouts go to your Stripe balance, then your bank account linked in the Stripe dashboard.</p>
+                    <p class="muted">Stripe checkout returns to the same URL you use to browse the app. Until <code>bookpromoterai.us</code> DNS is connected, use <code>https://bookpromoterai-production.up.railway.app</code> or set <code>App__PublicBaseUrl</code> in Railway.</p>
                 </div>
             </details>
 
