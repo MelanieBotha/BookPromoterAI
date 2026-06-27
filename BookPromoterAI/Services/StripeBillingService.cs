@@ -11,7 +11,18 @@ class StripeBillingService
     {
         _settings = settings;
         if (_settings.IsStripeConfigured)
-            StripeConfiguration.ApiKey = settings.StripeSecretKey;
+            StripeConfiguration.ApiKey = _settings.StripeSecretKey;
+    }
+
+    static string? ValidateStripeSecretKey(string key)
+    {
+        if (key.StartsWith("rk_", StringComparison.Ordinal))
+            return "Use the standard Secret key (sk_live_... or sk_test_...) from Stripe → Developers → API keys, not a restricted key (rk_...).";
+        if (!key.StartsWith("sk_", StringComparison.Ordinal))
+            return "Stripe Secret Key should start with sk_live_ or sk_test_. Check Railway variable Stripe__SecretKey.";
+        if (key.Any(char.IsWhiteSpace))
+            return "Stripe Secret Key contains spaces or line breaks. Re-paste it in Railway with no extra characters.";
+        return null;
     }
 
     public async Task<(bool Ok, string? Url, string? Error)> CreateCheckoutSessionAsync(
@@ -19,6 +30,12 @@ class StripeBillingService
     {
         if (!_settings.IsStripeConfigured)
             return (false, null, "Stripe is not configured yet.");
+
+        var keyError = ValidateStripeSecretKey(_settings.StripeSecretKey);
+        if (keyError is not null)
+            return (false, null, keyError);
+
+        StripeConfiguration.ApiKey = _settings.StripeSecretKey;
 
         var baseUrl = PublicUrl.Base(request, _settings);
         var lineItem = new SessionLineItemOptions { Quantity = 1 };
