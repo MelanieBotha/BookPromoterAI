@@ -44,6 +44,17 @@ static class OwnerRoutes
             return Results.Redirect("/owner-promos");
         });
 
+        app.MapPost("/owner/plan-payment-ids", (HttpRequest request, AppStoreDb store) =>
+        {
+            if (!store.OwnerUnlocked) return Results.Redirect("/owner-login");
+            var form = request.Form;
+            store.UpdatePlanPaymentIds(
+                form["planId"].ToString(),
+                form["stripePriceId"].ToString(),
+                form["paypalPlanId"].ToString());
+            return Results.Redirect("/owner-promos");
+        });
+
         app.MapPost("/owner/payout-settings", async (HttpRequest request, HttpContext http, AppStoreDb store) =>
         {
             if (!store.OwnerUnlocked) return Results.Redirect("/owner-login");

@@ -11,7 +11,8 @@ static class SecurityMiddleware
             if (HttpMethods.IsPost(context.Request.Method))
             {
                 var path = context.Request.Path.Value ?? "";
-                if (!path.StartsWith("/go/", StringComparison.OrdinalIgnoreCase))
+                if (!path.StartsWith("/go/", StringComparison.OrdinalIgnoreCase) &&
+                    !path.StartsWith("/webhooks/", StringComparison.OrdinalIgnoreCase))
                 {
                     var antiforgery = context.RequestServices.GetRequiredService<IAntiforgery>();
                     try

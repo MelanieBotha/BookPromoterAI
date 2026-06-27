@@ -52,8 +52,30 @@ static class OwnerPage
                     </span>
                     <span class="status available">{plan.BookLimitText} books / {plan.SocialAccountLimitText} accounts</span>
                 </div>
+                <div class="promo-row plan-row">
+                    <span class="muted">{H.Encode(plan.Name)} payment IDs</span>
+                    <span>
+                        <form method="post" action="/owner/plan-payment-ids" class="inline-form tight">
+                            <input type="hidden" name="planId" value="{H.Encode(plan.Id)}">
+                            <label>Stripe Price ID
+                                <input name="stripePriceId" value="{H.Encode(plan.StripePriceId ?? "")}" placeholder="price_... (optional)">
+                            </label>
+                            <label>PayPal Plan ID
+                                <input name="paypalPlanId" value="{H.Encode(plan.PayPalPlanId ?? "")}" placeholder="P-... (required for PayPal)">
+                            </label>
+                            <button class="button small" type="submit">Save IDs</button>
+                        </form>
+                    </span>
+                    <span></span>
+                </div>
                 """);
         }
+
+        var stripeStatus = store.IsStripeConfigured ? "Connected" : "Not configured";
+        var paypalStatus = store.IsPayPalConfigured ? "Connected" : "Not configured";
+        var billingStatus = store.IsBillingConfigured
+            ? $"""<p class="notice success">Stripe: {stripeStatus}. PayPal: {paypalStatus}. Customers can subscribe with live checkout.</p>"""
+            : """<p class="notice error">Billing is not live yet. Add API keys in Railway (see setup steps below).</p>""";
 
         var payout = store.GetOwnerPayoutSettings();
         var payoutSummary = payout.IsConfigured
@@ -81,9 +103,26 @@ static class OwnerPage
             {notice}
 
             <details class="owner-collapsible" open>
+                <summary class="owner-collapsible-heading">Stripe &amp; PayPal Billing</summary>
+                <div class="panel owner-settings">
+                    {billingStatus}
+                    <p class="muted">Add these <strong>Railway variables</strong> (Settings &rarr; Variables) to go live:</p>
+                    <ul class="plan-features">
+                        <li><code>Stripe__SecretKey</code>, <code>Stripe__PublishableKey</code>, <code>Stripe__WebhookSecret</code></li>
+                        <li><code>PayPal__ClientId</code>, <code>PayPal__ClientSecret</code>, <code>PayPal__WebhookId</code></li>
+                        <li><code>PayPal__UseSandbox</code> = <code>true</code> for testing, <code>false</code> for live</li>
+                    </ul>
+                    <p class="muted"><strong>Stripe webhook URL:</strong> <code>https://bookpromoterai.us/webhooks/stripe</code> (events: checkout.session.completed, customer.subscription.updated, customer.subscription.deleted, invoice.payment_failed)</p>
+                    <p class="muted"><strong>PayPal webhook URL:</strong> <code>https://bookpromoterai.us/webhooks/paypal</code> (events: BILLING.SUBSCRIPTION.ACTIVATED, CANCELLED, SUSPENDED)</p>
+                    <p class="muted">Stripe uses your plan price automatically if no Stripe Price ID is set. PayPal requires a Plan ID per tier — create subscription plans in the PayPal Developer Dashboard, then save the IDs below.</p>
+                    <p class="muted">Payouts go to your Stripe balance (then your bank) or PayPal business account. The bank form below is optional reference only.</p>
+                </div>
+            </details>
+
+            <details class="owner-collapsible">
                 <summary class="owner-collapsible-heading">Payout Bank Account</summary>
                 <div class="panel owner-settings">
-                    <p class="muted">Right now, subscription payments are <strong>not processed</strong> &mdash; customers can pick a plan and enter card details, but no money is collected. When you connect a payment provider such as Stripe, subscription revenue will be deposited to the bank account you save here.</p>
+                    <p class="muted">Optional reference for where you want subscription revenue deposited. Stripe and PayPal pay out to the bank account linked in each provider's dashboard.</p>
                     {payoutSummary}
                     <form method="post" action="/owner/payout-settings" class="form">
                         <label>Account holder name

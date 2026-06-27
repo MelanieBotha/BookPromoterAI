@@ -75,6 +75,32 @@ class AppStoreDb
 
     private void ClearUserCache() => _cachedUser = null;
 
+    public AppSettings Settings => _settings;
+    public bool IsBillingConfigured => _settings.IsBillingConfigured;
+    public bool IsStripeConfigured => _settings.IsStripeConfigured;
+    public bool IsPayPalConfigured => _settings.IsPayPalConfigured;
+
+    public DbUser? GetCurrentDbUser() => GetCurrentUser();
+
+    public DbSubscriptionPlan? GetDbPlan(string planId)
+    {
+        using var db = Db();
+        return db.SubscriptionPlans.Find(planId);
+    }
+
+    public string? CurrentPaymentProvider => GetCurrentUser()?.PaymentProvider;
+    public string? CurrentBillingStatus => GetCurrentUser()?.BillingStatus;
+    public bool HasProviderSubscription
+    {
+        get
+        {
+            var u = GetCurrentUser();
+            return u is not null && (
+                !string.IsNullOrWhiteSpace(u.StripeSubscriptionId) ||
+                !string.IsNullOrWhiteSpace(u.PayPalSubscriptionId));
+        }
+    }
+
     // ── Plans ──────────────────────────────────────────────────────────
     public List<SubscriptionPlan> Plans
     {
@@ -871,13 +897,111 @@ class AppStoreDb
         var user = db.Users.FirstOrDefault(u => u.Email == LoggedInEmail);
         if (user is null) return new(false, "Not logged in.");
         user.IsCancelled = true; user.SubscriptionEndsAt ??= DateTime.UtcNow.AddMonths(1);
-        user.PaymentType = null; user.PaymentCountry = null; user.PaymentRegion = null;
-        user.CardholderName = null; user.CardLast4 = null; user.CardExpiry = null;
-        user.BankName = null; user.BankRoutingOrSortCode = null; user.BankIban = null;
+        if (string.IsNullOrWhiteSpace(user.StripeSubscriptionId) && string.IsNullOrWhiteSpace(user.PayPalSubscriptionId))
+        {
+            user.PaymentType = null; user.PaymentCountry = null; user.PaymentRegion = null;
+            user.CardholderName = null; user.CardLast4 = null; user.CardExpiry = null;
+            user.BankName = null; user.BankRoutingOrSortCode = null; user.BankIban = null;
+        }
+        user.BillingStatus = "cancelled";
         db.SaveChanges();
         ClearUserCache();
         return new(true, $"Subscription cancelled. Access continues until {user.SubscriptionEndsAt:MMMM d, yyyy}.");
     }
+
+    public bool ActivatePaidSubscriptionFromProvider(
+        int userId, string planId, string provider,
+        string? stripeCustomerId, string? stripeSubscriptionId, string? paypalSubscriptionId,
+        DateTime periodEnd, string paymentSummary)
+    {
+        using var db = Db();
+        var plan = db.SubscriptionPlans.Find(planId);
+        if (plan is null) return false;
+        var user = db.Users.Find(userId);
+        if (user is null) return false;
+
+        user.HasCustomerAccess = true;
+        user.AccessType = $"{plan.Name} Subscription";
+        user.CurrentPlanId = plan.Id;
+        user.IsCancelled = false;
+        user.SubscriptionEndsAt = periodEnd;
+        user.PaymentProvider = provider;
+        user.BillingStatus = "active";
+        user.PaymentType = provider;
+        user.CardholderName = paymentSummary;
+
+        if (!string.IsNullOrWhiteSpace(stripeCustomerId)) user.StripeCustomerId = stripeCustomerId;
+        if (!string.IsNullOrWhiteSpace(stripeSubscriptionId)) user.StripeSubscriptionId = stripeSubscriptionId;
+        if (!string.IsNullOrWhiteSpace(paypalSubscriptionId)) user.PayPalSubscriptionId = paypalSubscriptionId;
+
+        if (!db.Subscriptions.Any(s => s.UserId == userId && s.PromoCodeUsed.StartsWith("Paid")))
+        {
+            db.Subscriptions.Add(new DbSubscription
+            {
+                UserId = userId,
+                Email = user.Email,
+                TrialStartedAt = DateTime.UtcNow,
+                TrialEndsAt = periodEnd,
+                PromoCodeUsed = $"Paid ({plan.Name})"
+            });
+        }
+
+        db.SaveChanges();
+        if (user.Email == LoggedInEmail) ClearUserCache();
+        return true;
+    }
+
+    public void MarkSubscriptionPendingCancel(string externalSubscriptionId, string provider, DateTime periodEnd)
+    {
+        using var db = Db();
+        var user = FindUserByExternalSubscription(db, externalSubscriptionId, provider);
+        if (user is null) return;
+        user.IsCancelled = true;
+        user.SubscriptionEndsAt = periodEnd;
+        user.BillingStatus = "active";
+        db.SaveChanges();
+        if (user.Email == LoggedInEmail) ClearUserCache();
+    }
+
+    public void MarkSubscriptionCancelledByProvider(string externalSubscriptionId, string provider, DateTime? periodEnd)
+    {
+        using var db = Db();
+        var user = FindUserByExternalSubscription(db, externalSubscriptionId, provider);
+        if (user is null) return;
+        user.IsCancelled = true;
+        user.SubscriptionEndsAt = periodEnd ?? DateTime.UtcNow;
+        user.BillingStatus = "cancelled";
+        db.SaveChanges();
+        if (user.Email == LoggedInEmail) ClearUserCache();
+    }
+
+    public void SyncProviderSubscription(string externalSubscriptionId, string provider, string status, DateTime periodEnd)
+    {
+        using var db = Db();
+        var user = FindUserByExternalSubscription(db, externalSubscriptionId, provider);
+        if (user is null) return;
+        user.SubscriptionEndsAt = periodEnd;
+        user.BillingStatus = status;
+        user.IsCancelled = false;
+        user.HasCustomerAccess = status is "active" or "past_due";
+        db.SaveChanges();
+        if (user.Email == LoggedInEmail) ClearUserCache();
+    }
+
+    public void SetBillingStatus(string externalSubscriptionId, string provider, string status)
+    {
+        using var db = Db();
+        var user = FindUserByExternalSubscription(db, externalSubscriptionId, provider);
+        if (user is null) return;
+        user.BillingStatus = status;
+        db.SaveChanges();
+        if (user.Email == LoggedInEmail) ClearUserCache();
+    }
+
+    static DbUser? FindUserByExternalSubscription(AppDbContext db, string externalId, string provider) =>
+        provider == "stripe"
+            ? db.Users.FirstOrDefault(u => u.StripeSubscriptionId == externalId)
+            : db.Users.FirstOrDefault(u => u.PayPalSubscriptionId == externalId);
 
     public void CheckAccessExpiry()
     {
@@ -947,6 +1071,29 @@ class AppStoreDb
         using var db = Db();
         var plan = db.SubscriptionPlans.Find(planId);
         if (plan is not null) { plan.MonthlyFee = Math.Max(0, fee); db.SaveChanges(); }
+    }
+
+    public void UpdatePlanPaymentIds(string planId, string? stripePriceId, string? paypalPlanId)
+    {
+        using var db = Db();
+        var plan = db.SubscriptionPlans.Find(planId);
+        if (plan is null) return;
+        plan.StripePriceId = stripePriceId?.Trim() ?? "";
+        plan.PayPalPlanId = paypalPlanId?.Trim() ?? "";
+        db.SaveChanges();
+    }
+
+    public void SaveOwnerStripeConnectAccountId(string accountId)
+    {
+        using var db = Db();
+        var row = db.OwnerPayoutSettings.Find(1);
+        if (row is null)
+        {
+            row = new DbOwnerPayoutSettings { Id = 1 };
+            db.OwnerPayoutSettings.Add(row);
+        }
+        row.StripeConnectAccountId = accountId.Trim();
+        db.SaveChanges();
     }
 
     public OwnerPayoutSettings GetOwnerPayoutSettings()
@@ -1052,8 +1199,22 @@ class AppStoreDb
     static Client ToModel(DbClient c) => new() { Id = c.Id, Name = c.Name, ContactEmail = c.ContactEmail, Notes = c.Notes };
     static PromoCode ToModel(DbPromoCode p) => new() { Code = p.Code, FreeTrialDays = p.FreeTrialDays, IntendedRecipientEmail = p.IntendedRecipientEmail, IsRedeemed = p.IsRedeemed, RedeemedByEmail = p.RedeemedByEmail, RedeemedAt = p.RedeemedAt, IsLifetimeFree = p.IsLifetimeFree };
     static FeedbackEntry ToModel(DbFeedbackEntry f) => new() { Id = f.Id, Email = f.Email, Category = f.Category, Message = f.Message, SubmittedAt = f.SubmittedAt, Investigated = f.Investigated, ThankYouEmail = f.ThankYouEmail };
-    static SubscriptionPlan ToModel(DbSubscriptionPlan p) => new() { Id = p.Id, Name = p.Name, MonthlyFee = p.MonthlyFee, BookLimit = p.BookLimit, SocialAccountLimit = p.SocialAccountLimit, AiPostsPerMonth = p.AiPostsPerMonth, HasTeamAccess = p.HasTeamAccess, HasAdvancedAnalytics = p.HasAdvancedAnalytics, HasMultiClient = p.HasMultiClient, Features = JsonSerializer.Deserialize<List<string>>(p.FeaturesJson) ?? [] };
-    static OwnerPayoutSettings ToModel(DbOwnerPayoutSettings s) => new() { AccountHolderName = s.AccountHolderName, BankName = s.BankName, AccountType = s.AccountType, RoutingOrSortCode = s.RoutingOrSortCode, AccountNumber = s.AccountNumber, Iban = s.Iban, Notes = s.Notes };
+    static SubscriptionPlan ToModel(DbSubscriptionPlan p) => new()
+    {
+        Id = p.Id, Name = p.Name, MonthlyFee = p.MonthlyFee, BookLimit = p.BookLimit,
+        SocialAccountLimit = p.SocialAccountLimit, AiPostsPerMonth = p.AiPostsPerMonth,
+        HasTeamAccess = p.HasTeamAccess, HasAdvancedAnalytics = p.HasAdvancedAnalytics,
+        HasMultiClient = p.HasMultiClient,
+        Features = JsonSerializer.Deserialize<List<string>>(p.FeaturesJson) ?? [],
+        StripePriceId = p.StripePriceId,
+        PayPalPlanId = p.PayPalPlanId
+    };
+    static OwnerPayoutSettings ToModel(DbOwnerPayoutSettings s) => new()
+    {
+        AccountHolderName = s.AccountHolderName, BankName = s.BankName, AccountType = s.AccountType,
+        RoutingOrSortCode = s.RoutingOrSortCode, AccountNumber = s.AccountNumber, Iban = s.Iban,
+        Notes = s.Notes, StripeConnectAccountId = s.StripeConnectAccountId
+    };
     static MailingListSubscriber ToModel(DbMailingListSubscriber s) => new() { Id = s.Id, Email = s.Email, Name = s.Name, SubscribedAt = s.SubscribedAt, Source = s.Source };
     static MailingListCampaign ToModel(DbMailingListCampaign c) => new() { Id = c.Id, Subject = c.Subject, Body = c.Body, RecipientCount = c.RecipientCount, FailedCount = c.FailedCount, SentAt = c.SentAt };
 }

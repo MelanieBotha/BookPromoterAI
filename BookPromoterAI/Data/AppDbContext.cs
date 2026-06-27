@@ -96,6 +96,13 @@ class DbUser
     public string? BankRoutingOrSortCode { get; set; }
     public string? BankIban { get; set; }
 
+    // Payment provider billing (Stripe / PayPal)
+    public string? StripeCustomerId { get; set; }
+    public string? StripeSubscriptionId { get; set; }
+    public string? PayPalSubscriptionId { get; set; }
+    public string? PaymentProvider { get; set; }
+    public string? BillingStatus { get; set; }
+
     // Password reset
     public string? ResetToken { get; set; }
     public DateTime? ResetTokenExpiresAt { get; set; }
@@ -268,6 +275,8 @@ class DbSubscriptionPlan
     public bool HasAdvancedAnalytics { get; set; }
     public bool HasMultiClient { get; set; }
     public string FeaturesJson { get; set; } = "[]";
+    public string? StripePriceId { get; set; }
+    public string? PayPalPlanId { get; set; }
 }
 
 class DbOwnerPayoutSettings
@@ -280,6 +289,7 @@ class DbOwnerPayoutSettings
     public string AccountNumber { get; set; } = "";
     public string Iban { get; set; } = "";
     public string Notes { get; set; } = "";
+    public string StripeConnectAccountId { get; set; } = "";
 }
 
 class DbMailingListSubscriber

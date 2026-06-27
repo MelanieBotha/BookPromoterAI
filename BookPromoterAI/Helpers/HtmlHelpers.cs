@@ -56,7 +56,7 @@ static class H
         {
             var settings = http.RequestServices.GetService<AppSettings>();
             if (settings?.ShowSoftLaunchBanner == true)
-                softLaunchBanner = SoftLaunchBanner();
+                softLaunchBanner = SoftLaunchBanner(settings);
         }
 
         var navActions = store.IsLoggedIn && store.HasCustomerAccess
@@ -137,7 +137,7 @@ static class H
         {
             var settings = http.RequestServices.GetService<AppSettings>();
             if (settings?.ShowSoftLaunchBanner == true)
-                softLaunchBanner = SoftLaunchBanner();
+                softLaunchBanner = SoftLaunchBanner(settings);
         }
 
         return $"""
@@ -273,12 +273,25 @@ static class H
         return menuHtml + script;
     }
 
-    static string SoftLaunchBanner() => """
-        <section class="soft-launch-banner" role="status">
-            <strong>Soft launch</strong>
-            <span>Copy posts from your Ad Library and paste them manually to social platforms. Automatic posting and paid billing are coming soon.</span>
-        </section>
-        """;
+    static string SoftLaunchBanner(AppSettings? settings)
+    {
+        if (settings?.IsBillingConfigured == true)
+        {
+            return """
+                <section class="soft-launch-banner" role="status">
+                    <strong>Live billing</strong>
+                    <span>Subscriptions are processed by Stripe and PayPal. Copy posts from your Ad Library and paste them to social platforms. Automatic posting is coming soon.</span>
+                </section>
+                """;
+        }
+
+        return """
+            <section class="soft-launch-banner" role="status">
+                <strong>Soft launch</strong>
+                <span>Copy posts from your Ad Library and paste them manually to social platforms. Add Stripe/PayPal API keys in Railway to enable paid subscriptions.</span>
+            </section>
+            """;
+    }
 
     static string AccountBanner(AppStoreDb store)
     {

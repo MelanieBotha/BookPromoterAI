@@ -89,6 +89,8 @@ class SubscriptionPlan
     public bool HasAdvancedAnalytics { get; set; }
     public bool HasMultiClient { get; set; }
     public List<string> Features { get; set; } = [];
+    public string? StripePriceId { get; set; }
+    public string? PayPalPlanId { get; set; }
 
     public string BookLimitText => BookLimit?.ToString() ?? "Unlimited";
     public string SocialAccountLimitText => SocialAccountLimit?.ToString() ?? "Unlimited";
@@ -245,6 +247,7 @@ class OwnerPayoutSettings
     public string AccountNumber { get; set; } = "";
     public string Iban { get; set; } = "";
     public string Notes { get; set; } = "";
+    public string StripeConnectAccountId { get; set; } = "";
 
     public bool IsConfigured =>
         !string.IsNullOrWhiteSpace(AccountHolderName) &&

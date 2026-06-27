@@ -43,6 +43,9 @@ builder.Services.AddDbContextFactory<AppDbContext>(options =>
     options.UseSqlite($"Data Source={dbPath}"));
 
 builder.Services.AddScoped<AppStoreDb>();
+builder.Services.AddHttpClient();
+builder.Services.AddSingleton<StripeBillingService>();
+builder.Services.AddSingleton<PayPalBillingService>();
 
 var generator = new PostGenerator();
 var mailingListEmailGenerator = new MailingListEmailGenerator();
@@ -77,6 +80,7 @@ AdLibraryRoutes.Map(app, generator);
 AuthRoutes.Map(app);
 MyAccountRoutes.Map(app);
 BillingRoutes.Map(app);
+WebhookRoutes.Map(app);
 TeamRoutes.Map(app);
 AnalyticsRoutes.Map(app);
 ClientRoutes.Map(app);
