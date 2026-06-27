@@ -31,8 +31,10 @@ static class PostBranding
     public static string Footer(string platform, string appBaseUrl)
     {
         var startUrl = $"{appBaseUrl.TrimEnd('/')}/start";
-        return platform.Equals("X", StringComparison.OrdinalIgnoreCase)
-            ? $"\n\nAuthors — promote your books: {startUrl}"
-            : $"\n\n—\nAre you an author? Promote your books with BookPromoter AI.\n{startUrl}";
+        if (platform.Equals("X", StringComparison.OrdinalIgnoreCase) ||
+            platform.StartsWith("X (", StringComparison.OrdinalIgnoreCase) ||
+            PostLimits.IsBluesky(platform))
+            return $"\n\nAuthors — promote your books: {startUrl}";
+        return $"\n\n—\nAre you an author? Promote your books with BookPromoter AI.\n{startUrl}";
     }
 }

@@ -31,9 +31,12 @@ class PostGenerator
 
         var body = platform switch
         {
-            "X" => hasLink
+            _ when PostLimits.IsX(platform) => hasLink
                 ? $"{hook} {link} #Books #{CleanTag(book.Genre)}"
                 : $"{hook} #Books #{CleanTag(book.Genre)}",
+            _ when PostLimits.IsBluesky(platform) => hasLink
+                ? $"{hook} {link} #Books #{CleanTag(book.GenreOrDefault())}"
+                : $"{hook} #Books #{CleanTag(book.GenreOrDefault())}",
             "Instagram" => hasLink
                 ? $"{hook}\n\n{ctaLine}\n\n#Bookstagram #{CleanTag(book.GenreOrDefault())}"
                 : $"{hook}\n\n{ctaLine}\n\n#Bookstagram #{CleanTag(book.GenreOrDefault())}",
@@ -43,9 +46,14 @@ class PostGenerator
         };
 
         if (!string.IsNullOrWhiteSpace(appBaseUrl))
-            body += PostBranding.Footer(platform, appBaseUrl);
+        {
+            var footer = PostBranding.Footer(platform, appBaseUrl);
+            var max = PostLimits.GetMaxGraphemes(platform);
+            if (max is null || PostLimits.GraphemeLength(body) + PostLimits.GraphemeLength(footer) <= max)
+                body += footer;
+        }
 
-        return body;
+        return PostLimits.Enforce(body, platform);
     }
 
     private static string? ExtractDescriptionHook(string description, int variantSeed)

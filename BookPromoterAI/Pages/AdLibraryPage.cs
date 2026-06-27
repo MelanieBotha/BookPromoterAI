@@ -78,6 +78,7 @@ static class AdLibraryPage
                         : $"""<form method="post" action="/ad-library/approve/{ad.Id}">{searchField}<button class="button small" type="submit">Approve for Auto-Post</button></form>"""
                     : "";
 
+                var charCount = PostLimits.CharacterCountLabel(ad.Platform, ad.PostText);
                 var focusClass = focus == $"ad-{ad.Id}" ? " post-card-focused" : "";
                 var coverUrl = PostBranding.AbsoluteImageUrl(assetBaseUrl, ad.CoverImageUrl);
                 cards.Append($"""
@@ -90,7 +91,7 @@ static class AdLibraryPage
                             </div>
                             {statusBadge}
                         </div>
-                        <p class="platform-tag">{H.Encode(ad.Platform)}</p>
+                        <p class="platform-tag">{H.Encode(ad.Platform)}{charCount}</p>
                         <p>{H.Encode(ad.PostText)}</p>
                         <textarea id="{copyId}" class="copy-source" readonly>{H.Encode(ad.PostText)}</textarea>
                         <div class="post-card-actions">

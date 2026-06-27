@@ -1,0 +1,25 @@
+---
+description: Bump app version in BookPromoterAI.csproj whenever shipping code changes
+alwaysApply: true
+---
+
+# Bump app version on every change
+
+When you modify the BookPromoter AI app and commit or push, **always bump the version** in `BookPromoterAI/BookPromoterAI.csproj`:
+
+```xml
+<Version>1.3.0</Version>
+<AssemblyVersion>1.3.0.0</AssemblyVersion>
+<FileVersion>1.3.0.0</FileVersion>
+<InformationalVersion>1.3.0</InformationalVersion>
+```
+
+Use [semantic versioning](https://semver.org/):
+
+- **Patch** (1.3.0 → 1.3.1): bug fixes, copy tweaks, small UI polish
+- **Minor** (1.3.0 → 1.4.0): new features (billing, checkout flow, platform limits)
+- **Major** (1.3.0 → 2.0.0): breaking changes or large rewrites
+
+Do **not** edit the hardcoded footer text. Version is read automatically from the assembly via `AppVersion.Display` in `AppVersion.cs` and shown in app/marketing footers and the Owner page.
+
+Include the version bump in the same commit as the functional changes.

@@ -37,6 +37,7 @@ class SocialPostingService
             "facebook" => await PostToFacebook(account, postText),
             "instagram" => await PostToInstagram(account, postText),
             "x" or "x (twitter)" or "twitter" => await PostToX(account, postText),
+            "bluesky" => await PostToBluesky(account, postText),
             "linkedin" => await PostToLinkedIn(account, postText),
             "pinterest" => await PostToPinterest(account, postText),
             "tiktok" => await PostToTikTok(account, postText),
@@ -89,6 +90,19 @@ class SocialPostingService
 
         await Task.CompletedTask;
         return PostingResult.Ok("(Simulated) Posted to X.");
+    }
+
+    async Task<PostingResult> PostToBluesky(SocialAccount account, string postText)
+    {
+        if (!PostLimits.IsWithinLimit(postText, "Bluesky"))
+            return PostingResult.Failure($"Post exceeds Bluesky's {PostLimits.BlueskyMaxGraphemes}-character limit ({PostLimits.GraphemeLength(postText)} graphemes). Regenerate or shorten the post.");
+
+        // REAL IMPLEMENTATION (AT Protocol, app.bsky.feed.post — max 300 graphemes):
+        // POST https://bsky.social/xrpc/com.atproto.repo.createRecord
+        // with record.text capped at 300 graphemes.
+
+        await Task.CompletedTask;
+        return PostingResult.Ok("(Simulated) Posted to Bluesky.");
     }
 
     async Task<PostingResult> PostToLinkedIn(SocialAccount account, string postText)

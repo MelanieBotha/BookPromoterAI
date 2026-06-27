@@ -93,6 +93,7 @@ static class H
             </main>
             <footer class="app-footer marketing-footer">
                 <span>BookPromoter AI</span>
+                <span>v{AppVersion.Display}</span>
                 <a href="/start">Sign in</a>
                 <a href="/trial">Free access code</a>
                 <span>&copy; {DateTime.UtcNow.Year}</span>
@@ -169,7 +170,7 @@ static class H
             </main>
             <footer class="app-footer">
                 <span>BookPromoter AI</span>
-                <span>Version 1.0.0</span>
+                <span>v{AppVersion.Display}</span>
                 <span>&copy; {DateTime.UtcNow.Year}</span>
             </footer>
             {csrfScript}

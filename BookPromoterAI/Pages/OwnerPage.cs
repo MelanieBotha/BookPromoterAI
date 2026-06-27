@@ -98,6 +98,7 @@ static class OwnerPage
                 <h1>Owner</h1>
                 <p class="muted">Starter owner view. Protect this page so only you can see and create codes.</p>
                 <p class="muted">Owner PIN is configured in application settings. Change it before a real launch.</p>
+                <p class="muted small-text">App version <strong>v{AppVersion.Display}</strong></p>
             </section>
 
             {notice}
