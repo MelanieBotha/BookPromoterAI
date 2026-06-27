@@ -21,7 +21,7 @@ static class AuthRoutes
                     <p>Enter your email and we'll send you a 30-day access code.</p>
                     <a class="button" href="/trial">Get Access Code</a>
                 </section>
-                {BillingPage.PlansSection(store, "/subscription")}
+                {BillingPage.PlanPicker(store, "/subscription/checkout", changeMode: false)}
                 """, store), "text/html");
         });
 

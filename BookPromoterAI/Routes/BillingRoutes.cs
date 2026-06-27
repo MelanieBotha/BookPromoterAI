@@ -14,6 +14,16 @@ static class BillingRoutes
             return Results.Content(H.RenderPage(http, "Subscribe", BillingPage.SubscribePage(store, cancelled), store), "text/html");
         });
 
+        app.MapGet("/subscription/checkout", (HttpRequest request, HttpContext http, AppStoreDb store) =>
+        {
+            if (!store.IsLoggedIn) return Results.Redirect("/start");
+            if (store.HasCustomerAccess) return Results.Redirect("/billing");
+            var planId = request.Query["plan"].ToString();
+            if (string.IsNullOrWhiteSpace(planId))
+                return Results.Redirect("/subscription");
+            return Results.Content(H.RenderPage(http, "Checkout", BillingPage.CheckoutPage(store, planId, ""), store), "text/html");
+        });
+
         app.MapPost("/subscription", async (HttpRequest request, HttpContext http, AppStoreDb store) =>
         {
             if (!store.IsLoggedIn) return Results.Redirect("/start");
@@ -21,11 +31,12 @@ static class BillingRoutes
                 return Results.Redirect("/subscription");
 
             var form = await request.ReadFormAsync();
+            var planId = form["plan"].ToString();
             var payment = PaymentOptions.Parse(form);
-            var result = store.StartPaidSubscription(form["email"].ToString(), form["plan"].ToString(), payment);
+            var result = store.StartPaidSubscription(form["email"].ToString(), planId, payment);
             if (result.Success) return Results.Redirect("/dashboard");
             var notice = $"""<div class="notice error">{H.Encode(result.Message)}</div>""";
-            return Results.Content(H.RenderPage(http, "Subscribe", BillingPage.SubscribePage(store, notice, payment), store), "text/html");
+            return Results.Content(H.RenderPage(http, "Checkout", BillingPage.CheckoutPage(store, planId, notice, payment), store), "text/html");
         });
 
         app.MapPost("/subscription/stripe", async (HttpRequest request, HttpContext http, AppStoreDb store, StripeBillingService stripe) =>
@@ -36,11 +47,11 @@ static class BillingRoutes
             var user = store.GetCurrentDbUser();
             var plan = store.GetDbPlan(planId);
             if (user is null || plan is null)
-                return BillingError(http, store, "Choose a valid plan.");
+                return BillingError(http, store, planId, "Choose a valid plan.");
 
             var (ok, url, error) = await stripe.CreateCheckoutSessionAsync(request, user, plan, planId);
             if (ok && url is not null) return Results.Redirect(url);
-            return BillingError(http, store, error ?? "Could not start Stripe checkout.");
+            return BillingError(http, store, planId, error ?? "Could not start Stripe checkout.");
         });
 
         app.MapPost("/subscription/paypal", async (HttpRequest request, HttpContext http, AppStoreDb store, PayPalBillingService paypal) =>
@@ -51,11 +62,11 @@ static class BillingRoutes
             var user = store.GetCurrentDbUser();
             var plan = store.GetDbPlan(planId);
             if (user is null || plan is null)
-                return BillingError(http, store, "Choose a valid plan.");
+                return BillingError(http, store, planId, "Choose a valid plan.");
 
             var (ok, url, error) = await paypal.CreateSubscriptionAsync(request, user, plan, planId);
             if (ok && url is not null) return Results.Redirect(url);
-            return BillingError(http, store, error ?? "Could not start PayPal checkout.");
+            return BillingError(http, store, planId, error ?? "Could not start PayPal checkout.");
         });
 
         app.MapGet("/subscription/success", async (HttpRequest request, HttpContext http, AppStoreDb store, StripeBillingService stripe) =>
@@ -153,8 +164,8 @@ static class BillingRoutes
         });
     }
 
-    static IResult BillingError(HttpContext http, AppStoreDb store, string message) =>
+    static IResult BillingError(HttpContext http, AppStoreDb store, string planId, string message) =>
         Results.Content(
-            H.RenderPage(http, "Subscribe", BillingPage.SubscribePage(store, $"""<div class="notice error">{H.Encode(message)}</div>"""), store),
+            H.RenderPage(http, "Checkout", BillingPage.CheckoutPage(store, planId, $"""<div class="notice error">{H.Encode(message)}</div>"""), store),
             "text/html");
 }

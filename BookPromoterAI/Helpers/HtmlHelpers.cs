@@ -390,6 +390,8 @@ h2{font-size:22px}
 .author-heading{font-size:18px;margin:18px 0 8px;color:var(--ink);border-bottom:2px solid var(--accent);padding-bottom:6px}
 .author-book-group{display:grid;gap:8px;margin-bottom:18px}
 .platform-tag{display:inline-block;background:var(--soft);color:var(--accent);font-weight:700;font-size:12px;padding:3px 8px;border-radius:999px;margin:0 0 6px;width:fit-content}
+.char-count{font-weight:500;color:var(--muted)}
+.char-count-over{color:#b91c1c;font-weight:700}
 .split{display:grid;grid-template-columns:380px 1fr;gap:18px;align-items:start}
 .form{display:grid;gap:14px}
 label{display:grid;gap:6px;color:var(--muted);font-size:14px}
@@ -408,6 +410,21 @@ textarea{min-height:120px}
 .choice-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
 .plans-grid{grid-template-columns:repeat(4,1fr)}
 .plan-card{display:flex;flex-direction:column;gap:10px}
+.plan-picker-btn{width:100%;text-align:center;margin-top:auto}
+.checkout-layout{display:grid;grid-template-columns:minmax(260px,1fr) minmax(320px,1.25fr);gap:20px;max-width:920px;margin:0 auto 24px;align-items:start}
+.checkout-summary{background:var(--soft);position:sticky;top:16px}
+.checkout-eyebrow{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 4px}
+.checkout-plan-name{margin:0 0 4px;font-size:26px}
+.checkout-price{font-size:28px;font-weight:700;margin:0 0 12px}
+.checkout-price span{font-size:14px;font-weight:500;color:var(--muted)}
+.checkout-features{margin-bottom:12px}
+.checkout-payment h2{margin-top:0}
+.checkout-account{margin:0 0 16px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.checkout-pay-form{margin:0 0 10px}
+.checkout-pay-btn{width:100%;padding:14px 18px;font-size:16px;font-weight:600}
+.checkout-secure{margin-top:8px}
+.checkout-form .checkout-pay-btn{margin-top:8px}
+.checkout-hero{margin-bottom:8px}
 .plan-features{margin:0;padding-left:18px;color:var(--muted);font-size:14px;flex:1}
 .plan-form{display:grid;gap:8px}
 .price{font-size:36px;font-weight:800;margin:0 0 10px}.price span{font-size:18px;color:var(--muted);font-weight:400}
@@ -499,7 +516,7 @@ details[open] .owner-collapsible-heading::after{transform:rotate(180deg)}
 .bar-value{font-size:13px;font-weight:700;text-align:right}
 .oauth-panel{max-width:520px}
 .oauth-platform-badge{width:64px;height:64px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:white;font-size:22px;font-weight:900;margin-bottom:16px}
-@media(max-width:1000px){.plans-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:1000px){.plans-grid{grid-template-columns:repeat(2,1fr)}.checkout-layout{grid-template-columns:1fr}.checkout-summary{position:static}}
 @media(max-width:800px){.hero,.topbar,.book-row{align-items:flex-start;flex-direction:column}.stats,.post-grid,.split,.schedule-row,.promo-header,.promo-row,.choice-grid,.plans-grid,.link-row,.bar-row{grid-template-columns:1fr}}
 .app-footer{text-align:center;padding:18px 28px;border-top:1px solid var(--line);background:var(--paper);color:var(--muted);font-size:12px;display:flex;justify-content:center;gap:24px;margin-top:32px;flex-wrap:wrap}
 .marketing-body{background:linear-gradient(180deg,#f8fafc 0%,var(--soft) 240px)}
