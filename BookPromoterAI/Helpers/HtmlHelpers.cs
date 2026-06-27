@@ -160,7 +160,7 @@ static class H
                     <a href="/dashboard">Dashboard</a>
                     {ManageDropdown(store)}
                     {AccountDropdown(store)}
-                    <a href="/owner-promos">Owner</a>
+                    {(store.IsOwner ? """<a href="/owner-promos">Owner</a>""" : "")}
                 </nav>
             </header>
             <main class="page">
@@ -281,7 +281,7 @@ static class H
             return """
                 <section class="soft-launch-banner" role="status">
                     <strong>Live billing</strong>
-                    <span>Subscriptions are processed by Stripe and PayPal. Copy posts from your Ad Library and paste them to social platforms. Automatic posting is coming soon.</span>
+                    <span>Subscriptions are processed by Stripe. Copy posts from your Ad Library and paste them to social platforms. Automatic posting is coming soon.</span>
                 </section>
                 """;
         }
@@ -289,7 +289,7 @@ static class H
         return """
             <section class="soft-launch-banner" role="status">
                 <strong>Soft launch</strong>
-                <span>Copy posts from your Ad Library and paste them manually to social platforms. Add Stripe/PayPal API keys in Railway to enable paid subscriptions.</span>
+                <span>Copy posts from your Ad Library and paste them manually to social platforms. Add Stripe API keys in Railway to enable paid subscriptions.</span>
             </section>
             """;
     }

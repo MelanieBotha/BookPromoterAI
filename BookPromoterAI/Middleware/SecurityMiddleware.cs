@@ -28,6 +28,17 @@ static class SecurityMiddleware
                 }
             }
 
+            var requestPath = context.Request.Path.Value ?? "";
+            if (requestPath.StartsWith("/owner", StringComparison.OrdinalIgnoreCase))
+            {
+                var ownerStore = context.RequestServices.GetService<AppStoreDb>();
+                if (ownerStore is not null && !ownerStore.IsOwner)
+                {
+                    context.Response.Redirect("/dashboard");
+                    return;
+                }
+            }
+
             if (context.Request.Path.StartsWithSegments("/books") ||
                 context.Request.Path.StartsWithSegments("/ad-library") ||
                 context.Request.Path.StartsWithSegments("/analytics") ||

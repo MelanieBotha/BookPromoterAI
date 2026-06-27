@@ -97,28 +97,6 @@ static class AuthPages
         </section>
         """;
 
-    public static string OwnerLogin(string notice) => $"""
-        <section class="split">
-            <form method="post" action="/owner-login" class="panel form">
-                <h1>Owner Login</h1>
-                <p class="muted">This protects the owner-only promo code and subscription price settings.</p>
-                {notice}
-                <label>Owner PIN
-                    <div class="password-field">
-                        <input id="owner-pin" name="pin" type="password" required>
-                        <button type="button" class="show-password-btn" onclick="togglePassword('owner-pin', this)">Show</button>
-                    </div>
-                </label>
-                <button class="button" type="submit">Unlock Owner Area</button>
-            </form>
-            <section class="panel">
-                <h1>Private Area</h1>
-                <p>Only the app owner should see promo codes and subscription price controls.</p>
-                <p class="muted">Enter the owner PIN from your application configuration.</p>
-            </section>
-        </section>
-        """ + EyeToggleScript;
-
     // Step 1: User enters their email to request a reset link
     public static string ForgotPassword(string notice) => $"""
         <section class="split">

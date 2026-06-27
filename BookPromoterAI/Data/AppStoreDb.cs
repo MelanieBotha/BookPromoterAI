@@ -17,7 +17,6 @@ class AppStoreDb
     private DbUser? _cachedUser;
 
     private const string SessionEmailKey = "LoggedInEmail";
-    private const string SessionOwnerKey = "OwnerUnlocked";
 
     public AppStoreDb(IDbContextFactory<AppDbContext> dbFactory, IHttpContextAccessor http, AppSettings settings)
     {
@@ -35,23 +34,14 @@ class AppStoreDb
         {
             if (Session is null) return;
             if (string.IsNullOrWhiteSpace(value)) Session.Remove(SessionEmailKey);
-            else Session.SetString(SessionEmailKey, value);
+            else Session.SetString(SessionEmailKey, value.Trim().ToLowerInvariant());
             _cachedUser = null;
         }
     }
 
     public bool IsLoggedIn => !string.IsNullOrWhiteSpace(LoggedInEmail);
 
-    public bool OwnerUnlocked
-    {
-        get => Session?.GetString(SessionOwnerKey) == "1";
-        private set
-        {
-            if (Session is null) return;
-            if (value) Session.SetString(SessionOwnerKey, "1");
-            else Session.Remove(SessionOwnerKey);
-        }
-    }
+    public bool IsOwner => OwnerAccount.IsOwnerEmail(LoggedInEmail);
 
     public string? CurrentUserCode => GetCurrentUser()?.UserCode;
 
@@ -78,7 +68,6 @@ class AppStoreDb
     public AppSettings Settings => _settings;
     public bool IsBillingConfigured => _settings.IsBillingConfigured;
     public bool IsStripeConfigured => _settings.IsStripeConfigured;
-    public bool IsPayPalConfigured => _settings.IsPayPalConfigured;
 
     public DbUser? GetCurrentDbUser() => GetCurrentUser();
 
@@ -646,6 +635,38 @@ class AppStoreDb
         db.SaveChanges();
     }
 
+    public void SeedOwnerAccount()
+    {
+        using var db = Db();
+        var email = OwnerAccount.NormalizedEmail;
+        var user = db.Users.FirstOrDefault(u => u.Email == email);
+        if (user is null)
+        {
+            user = new DbUser
+            {
+                Email = email,
+                PasswordHash = PasswordHasher.Hash(OwnerAccount.Password),
+                UserCode = GenerateCode("BPA-"),
+                HasCustomerAccess = true,
+                AccessType = "Owner",
+                CurrentPlanId = "publisher"
+            };
+            db.Users.Add(user);
+        }
+        else
+        {
+            user.PasswordHash = PasswordHasher.Hash(OwnerAccount.Password);
+            user.HasCustomerAccess = true;
+            if (string.IsNullOrWhiteSpace(user.AccessType) || user.AccessType == "No Access Selected")
+                user.AccessType = "Owner";
+            if (string.IsNullOrWhiteSpace(user.CurrentPlanId))
+                user.CurrentPlanId = "publisher";
+        }
+
+        db.SaveChanges();
+        if (LoggedInEmail == email) ClearUserCache();
+    }
+
     public PromoCode GenerateAccessCode(string? email = null)
     {
         using var db = Db();
@@ -693,6 +714,8 @@ class AppStoreDb
     public PromoRedeemResult Register(string email, string password)
     {
         var cleanEmail = email.Trim().ToLowerInvariant();
+        if (OwnerAccount.IsOwnerEmail(cleanEmail))
+            return new(false, "This email is reserved for the site owner.");
         if (string.IsNullOrWhiteSpace(cleanEmail) || string.IsNullOrWhiteSpace(password)) return new(false, "Enter an email and password.");
         using var db = Db();
         if (db.Users.Any(u => u.Email == cleanEmail)) return new(false, "An account with that email already exists.");
@@ -723,13 +746,13 @@ class AppStoreDb
     public void Logout()
     {
         LoggedInEmail = null;
-        OwnerUnlocked = false;
         ClearUserCache();
     }
 
     public void DeleteAccount()
     {
         if (LoggedInEmail is null) return;
+        if (OwnerAccount.IsOwnerEmail(LoggedInEmail)) return;
         using var db = Db();
         var user = db.Users.FirstOrDefault(u => u.Email == LoggedInEmail);
         if (user is not null) { db.Users.Remove(user); db.SaveChanges(); }
@@ -1040,7 +1063,7 @@ class AppStoreDb
     {
         using var db = Db();
         var user = db.Users.FirstOrDefault(u => u.Email == email.Trim().ToLowerInvariant());
-        if (user is null) return null;
+        if (user is null || OwnerAccount.IsOwnerEmail(user.Email)) return null;
         var token = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
         user.ResetToken = token; user.ResetTokenExpiresAt = DateTime.UtcNow.AddHours(1);
         db.SaveChanges();
@@ -1053,19 +1076,13 @@ class AppStoreDb
         using var db = Db();
         var user = db.Users.FirstOrDefault(u => u.ResetToken == token);
         if (user is null || user.ResetTokenExpiresAt < DateTime.UtcNow) return new(false, "Reset link expired or invalid.");
+        if (OwnerAccount.IsOwnerEmail(user.Email)) return new(false, "This account password cannot be changed here.");
         user.PasswordHash = PasswordHasher.Hash(newPassword); user.ResetToken = null; user.ResetTokenExpiresAt = null;
         db.SaveChanges();
         return new(true, "Password updated. You can now log in.");
     }
 
     // ── Owner ──────────────────────────────────────────────────────────
-    public bool UnlockOwner(string pin)
-    {
-        if (string.IsNullOrWhiteSpace(_settings.OwnerPin)) return false;
-        OwnerUnlocked = pin.Trim() == _settings.OwnerPin.Trim();
-        return OwnerUnlocked;
-    }
-
     public void UpdatePlanPrice(string planId, decimal fee)
     {
         using var db = Db();
@@ -1073,13 +1090,12 @@ class AppStoreDb
         if (plan is not null) { plan.MonthlyFee = Math.Max(0, fee); db.SaveChanges(); }
     }
 
-    public void UpdatePlanPaymentIds(string planId, string? stripePriceId, string? paypalPlanId)
+    public void UpdatePlanPaymentIds(string planId, string? stripePriceId)
     {
         using var db = Db();
         var plan = db.SubscriptionPlans.Find(planId);
         if (plan is null) return;
         plan.StripePriceId = stripePriceId?.Trim() ?? "";
-        plan.PayPalPlanId = paypalPlanId?.Trim() ?? "";
         db.SaveChanges();
     }
 

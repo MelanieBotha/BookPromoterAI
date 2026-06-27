@@ -3,7 +3,7 @@ namespace BookPromoterAI;
 
 static class DashboardPage
 {
-    public static string Render(AppStoreDb store, PostGenerator generator, HttpRequest request, AppSettings settings)
+    public static string Render(AppStoreDb store, PostGenerator generator, HttpRequest request, AppSettings settings, string notice = "")
     {
         var totalPostsPerWeek = store.Schedules.Sum(s => s.PostsPerWeek);
 
@@ -106,6 +106,8 @@ static class DashboardPage
                     <a class="button secondary" href="/logout">Log Out</a>
                 </div>
             </section>
+
+            {notice}
 
             <section class="stats">
                 <div><span>{store.Books.Count}</span><small>Books</small></div>

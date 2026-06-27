@@ -54,45 +54,34 @@ static class BillingRoutes
             return BillingError(http, store, planId, error ?? "Could not start Stripe checkout.");
         });
 
-        app.MapPost("/subscription/paypal", async (HttpRequest request, HttpContext http, AppStoreDb store, PayPalBillingService paypal) =>
-        {
-            if (!store.IsLoggedIn) return Results.Redirect("/start");
-            var form = await request.ReadFormAsync();
-            var planId = form["plan"].ToString();
-            var user = store.GetCurrentDbUser();
-            var plan = store.GetDbPlan(planId);
-            if (user is null || plan is null)
-                return BillingError(http, store, planId, "Choose a valid plan.");
-
-            var (ok, url, error) = await paypal.CreateSubscriptionAsync(request, user, plan, planId);
-            if (ok && url is not null) return Results.Redirect(url);
-            return BillingError(http, store, planId, error ?? "Could not start PayPal checkout.");
-        });
-
         app.MapGet("/subscription/success", async (HttpRequest request, HttpContext http, AppStoreDb store, StripeBillingService stripe) =>
         {
             if (!store.IsLoggedIn) return Results.Redirect("/start");
             var sessionId = request.Query["session_id"].ToString();
-            if (!string.IsNullOrWhiteSpace(sessionId))
-                await stripe.FulfillCheckoutSessionAsync(sessionId, store);
-            return Results.Redirect("/dashboard");
-        });
+            if (string.IsNullOrWhiteSpace(sessionId))
+            {
+                var notice = """<div class="notice error">Missing payment confirmation from Stripe. If you were charged, check Subscription &amp; Billing or contact support.</div>""";
+                return Results.Content(H.RenderPage(http, "Subscribe", BillingPage.SubscribePage(store, notice), store), "text/html");
+            }
 
-        app.MapGet("/subscription/paypal/return", async (HttpRequest request, HttpContext http, AppStoreDb store, PayPalBillingService paypal) =>
-        {
-            if (!store.IsLoggedIn) return Results.Redirect("/start");
-            var subscriptionId = request.Query["subscription_id"].ToString();
-            if (!string.IsNullOrWhiteSpace(subscriptionId))
-                await paypal.FulfillSubscriptionAsync(subscriptionId, store);
-            return Results.Redirect("/dashboard");
+            var user = store.GetCurrentDbUser();
+            var (ok, planId, error) = await stripe.TryFulfillCheckoutSessionAsync(sessionId, store, user?.Id);
+            if (ok) return Results.Redirect("/dashboard?subscribed=1");
+
+            var errNotice = $"""<div class="notice error">{H.Encode(error ?? "Payment could not be confirmed.")}</div>""";
+            if (!string.IsNullOrWhiteSpace(planId))
+                return Results.Content(H.RenderPage(http, "Checkout", BillingPage.CheckoutPage(store, planId, errNotice), store), "text/html");
+            return Results.Content(H.RenderPage(http, "Subscribe", BillingPage.SubscribePage(store, errNotice), store), "text/html");
         });
 
         app.MapPost("/subscription/change", async (HttpRequest request, HttpContext http, AppStoreDb store) =>
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
-            if (store.HasProviderSubscription)
+            if (store.IsBillingConfigured)
             {
-                var notice = """<div class="notice">To change plans, use Manage Billing (Stripe) or cancel and resubscribe.</div>""";
+                var notice = store.HasProviderSubscription
+                    ? """<div class="notice">To change plans, use Manage Billing (Stripe) or cancel and resubscribe.</div>"""
+                    : """<div class="notice">Choose a plan and complete Stripe checkout to subscribe. Plan changes without payment are not allowed.</div>""";
                 return Results.Content(H.RenderPage(http, "Subscription &amp; Billing", BillingPage.Render(store, notice), store), "text/html");
             }
             var form = await request.ReadFormAsync();
@@ -132,7 +121,7 @@ static class BillingRoutes
             return Results.Content(H.RenderPage(http, "Subscription &amp; Billing", BillingPage.Render(store, $"""<div class="notice {cls}">{H.Encode(message)}</div>""", payment), store), "text/html");
         });
 
-        app.MapPost("/billing/cancel", async (HttpContext http, AppStoreDb store, StripeBillingService stripe, PayPalBillingService paypal) =>
+        app.MapPost("/billing/cancel", async (HttpContext http, AppStoreDb store, StripeBillingService stripe) =>
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
             var user = store.GetCurrentDbUser();
@@ -147,14 +136,10 @@ static class BillingRoutes
                     return Results.Content(H.RenderPage(http, "Subscription &amp; Billing", BillingPage.Render(store, errNotice), store), "text/html");
                 }
             }
-            else if (user.PaymentProvider == "paypal" && !string.IsNullOrWhiteSpace(user.PayPalSubscriptionId))
+            else if (user.PaymentProvider == "paypal")
             {
-                var (ok, error) = await paypal.CancelSubscriptionAsync(user);
-                if (!ok)
-                {
-                    var errNotice = $"""<div class="notice error">{H.Encode(error ?? "PayPal cancellation failed.")}</div>""";
-                    return Results.Content(H.RenderPage(http, "Subscription &amp; Billing", BillingPage.Render(store, errNotice), store), "text/html");
-                }
+                var errNotice = """<div class="notice error">PayPal billing is no longer supported here. Cancel your PayPal subscription from your PayPal account, then subscribe again with Stripe if needed.</div>""";
+                return Results.Content(H.RenderPage(http, "Subscription &amp; Billing", BillingPage.Render(store, errNotice), store), "text/html");
             }
 
             var result = store.CancelSubscription();

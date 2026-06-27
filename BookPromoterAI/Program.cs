@@ -45,7 +45,6 @@ builder.Services.AddDbContextFactory<AppDbContext>(options =>
 builder.Services.AddScoped<AppStoreDb>();
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<StripeBillingService>();
-builder.Services.AddSingleton<PayPalBillingService>();
 
 var generator = new PostGenerator();
 var mailingListEmailGenerator = new MailingListEmailGenerator();
@@ -60,6 +59,7 @@ using (var scope = app.Services.CreateScope())
     using var db = dbFactory.CreateDbContext();
     DatabaseInitializer.ApplyMigrations(db);
     scope.ServiceProvider.GetRequiredService<AppStoreDb>().SeedPromoCodes();
+    scope.ServiceProvider.GetRequiredService<AppStoreDb>().SeedOwnerAccount();
 }
 
 app.UseForwardedHeaders();

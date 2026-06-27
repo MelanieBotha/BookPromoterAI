@@ -47,7 +47,7 @@ static class BillingPage
                 <div>
                     <p class="eyebrow">Subscription &amp; Billing</p>
                     <h1>Manage your plan and payment details.</h1>
-                    <p class="muted">Pay securely with Stripe (card) or PayPal.</p>
+                    <p class="muted">Pay securely with Stripe (card).</p>
                 </div>
             </section>
 
@@ -139,29 +139,16 @@ static class BillingPage
     {
         if (store.IsBillingConfigured)
         {
-            var buttons = new StringBuilder();
-            if (store.IsStripeConfigured)
-            {
-                buttons.Append($"""
-                    <form method="post" action="/subscription/stripe" class="checkout-pay-form">
-                        <input type="hidden" name="plan" value="{H.Encode(planId)}">
-                        <button class="button checkout-pay-btn" type="submit">Pay with card</button>
-                    </form>
-                    <p class="muted small-text checkout-secure">Secure checkout powered by Stripe. Card details are entered on Stripe's site.</p>
-                    """);
-            }
-            if (store.IsPayPalConfigured)
-            {
-                buttons.Append($"""
-                    <form method="post" action="/subscription/paypal" class="checkout-pay-form">
-                        <input type="hidden" name="plan" value="{H.Encode(planId)}">
-                        <button class="button secondary checkout-pay-btn" type="submit">Pay with PayPal</button>
-                    </form>
-                    """);
-            }
-            if (buttons.Length == 0)
-                return """<p class="notice error">Billing is not fully configured yet.</p>""";
-            return buttons.ToString();
+            if (!store.IsStripeConfigured)
+                return """<p class="notice error">Stripe is not configured yet.</p>""";
+
+            return $"""
+                <form method="post" action="/subscription/stripe" class="checkout-pay-form">
+                    <input type="hidden" name="plan" value="{H.Encode(planId)}">
+                    <button class="button checkout-pay-btn" type="submit">Pay with card</button>
+                </form>
+                <p class="muted small-text checkout-secure">You will be redirected to Stripe to enter your card. Your account is charged <strong>${store.Plans.First(p => p.Id == planId).MonthlyFee:0.00} USD/month</strong> only after Stripe confirms payment. Funds go to the site owner's Stripe account.</p>
+                """;
         }
 
         return $"""
@@ -225,9 +212,7 @@ static class BillingPage
         {
             var manage = store.CurrentPaymentProvider == "stripe" && store.IsStripeConfigured
                 ? """<form method="post" action="/billing/stripe-portal"><button class="button" type="submit">Manage Billing (Stripe)</button></form>"""
-                : store.CurrentPaymentProvider == "paypal"
-                    ? """<p class="muted">Manage your PayPal subscription from your PayPal account.</p>"""
-                    : """<p class="muted">Your subscription is managed by your payment provider.</p>""";
+                : """<p class="muted">Your subscription is managed by your payment provider.</p>""";
 
             return $"""
                 <section class="panel">
