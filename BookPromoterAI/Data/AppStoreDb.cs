@@ -938,7 +938,7 @@ class AppStoreDb
     public bool UnlockOwner(string pin)
     {
         if (string.IsNullOrWhiteSpace(_settings.OwnerPin)) return false;
-        OwnerUnlocked = pin == _settings.OwnerPin;
+        OwnerUnlocked = pin.Trim() == _settings.OwnerPin.Trim();
         return OwnerUnlocked;
     }
 

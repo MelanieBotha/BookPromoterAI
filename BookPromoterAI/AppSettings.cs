@@ -19,7 +19,8 @@ class AppSettings
         SendGridApiKey = config["SendGrid:ApiKey"] ?? "",
         SendGridSenderEmail = config["SendGrid:SenderEmail"] ?? config["SendGrid:FromEmail"] ?? "",
         SendGridSenderName = config["SendGrid:SenderName"] ?? config["SendGrid:FromName"] ?? "BookPromoter AI",
-        OwnerPin = config["Owner:Pin"] ?? "",
+        var ownerPin = config["Owner:Pin"];
+        OwnerPin = string.IsNullOrWhiteSpace(ownerPin) ? "" : ownerPin.Trim(),
         PublicBaseUrl = config["App:PublicBaseUrl"] ?? "",
         ShowSoftLaunchBanner = config.GetValue("Launch:ShowBetaBanner", true)
     };
