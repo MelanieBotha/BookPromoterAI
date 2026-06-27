@@ -114,7 +114,7 @@ static class OwnerPage
                     <ul class="plan-features">
                         <li><code>Stripe__SecretKey</code>, <code>Stripe__PublishableKey</code>, <code>Stripe__WebhookSecret</code></li>
                     </ul>
-                    <p class="muted"><strong>Stripe webhook URL:</strong> <code>https://bookpromoterai.us/webhooks/stripe</code> (events: checkout.session.completed, customer.subscription.updated, customer.subscription.deleted, invoice.payment_failed)</p>
+                    <p class="muted"><strong>Stripe webhook URL:</strong> use your live app URL + <code>/webhooks/stripe</code> (example: <code>https://bookpromoterai-production.up.railway.app/webhooks/stripe</code>). Events: checkout.session.completed, customer.subscription.updated, customer.subscription.deleted, invoice.payment_failed</p>
                     <p class="muted">Stripe uses your plan price automatically if no Stripe Price ID is set. Payouts go to your Stripe balance, then your bank account linked in the Stripe dashboard.</p>
                 </div>
             </details>

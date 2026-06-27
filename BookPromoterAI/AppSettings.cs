@@ -31,32 +31,48 @@ class AppSettings
     public string DescribeStripeSecretKey()
     {
         if (string.IsNullOrWhiteSpace(StripeSecretKey) || StripeSecretKey == "YOUR_STRIPE_SECRET_KEY")
-            return "Missing — add Stripe__SecretKey in Railway.";
+            return "Missing - add Stripe__SecretKey in Railway.";
+        if (StripeSecretKey.StartsWith("pk_", StringComparison.Ordinal))
+            return "Wrong field - this looks like a Publishable key (pk_...). Use sk_live_... in Stripe__SecretKey instead.";
+        if (StripeSecretKey.StartsWith("whsec_", StringComparison.Ordinal))
+            return "Wrong field - this looks like a Webhook secret. Use sk_live_... in Stripe__SecretKey instead.";
         if (StripeSecretKey.StartsWith("rk_", StringComparison.Ordinal))
-            return "Wrong key type — you pasted a restricted key (rk_live_...). Use the standard Secret key (sk_live_...) from Stripe → API keys.";
+            return "Wrong key type - restricted key (rk_live_...). Use the standard Secret key (sk_live_...) from Stripe API keys.";
         if (!StripeSecretKey.StartsWith("sk_", StringComparison.Ordinal))
-            return "Invalid — must start with sk_live_ or sk_test_.";
+        {
+            var head = StripeSecretKey.Length >= 8 ? StripeSecretKey[..8] : StripeSecretKey;
+            return $"Invalid (starts with '{head}...') - must be sk_live_... from Stripe Standard keys.";
+        }
         var prefix = StripeSecretKey.Length >= 12 ? StripeSecretKey[..12] : StripeSecretKey;
         var suffix = StripeSecretKey.Length > 4 ? StripeSecretKey[^4..] : "";
-        return $"Detected ({prefix}...{suffix}).";
+        return $"OK - detected ({prefix}...{suffix}).";
     }
 
     public string DescribeStripePublishableKey()
     {
         if (string.IsNullOrWhiteSpace(StripePublishableKey))
-            return "Missing — add Stripe__PublishableKey in Railway.";
+            return "Missing - add Stripe__PublishableKey in Railway.";
+        if (StripePublishableKey.StartsWith("sk_", StringComparison.Ordinal) || StripePublishableKey.StartsWith("rk_", StringComparison.Ordinal))
+            return "Wrong field - this looks like a Secret key. Use pk_live_... in Stripe__PublishableKey instead.";
+        if (StripePublishableKey.StartsWith("whsec_", StringComparison.Ordinal))
+            return "Wrong field - this looks like a Webhook secret. Use pk_live_... in Stripe__PublishableKey instead.";
         if (!StripePublishableKey.StartsWith("pk_", StringComparison.Ordinal))
-            return "Invalid — must start with pk_live_ or pk_test_.";
-        return "Detected.";
+        {
+            var head = StripePublishableKey.Length >= 8 ? StripePublishableKey[..8] : StripePublishableKey;
+            return $"Invalid (starts with '{head}...') - must be pk_live_... from Stripe Standard keys.";
+        }
+        return "OK - detected.";
     }
 
     public string DescribeStripeWebhookSecret()
     {
         if (string.IsNullOrWhiteSpace(StripeWebhookSecret))
-            return "Missing — add Stripe__WebhookSecret in Railway (from Stripe → Webhooks → Signing secret).";
+            return "Missing - add Stripe__WebhookSecret in Railway (Stripe Webhooks signing secret).";
+        if (StripeWebhookSecret.StartsWith("sk_", StringComparison.Ordinal) || StripeWebhookSecret.StartsWith("pk_", StringComparison.Ordinal))
+            return "Wrong field - this looks like an API key. Use whsec_... from your Stripe webhook endpoint.";
         if (!StripeWebhookSecret.StartsWith("whsec_", StringComparison.Ordinal))
-            return "Invalid — must start with whsec_.";
-        return "Detected.";
+            return "Invalid - must start with whsec_.";
+        return "OK - detected.";
     }
 
     public static AppSettings FromConfiguration(IConfiguration config)
