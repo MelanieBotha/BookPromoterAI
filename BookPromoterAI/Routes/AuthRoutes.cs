@@ -25,16 +25,29 @@ static class AuthRoutes
                 """, store), "text/html");
         });
 
-        app.MapPost("/signup", async (HttpRequest request, HttpContext http, AppStoreDb store) =>
+        app.MapPost("/signup", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings) =>
         {
             var form = await request.ReadFormAsync();
             var acceptedTerms = form["acceptTerms"].ToString();
             var accepted = acceptedTerms.Equals("true", StringComparison.OrdinalIgnoreCase) ||
                            acceptedTerms.Equals("on", StringComparison.OrdinalIgnoreCase);
-            var result = store.Register(form["email"].ToString(), form["password"].ToString(), accepted);
+            var email = form["email"].ToString().Trim().ToLowerInvariant();
+            var result = store.Register(email, form["password"].ToString(), accepted);
             if (!result.Success)
                 return Results.Content(H.RenderMarketingPage(http, "Start", AuthPages.StartLogin($"""<div class="notice error">{H.Encode(result.Message)}</div>"""), store), "text/html");
-            return Results.Redirect("/start");
+
+            var promo = store.FindUnredeemedAccessCode(email) ?? store.IssueAccessCodeForSignup(email);
+            var baseUrl = PublicUrl.Base(request, settings);
+            await EmailService.SendAccessCodeEmail(email, promo.Code, settings.SendGridApiKey, settings.SendGridSenderEmail, settings.SendGridSenderName, baseUrl);
+
+            if (!settings.IsSendGridConfigured)
+            {
+                var devNotice = $"""<div class="notice success">Account created. Your access code is <strong>{H.Encode(promo.Code)}</strong> — enter it below or on Billing.</div>""";
+                return Results.Content(H.RenderMarketingPage(http, "Start", AuthPages.StartLogin(devNotice), store), "text/html");
+            }
+
+            var notice = $"""<div class="notice success">Account created. Your 30-day access code was sent to <strong>{H.Encode(email)}</strong>. Check your inbox, then redeem it on the next screen.</div>""";
+            return Results.Content(H.RenderMarketingPage(http, "Start", AuthPages.StartLogin(notice), store), "text/html");
         });
 
         app.MapPost("/login", async (HttpRequest request, AppStoreDb store) =>
@@ -100,13 +113,25 @@ static class AuthRoutes
             if (string.IsNullOrWhiteSpace(email))
                 return Results.Content(H.RenderMarketingPage(http, "Access Code", AuthPages.TrialRequest("""<div class="notice error">Please enter your email address.</div>"""), store), "text/html");
 
-            var promo = store.GenerateAccessCode(email);
+            if (!store.AccountExists(email))
+            {
+                var signupNotice = """<div class="notice error">Create an account first at <a href="/start">Sign up</a>. Your 30-day access code is emailed automatically when you register.</div>""";
+                return Results.Content(H.RenderMarketingPage(http, "Access Code", AuthPages.TrialRequest(signupNotice), store), "text/html");
+            }
+
+            var promo = store.FindUnredeemedAccessCode(email);
+            if (promo is null)
+            {
+                var usedNotice = """<div class="notice error">No unused access code for that email. You may have already redeemed it — log in and choose a subscription plan, or contact support.</div>""";
+                return Results.Content(H.RenderMarketingPage(http, "Access Code", AuthPages.TrialRequest(usedNotice), store), "text/html");
+            }
+
             var baseUrl = PublicUrl.Base(request, settings);
             await EmailService.SendAccessCodeEmail(email, promo.Code, settings.SendGridApiKey, settings.SendGridSenderEmail, settings.SendGridSenderName, baseUrl);
 
             var devNotice = !settings.IsSendGridConfigured
                 ? $"""<div class="notice error"><strong>Dev mode:</strong> Your access code is <strong>{H.Encode(promo.Code)}</strong> — enter it below.</div>"""
-                : $"""<div class="notice success">Access code sent to <strong>{H.Encode(email)}</strong>. Check your inbox.</div>""";
+                : $"""<div class="notice success">Access code re-sent to <strong>{H.Encode(email)}</strong>. Check your inbox.</div>""";
 
             return Results.Content(H.RenderMarketingPage(http, "Access Code", AuthPages.TrialActivate(email, devNotice), store), "text/html");
         });

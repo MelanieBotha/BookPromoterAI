@@ -661,10 +661,65 @@ class AppStoreDb
 
     public void SeedPromoCodes()
     {
+        // Access codes are created when a user signs up. Lifetime codes are owner-generated only.
+    }
+
+    public PromoCode? FindUnredeemedAccessCode(string email)
+    {
+        var cleanEmail = email.Trim().ToLowerInvariant();
         using var db = Db();
-        if (db.PromoCodes.Any()) return; // already seeded
-        db.PromoCodes.Add(new DbPromoCode { Code = GenerateCode("LIFETIME-"), IsLifetimeFree = true, FreeTrialDays = 0 });
+        var promo = db.PromoCodes.AsNoTracking()
+            .Where(p => !p.IsLifetimeFree && !p.IsRedeemed && p.IntendedRecipientEmail == cleanEmail)
+            .OrderByDescending(p => p.Id)
+            .FirstOrDefault();
+        return promo is null ? null : ToModel(promo);
+    }
+
+    public PromoCode IssueAccessCodeForSignup(string email)
+    {
+        var cleanEmail = email.Trim().ToLowerInvariant();
+        using var db = Db();
+        var existing = db.PromoCodes
+            .Where(p => !p.IsLifetimeFree && !p.IsRedeemed && p.IntendedRecipientEmail == cleanEmail)
+            .OrderByDescending(p => p.Id)
+            .FirstOrDefault();
+        if (existing is not null) return ToModel(existing);
+
+        var code = GenerateCode("ACCESS-");
+        var p = new DbPromoCode { Code = code, FreeTrialDays = 30, IntendedRecipientEmail = cleanEmail, IsLifetimeFree = false };
+        db.PromoCodes.Add(p);
         db.SaveChanges();
+        return ToModel(p);
+    }
+
+    public (List<PromoCode> Visible, int TotalCount) GetAccessCodesForDisplay()
+    {
+        using var db = Db();
+        var query = db.PromoCodes.AsNoTracking().Where(p => !p.IsLifetimeFree);
+        var total = query.Count();
+        var visible = query
+            .OrderBy(p => p.IsRedeemed)
+            .ThenByDescending(p => p.Id)
+            .Take(PromoConstants.MaxVisiblePromoCodes)
+            .ToList()
+            .Select(ToModel)
+            .ToList();
+        return (visible, total);
+    }
+
+    public (List<PromoCode> Visible, int TotalCount) GetLifetimeCodesForDisplay()
+    {
+        using var db = Db();
+        var query = db.PromoCodes.AsNoTracking().Where(p => p.IsLifetimeFree);
+        var total = query.Count();
+        var visible = query
+            .OrderBy(p => p.IsRedeemed)
+            .ThenByDescending(p => p.Id)
+            .Take(PromoConstants.MaxVisiblePromoCodes)
+            .ToList()
+            .Select(ToModel)
+            .ToList();
+        return (visible, total);
     }
 
     public void SeedOwnerAccount()
@@ -703,11 +758,10 @@ class AppStoreDb
 
     public PromoCode GenerateAccessCode(string? email = null)
     {
-        using var db = Db();
-        var code = GenerateCode("ACCESS-");
-        var p = new DbPromoCode { Code = code, FreeTrialDays = 30, IntendedRecipientEmail = email, IsLifetimeFree = false };
-        db.PromoCodes.Add(p); db.SaveChanges();
-        return ToModel(p);
+        // Legacy helper — access codes are issued on signup only.
+        if (string.IsNullOrWhiteSpace(email))
+            throw new InvalidOperationException("Access codes are created automatically when a user signs up.");
+        return IssueAccessCodeForSignup(email);
     }
 
     public PromoCode GenerateLifetimeCode(string? email = null)
@@ -744,7 +798,13 @@ class AppStoreDb
         if (f is not null) { f.Investigated = !f.Investigated; db.SaveChanges(); }
     }
 
-    // ── Auth ───────────────────────────────────────────────────────────
+    public bool AccountExists(string email)
+    {
+        var cleanEmail = email.Trim().ToLowerInvariant();
+        using var db = Db();
+        return db.Users.Any(u => u.Email == cleanEmail);
+    }
+
     public PromoRedeemResult Register(string email, string password, bool acceptedTerms)
     {
         var cleanEmail = email.Trim().ToLowerInvariant();
@@ -764,8 +824,9 @@ class AppStoreDb
             TermsAcceptedVersion = LegalConstants.CurrentTermsVersion
         };
         db.Users.Add(user); db.SaveChanges();
+        IssueAccessCodeForSignup(cleanEmail);
         LoggedInEmail = cleanEmail;
-        return new(true, $"Account created. Your account code is {code}.");
+        return new(true, "Account created. Check your email for your 30-day access code.");
     }
 
     public PromoRedeemResult AcceptTerms()
@@ -979,12 +1040,6 @@ class AppStoreDb
             user.CurrentPlanId = "professional";
         }
 
-        db.PromoCodes.Add(new DbPromoCode
-        {
-            Code = promo.IsLifetimeFree ? GenerateCode("LIFETIME-") : GenerateCode("ACCESS-"),
-            IsLifetimeFree = promo.IsLifetimeFree,
-            FreeTrialDays = promo.FreeTrialDays
-        });
         db.SaveChanges();
         ClearUserCache();
         return new(true, promo.IsLifetimeFree

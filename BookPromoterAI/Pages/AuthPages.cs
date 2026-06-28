@@ -40,12 +40,12 @@ static class AuthPages
                 <button class="button" type="submit">Log In</button>
                 <p class="muted small-text">
                     <a href="/forgot-password">Forgot your password?</a> &middot;
-                    Need a 30-day access code? <a href="/trial">Request one here.</a>
+                    Need a 30-day access code? <a href="/trial">Resend your code</a> (after signing up)
                 </p>
             </form>
             <form method="post" action="/signup" class="panel form">
                 <h1>Create Account</h1>
-                <p class="muted">Set up an account, then choose an access code or subscription plan.</p>
+                <p class="muted">Set up an account — we'll email your 30-day access code automatically.</p>
                 <label>Email <input name="email" type="email" required></label>
                 <label>Password
                     <div class="password-field">
@@ -68,17 +68,17 @@ static class AuthPages
     public static string TrialRequest(string notice) => $"""
         <section class="split">
             <form method="post" action="/trial/request" class="panel form">
-                <h1>Get Your Access Code</h1>
-                <p class="muted">Enter your email address and we'll send you a 30-day access code. The code is assigned to your email and can only be used once.</p>
+                <h1>Resend Access Code</h1>
+                <p class="muted">Already signed up? Enter your email and we'll resend your unused 30-day access code. New users should <a href="/start">create an account</a> first — the code is emailed on signup.</p>
                 {notice}
                 <label>Email Address <input name="email" type="email" placeholder="you@example.com" required></label>
-                <button class="button" type="submit">Send My Access Code</button>
+                <button class="button" type="submit">Resend My Access Code</button>
                 <p class="muted small-text">Already have a code? <a href="/trial/activate">Enter it here.</a></p>
             </form>
             <section class="panel">
                 <h1>How It Works</h1>
-                <p>Enter your email and we'll generate a unique access code just for you.</p>
-                <p>Check your inbox for the code, then come back here and enter it to unlock 30 days of full access.</p>
+                <p><a href="/start">Create an account</a> — your unique access code is emailed automatically.</p>
+                <p>Come back here to activate the code, or enter it on Billing after you log in.</p>
                 <p>Each code is tied to one email address and cannot be shared or reused.</p>
             </section>
         </section>
@@ -98,7 +98,7 @@ static class AuthPages
             <section class="panel">
                 <h1>Need a Code?</h1>
                 <p>Access codes are sent to your email when you request them on the previous step.</p>
-                <p>If your code isn't arriving, check your spam folder or <a href="/trial">request a new one.</a></p>
+                <p>If your code isn't arriving, check your spam folder or <a href="/trial">request a resend.</a></p>
             </section>
         </section>
         """;

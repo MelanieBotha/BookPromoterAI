@@ -13,7 +13,6 @@ static class OwnerRoutes
         app.MapPost("/owner/generate-access-code", (AppStoreDb store) =>
         {
             if (OwnerGuard(store) is { } guard) return guard;
-            store.GenerateAccessCode();
             return Results.Redirect("/owner-promos");
         });
 

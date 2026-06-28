@@ -8,8 +8,9 @@ static class OwnerPage
         if (string.IsNullOrWhiteSpace(appBaseUrl))
             appBaseUrl = "https://bookpromoterai.us";
 
+        var (accessCodes, accessTotal) = store.GetAccessCodesForDisplay();
         var accessRows = new StringBuilder();
-        foreach (var code in store.PromoCodes.Where(c => !c.IsLifetimeFree))
+        foreach (var code in accessCodes)
         {
             var cls = code.IsRedeemed ? "used" : "available";
             accessRows.Append($"""
@@ -20,11 +21,14 @@ static class OwnerPage
                 </div>
                 """);
         }
-        if (!store.PromoCodes.Any(c => !c.IsLifetimeFree))
-            accessRows.Append("""<p class="muted">No access codes yet. Click "Generate New Access Code" below.</p>""");
+        if (accessTotal == 0)
+            accessRows.Append("""<p class="muted">No access codes yet. Codes are created automatically when someone signs up.</p>""");
+        else if (accessTotal > accessCodes.Count)
+            accessRows.Append($"""<p class="muted small-text">Showing {accessCodes.Count} of {accessTotal} access codes (most recent, ready codes first).</p>""");
 
+        var (lifetimeCodes, lifetimeTotal) = store.GetLifetimeCodesForDisplay();
         var lifetimeRows = new StringBuilder();
-        foreach (var code in store.PromoCodes.Where(c => c.IsLifetimeFree))
+        foreach (var code in lifetimeCodes)
         {
             var cls = code.IsRedeemed ? "used" : "available";
             lifetimeRows.Append($"""
@@ -35,8 +39,10 @@ static class OwnerPage
                 </div>
                 """);
         }
-        if (!store.PromoCodes.Any(c => c.IsLifetimeFree))
+        if (lifetimeTotal == 0)
             lifetimeRows.Append("""<p class="muted">No lifetime free codes yet. Click "Generate New Lifetime Code" below.</p>""");
+        else if (lifetimeTotal > lifetimeCodes.Count)
+            lifetimeRows.Append($"""<p class="muted small-text">Showing {lifetimeCodes.Count} of {lifetimeTotal} lifetime codes (most recent, ready codes first).</p>""");
 
         var planRows = new StringBuilder();
         foreach (var plan in store.Plans)
@@ -266,7 +272,7 @@ static class OwnerPage
             <details class="owner-collapsible">
                 <summary class="owner-collapsible-heading">Access Codes (30-Day Access)</summary>
                 <div class="panel owner-settings">
-                    <p class="muted">Codes are generated automatically. Each redeemed code is automatically replaced with a fresh one.</p>
+                    <p class="muted">30-day access codes are created automatically when a new user signs up (one code per email). They are not replaced when redeemed.</p>
                     <div class="promo-table">
                         <div class="promo-header">
                             <strong>Code</strong>
@@ -275,16 +281,13 @@ static class OwnerPage
                         </div>
                         {accessRows}
                     </div>
-                    <form method="post" action="/owner/generate-access-code" class="inline-form">
-                        <button class="button" type="submit">Generate New Access Code</button>
-                    </form>
                 </div>
             </details>
 
             <details class="owner-collapsible">
                 <summary class="owner-collapsible-heading">Lifetime Free Codes (Publisher Tier)</summary>
                 <div class="panel owner-settings">
-                    <p class="muted">Grants permanent Publisher-tier access with no billing.</p>
+                    <p class="muted">Grants permanent Publisher-tier access with no billing. Generate manually for beta authors and partners.</p>
                     <div class="promo-table">
                         <div class="promo-header">
                             <strong>Code</strong>
