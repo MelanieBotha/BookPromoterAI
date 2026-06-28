@@ -59,6 +59,7 @@ class SocialAccount
 
 class PromoCode
 {
+    public int Id { get; set; }
     public string Code { get; set; } = "";
     public int FreeTrialDays { get; set; } = 30;
     public string? IntendedRecipientEmail { get; set; }

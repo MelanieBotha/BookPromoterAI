@@ -449,6 +449,7 @@ textarea{min-height:120px}
 .status.available{background:#ccfbf1;color:#115e59}.status.used{background:#e5e7eb;color:#4b5563}
 .promo-table{display:grid;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .promo-header,.promo-row{display:grid;grid-template-columns:1.4fr 1.4fr 120px;gap:12px;align-items:center;padding:12px 14px}
+.promo-table-actions .promo-header,.promo-table-actions .promo-row{grid-template-columns:1.1fr 1.4fr 90px 80px}
 .promo-row.plan-row{grid-template-columns:1fr 1.6fr 1fr}
 .mailing-history-header,.mailing-history-row{grid-template-columns:1.2fr 2fr 1fr auto}
 .email-body-view{margin-top:12px;padding:16px;background:var(--soft);border:1px solid var(--line);border-radius:8px;white-space:pre-line;line-height:1.6}

@@ -20,6 +20,17 @@ static class OwnerRoutes
             return Results.Redirect("/owner-promos");
         });
 
+        app.MapPost("/owner/promo-code/delete/{id:int}", async (int id, HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings, ReleaseNotesCatalog releaseNotes) =>
+        {
+            if (OwnerGuard(store) is { } guard) return guard;
+            var form = await request.ReadFormAsync();
+            var section = form["section"].ToString();
+            var (success, message) = store.DeletePromoCode(id);
+            var cls = success ? "success" : "error";
+            var notice = $"""<div class="notice {cls}">{H.Encode(message)}</div>""";
+            return RenderOwner(http, store, settings, releaseNotes, notice, string.IsNullOrWhiteSpace(section) ? null : section);
+        });
+
         app.MapPost("/owner/generate-lifetime-code", (HttpContext http, AppStoreDb store, AppSettings settings, ReleaseNotesCatalog releaseNotes) =>
         {
             if (OwnerGuard(store) is { } guard) return guard;

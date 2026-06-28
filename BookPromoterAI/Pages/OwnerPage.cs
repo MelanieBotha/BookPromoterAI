@@ -10,9 +10,23 @@ static class OwnerPage
 
         var open = (string id) => SectionOpen(id, activeSection);
 
-        var (accessCodes, accessTotal) = store.GetAccessCodesForDisplay();
+        var (accessAvailable, accessRedeemed, accessRedeemedTotal) = store.GetAccessCodesForDisplay();
         var accessRows = new StringBuilder();
-        foreach (var code in accessCodes)
+        foreach (var code in accessAvailable)
+        {
+            var assignee = string.IsNullOrWhiteSpace(code.IntendedRecipientEmail)
+                ? "Unassigned"
+                : H.Encode(code.IntendedRecipientEmail);
+            accessRows.Append($"""
+                <div class="promo-row">
+                    <span>{H.Encode(code.Code)}</span>
+                    <span>{assignee} &middot; {code.FreeTrialDays}-day access</span>
+                    <span class="status available">Available</span>
+                    <span>{DeletePromoButton(code, "access-codes")}</span>
+                </div>
+                """);
+        }
+        foreach (var code in accessRedeemed)
         {
             var redeemedInfo = !string.IsNullOrWhiteSpace(code.RedeemedByEmail)
                 ? H.Encode(code.RedeemedByEmail)
@@ -23,13 +37,14 @@ static class OwnerPage
                     <span>{H.Encode(code.Code)}</span>
                     <span>{redeemedInfo} &middot; {code.FreeTrialDays}-day access{(string.IsNullOrEmpty(redeemedWhen) ? "" : $" &middot; {redeemedWhen}")}</span>
                     <span class="status used">Used</span>
+                    <span>{DeletePromoButton(code, "access-codes")}</span>
                 </div>
                 """);
         }
-        if (accessTotal == 0)
-            accessRows.Append("""<p class="muted">No access codes have been redeemed yet.</p>""");
-        else if (accessTotal > accessCodes.Count)
-            accessRows.Append($"""<p class="muted small-text">Showing {accessCodes.Count} of {accessTotal} redeemed access codes (most recent first).</p>""");
+        if (accessAvailable.Count == 0 && accessRedeemedTotal == 0)
+            accessRows.Append("""<p class="muted">No access codes yet. Codes are created automatically when users sign up.</p>""");
+        else if (accessRedeemedTotal > accessRedeemed.Count)
+            accessRows.Append($"""<p class="muted small-text">Showing {accessRedeemed.Count} of {accessRedeemedTotal} redeemed access codes (most recent first).</p>""");
 
         var (lifetimeAvailable, lifetimeRedeemed, lifetimeRedeemedTotal) = store.GetLifetimeCodesForDisplay();
         var lifetimeRows = new StringBuilder();
@@ -43,6 +58,7 @@ static class OwnerPage
                     <span>{H.Encode(code.Code)}</span>
                     <span>{assignee} &middot; Lifetime Free (Publisher)</span>
                     <span class="status available">Available</span>
+                    <span>{DeletePromoButton(code, "lifetime")}</span>
                 </div>
                 """);
         }
@@ -57,6 +73,7 @@ static class OwnerPage
                     <span>{H.Encode(code.Code)}</span>
                     <span>{redeemedInfo} &middot; Lifetime Free (Publisher){(string.IsNullOrEmpty(redeemedWhen) ? "" : $" &middot; {redeemedWhen}")}</span>
                     <span class="status used">Used</span>
+                    <span>{DeletePromoButton(code, "lifetime")}</span>
                 </div>
                 """);
         }
@@ -264,12 +281,13 @@ static class OwnerPage
             <details class="owner-collapsible" id="owner-section-access-codes"{open("access-codes")}>
                 <summary class="owner-collapsible-heading">Access Codes (30-Day Access)</summary>
                 <div class="panel owner-settings">
-                    <p class="muted">Redeemed 30-day access codes only (most recent first, up to {PromoConstants.MaxVisiblePromoCodes}). New codes are created on signup and are not listed here until used.</p>
-                    <div class="promo-table">
+                    <p class="muted">Available and redeemed 30-day access codes. Delete removes the code and revokes access if it was redeemed.</p>
+                    <div class="promo-table promo-table-actions">
                         <div class="promo-header">
                             <strong>Code</strong>
                             <strong>Assigned Email / Type</strong>
                             <strong>Status</strong>
+                            <strong>Actions</strong>
                         </div>
                         {accessRows}
                     </div>
@@ -279,12 +297,13 @@ static class OwnerPage
             <details class="owner-collapsible" id="owner-section-lifetime"{open("lifetime")}>
                 <summary class="owner-collapsible-heading">Lifetime Free Codes (Publisher Tier)</summary>
                 <div class="panel owner-settings">
-                    <p class="muted">Available codes are ready to share. Redeemed codes show as Used (most recent first, up to {PromoConstants.MaxVisiblePromoCodes}).</p>
-                    <div class="promo-table">
+                    <p class="muted">Available codes are ready to share. Redeemed codes show as Used. Delete removes the code and revokes access if it was redeemed.</p>
+                    <div class="promo-table promo-table-actions">
                         <div class="promo-header">
                             <strong>Code</strong>
                             <strong>Assigned Email / Type</strong>
                             <strong>Status</strong>
+                            <strong>Actions</strong>
                         </div>
                         {lifetimeRows}
                     </div>
@@ -439,6 +458,13 @@ static class OwnerPage
             </details>
             """;
     }
+
+    static string DeletePromoButton(PromoCode code, string section) => $"""
+        <form method="post" action="/owner/promo-code/delete/{code.Id}" class="inline-form tight" onsubmit="return confirm('Delete {H.Encode(code.Code)}? This removes the code and revokes access if it was redeemed.');">
+            <input type="hidden" name="section" value="{H.Encode(section)}">
+            <button class="danger-button small" type="submit">Delete</button>
+        </form>
+        """;
 
     static string GoLiveItem(bool done, string text) =>
         $"""<li class="{(done ? "status available" : "muted")}">{(done ? "&#10003;" : "&#9744;")} {text}</li>""";

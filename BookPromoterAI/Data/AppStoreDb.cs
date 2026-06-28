@@ -692,19 +692,25 @@ class AppStoreDb
         return ToModel(p);
     }
 
-    public (List<PromoCode> Visible, int TotalCount) GetAccessCodesForDisplay()
+    public (List<PromoCode> Available, List<PromoCode> Redeemed, int RedeemedTotal) GetAccessCodesForDisplay()
     {
         using var db = Db();
-        var query = db.PromoCodes.AsNoTracking().Where(p => !p.IsLifetimeFree && p.IsRedeemed);
-        var total = query.Count();
-        var visible = query
+        var available = db.PromoCodes.AsNoTracking()
+            .Where(p => !p.IsLifetimeFree && !p.IsRedeemed)
+            .OrderByDescending(p => p.Id)
+            .ToList()
+            .Select(ToModel)
+            .ToList();
+        var redeemedQuery = db.PromoCodes.AsNoTracking().Where(p => !p.IsLifetimeFree && p.IsRedeemed);
+        var redeemedTotal = redeemedQuery.Count();
+        var redeemed = redeemedQuery
             .OrderByDescending(p => p.RedeemedAt)
             .ThenByDescending(p => p.Id)
             .Take(PromoConstants.MaxVisiblePromoCodes)
             .ToList()
             .Select(ToModel)
             .ToList();
-        return (visible, total);
+        return (available, redeemed, redeemedTotal);
     }
 
     public (List<PromoCode> Available, List<PromoCode> Redeemed, int RedeemedTotal) GetLifetimeCodesForDisplay()
@@ -794,6 +800,7 @@ class AppStoreDb
 
         db.SaveChanges();
         if (LoggedInEmail == email) ClearUserCache();
+        SyncAllUsersToOwnerMailingList();
     }
 
     public PromoCode GenerateAccessCode(string? email = null)
@@ -811,6 +818,110 @@ class AppStoreDb
         var p = new DbPromoCode { Code = code, IsLifetimeFree = true, IntendedRecipientEmail = email };
         db.PromoCodes.Add(p); db.SaveChanges();
         return ToModel(p);
+    }
+
+    public (bool Success, string Message) DeletePromoCode(int promoId)
+    {
+        using var db = Db();
+        var promo = db.PromoCodes.FirstOrDefault(p => p.Id == promoId);
+        if (promo is null) return (false, "Promo code not found.");
+
+        var codeLabel = promo.Code;
+        var redeemedEmail = promo.RedeemedByEmail?.Trim().ToLowerInvariant();
+        var accessRevoked = false;
+
+        if (promo.IsRedeemed && !string.IsNullOrWhiteSpace(redeemedEmail) && !OwnerAccount.IsOwnerEmail(redeemedEmail))
+        {
+            var user = db.Users.FirstOrDefault(u => u.Email == redeemedEmail);
+            if (user is not null)
+                accessRevoked = RevokeAccessForPromo(user, promo, db);
+        }
+
+        db.PromoCodes.Remove(promo);
+        db.SaveChanges();
+
+        if (accessRevoked)
+            return (true, $"Deleted {codeLabel} and removed access for {redeemedEmail}.");
+        if (promo.IsRedeemed)
+            return (true, $"Deleted {codeLabel}. The user kept access (paid subscription or other active access).");
+        return (true, $"Deleted unused code {codeLabel}.");
+    }
+
+    static bool RevokeAccessForPromo(DbUser user, DbPromoCode promo, AppDbContext db)
+    {
+        if (!string.IsNullOrWhiteSpace(user.StripeSubscriptionId) || !string.IsNullOrWhiteSpace(user.PayPalSubscriptionId))
+            return false;
+
+        var relatedSubs = db.Subscriptions.Where(s => s.UserId == user.Id && s.PromoCodeUsed == promo.Code).ToList();
+        foreach (var sub in relatedSubs)
+            db.Subscriptions.Remove(sub);
+
+        if (db.Subscriptions.Any(s => s.UserId == user.Id))
+            return false;
+
+        var matchesLifetime = promo.IsLifetimeFree && user.AccessType == "Lifetime Free (Publisher)";
+        var matchesTrial = !promo.IsLifetimeFree && user.AccessType == "Free Trial";
+        if (!matchesLifetime && !matchesTrial)
+            return false;
+
+        user.HasCustomerAccess = false;
+        user.AccessType = "No Access Selected";
+        user.CurrentPlanId = null;
+        user.AccessEndsAt = null;
+        user.IsCancelled = false;
+        user.SubscriptionEndsAt = null;
+        return true;
+    }
+
+    public void SubscribeEmailToOwnerMailingList(string email, string name = "", string source = "Signup")
+    {
+        var cleanEmail = email.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(cleanEmail) || OwnerAccount.IsOwnerEmail(cleanEmail)) return;
+
+        using var db = Db();
+        var owner = db.Users.FirstOrDefault(u => u.Email == OwnerAccount.NormalizedEmail);
+        if (owner is null) return;
+        if (db.MailingListSubscribers.Any(s => s.UserId == owner.Id && s.Email == cleanEmail)) return;
+
+        db.MailingListSubscribers.Add(new DbMailingListSubscriber
+        {
+            UserId = owner.Id,
+            Email = cleanEmail,
+            Name = name.Trim(),
+            SubscribedAt = DateTime.UtcNow,
+            Source = source
+        });
+        db.SaveChanges();
+    }
+
+    public int SyncAllUsersToOwnerMailingList()
+    {
+        using var db = Db();
+        var owner = db.Users.FirstOrDefault(u => u.Email == OwnerAccount.NormalizedEmail);
+        if (owner is null) return 0;
+
+        var existing = db.MailingListSubscribers
+            .Where(s => s.UserId == owner.Id)
+            .Select(s => s.Email)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var added = 0;
+        foreach (var user in db.Users.Where(u => u.Email != OwnerAccount.NormalizedEmail))
+        {
+            if (existing.Contains(user.Email)) continue;
+            db.MailingListSubscribers.Add(new DbMailingListSubscriber
+            {
+                UserId = owner.Id,
+                Email = user.Email,
+                Name = "",
+                SubscribedAt = DateTime.UtcNow,
+                Source = "Auto sync"
+            });
+            added++;
+        }
+
+        if (added > 0) db.SaveChanges();
+        return added;
     }
 
     // ── Feedback ───────────────────────────────────────────────────────
@@ -865,6 +976,7 @@ class AppStoreDb
         };
         db.Users.Add(user); db.SaveChanges();
         IssueAccessCodeForSignup(cleanEmail);
+        SubscribeEmailToOwnerMailingList(cleanEmail, source: "Signup");
         LoggedInEmail = cleanEmail;
         return new(true, "Account created. Check your email for your 30-day access code.");
     }
@@ -1675,7 +1787,7 @@ class AppStoreDb
     static PostingLogEntry ToModel(DbPostingLogEntry l) => new() { Id = l.Id, GeneratedAdId = l.GeneratedAdId, Platform = l.Platform, BookTitle = l.BookTitle, Success = l.Success, Message = l.Message, AttemptedAt = l.AttemptedAt };
     static TeamMember ToModel(DbTeamMember t) => new() { Email = t.Email, Role = t.Role, InviteCode = t.InviteCode, Accepted = t.Accepted, InvitedAt = t.InvitedAt };
     static Client ToModel(DbClient c) => new() { Id = c.Id, Name = c.Name, ContactEmail = c.ContactEmail, Notes = c.Notes };
-    static PromoCode ToModel(DbPromoCode p) => new() { Code = p.Code, FreeTrialDays = p.FreeTrialDays, IntendedRecipientEmail = p.IntendedRecipientEmail, IsRedeemed = p.IsRedeemed, RedeemedByEmail = p.RedeemedByEmail, RedeemedAt = p.RedeemedAt, IsLifetimeFree = p.IsLifetimeFree };
+    static PromoCode ToModel(DbPromoCode p) => new() { Id = p.Id, Code = p.Code, FreeTrialDays = p.FreeTrialDays, IntendedRecipientEmail = p.IntendedRecipientEmail, IsRedeemed = p.IsRedeemed, RedeemedByEmail = p.RedeemedByEmail, RedeemedAt = p.RedeemedAt, IsLifetimeFree = p.IsLifetimeFree };
     static FeedbackEntry ToModel(DbFeedbackEntry f) => new() { Id = f.Id, Email = f.Email, Category = f.Category, Message = f.Message, SubmittedAt = f.SubmittedAt, Investigated = f.Investigated, ThankYouEmail = f.ThankYouEmail };
     static SubscriptionPlan ToModel(DbSubscriptionPlan p) => new()
     {

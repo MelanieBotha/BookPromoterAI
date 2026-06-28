@@ -1,4 +1,14 @@
 {
+  "1.7.5": {
+    "title": "BookPromoter AI v1.7.5 — What's new",
+    "updated": [
+      "Delete buttons on Owner access and lifetime codes — removes code and revokes redeemed access",
+      "All access codes (available and used) visible on Owner page",
+      "New signups auto-subscribe to the owner mailing list"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.7.4": {
     "title": "BookPromoter AI v1.7.4 — What's new",
     "updated": [
