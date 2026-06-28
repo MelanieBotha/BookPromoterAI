@@ -101,6 +101,20 @@ static class OwnerPage
             ? $"""<p class="notice success">{H.Encode(store.Database.StatusSummary)}</p>"""
             : $"""<p class="notice error">{H.Encode(store.Database.StatusSummary)}</p>""";
 
+        var emailStatus = store.IsSendGridConfigured
+            ? """<p class="notice success">SendGrid: Connected. Password resets, access codes, and team invites send real email.</p>"""
+            : $"""
+                <p class="notice error">Email is not live yet. The app cannot send real emails without SendGrid.</p>
+                <ul class="plan-features">
+                    <li><strong>API key:</strong> {H.Encode(store.SendGridApiKeyStatus)}</li>
+                    <li><strong>Sender email:</strong> {H.Encode(store.SendGridSenderEmailStatus)}</li>
+                </ul>
+                """;
+
+        var domainStatus = store.UsesCustomDomain
+            ? $"""<p class="notice success">{H.Encode(store.PublicBaseUrlStatus)}</p>"""
+            : $"""<p class="notice error">{H.Encode(store.PublicBaseUrlStatus)}</p>""";
+
         return $"""
             <section class="panel">
                 <h1>Owner</h1>
@@ -123,6 +137,36 @@ static class OwnerPage
                         <li>Redeploy the service</li>
                     </ol>
                     <p class="muted">If you had data before adding the volume, the app copies the old database into <code>/data</code> on first boot.</p>
+                </div>
+            </details>
+
+            <details class="owner-collapsible">
+                <summary class="owner-collapsible-heading">Custom Domain (bookpromoterai.us)</summary>
+                <div class="panel owner-settings">
+                    {domainStatus}
+                    <p class="muted">Connect your domain so customers see <code>bookpromoterai.us</code> instead of the Railway URL.</p>
+                    <ol class="plan-features">
+                        <li>Railway &rarr; <strong>BookPromoterAI</strong> &rarr; <strong>Settings</strong> &rarr; <strong>Networking</strong> &rarr; <strong>Custom Domain</strong></li>
+                        <li>Add <code>bookpromoterai.us</code> and <code>www.bookpromoterai.us</code></li>
+                        <li>At your domain registrar, add the CNAME records Railway shows</li>
+                        <li>When DNS is live, add Railway variable: <code>App__PublicBaseUrl=https://bookpromoterai.us</code></li>
+                        <li>Redeploy. Stripe checkout already returns to the URL you browse; the custom domain is mainly for branding and email links.</li>
+                    </ol>
+                    <p class="muted">Stripe webhooks can stay on <code>https://bookpromoterai-production.up.railway.app/webhooks/stripe</code> — no change required.</p>
+                </div>
+            </details>
+
+            <details class="owner-collapsible">
+                <summary class="owner-collapsible-heading">Email (SendGrid)</summary>
+                <div class="panel owner-settings">
+                    {emailStatus}
+                    <p class="muted">Add these <strong>Railway variables</strong> for password resets, access-code emails, team invites, and feedback thank-yous:</p>
+                    <ul class="plan-features">
+                        <li><code>SendGrid__ApiKey</code> (starts with <code>SG.</code>)</li>
+                        <li><code>SendGrid__SenderEmail</code> (verified sender in SendGrid)</li>
+                        <li><code>SendGrid__SenderName</code> (optional, e.g. Book Promoter AI)</li>
+                    </ul>
+                    <p class="muted">In SendGrid: Settings &rarr; Sender Authentication &rarr; verify <code>bothamelanief@gmail.com</code> or <code>noreply@bookpromoterai.us</code> after DNS is connected.</p>
                 </div>
             </details>
 
@@ -211,10 +255,10 @@ static class OwnerPage
                 </div>
             </details>
 
-            <details class="owner-collapsible">
+            <details class="owner-collapsible" open>
                 <summary class="owner-collapsible-heading">Subscription Plan Prices</summary>
                 <div class="panel owner-settings">
-                    <p class="muted">Change the monthly fee for each plan tier.</p>
+                    <p class="muted">Production defaults: Starter $9.99, Professional $14.99, Publisher $29.99, Agency $49.99. Stripe Price ID is optional — leave blank to charge the Monthly Fee shown here.</p>
                     <div class="promo-table">
                         <div class="promo-header">
                             <strong>Plan</strong>

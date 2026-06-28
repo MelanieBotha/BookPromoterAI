@@ -73,6 +73,11 @@ class AppStoreDb
     public string StripeSecretKeyStatus => _settings.DescribeStripeSecretKey();
     public string StripePublishableKeyStatus => _settings.DescribeStripePublishableKey();
     public string StripeWebhookSecretStatus => _settings.DescribeStripeWebhookSecret();
+    public bool IsSendGridConfigured => _settings.IsSendGridConfigured;
+    public string SendGridApiKeyStatus => _settings.DescribeSendGridApiKey();
+    public string SendGridSenderEmailStatus => _settings.DescribeSendGridSenderEmail();
+    public string PublicBaseUrlStatus => _settings.DescribePublicBaseUrl();
+    public bool UsesCustomDomain => _settings.UsesCustomDomain;
 
     public DatabasePaths Database => _database;
 

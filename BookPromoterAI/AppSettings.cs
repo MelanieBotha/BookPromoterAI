@@ -75,6 +75,44 @@ class AppSettings
         return "OK - detected.";
     }
 
+    public string DescribeSendGridApiKey()
+    {
+        if (string.IsNullOrWhiteSpace(SendGridApiKey) || SendGridApiKey == "YOUR_SENDGRID_API_KEY_HERE")
+            return "Missing - add SendGrid__ApiKey in Railway.";
+        if (!SendGridApiKey.StartsWith("SG.", StringComparison.Ordinal))
+        {
+            var head = SendGridApiKey.Length >= 6 ? SendGridApiKey[..6] : SendGridApiKey;
+            return $"Invalid (starts with '{head}...') - SendGrid API keys start with SG.";
+        }
+        return "OK - detected.";
+    }
+
+    public string DescribeSendGridSenderEmail()
+    {
+        if (string.IsNullOrWhiteSpace(SendGridSenderEmail))
+            return "Missing - add SendGrid__SenderEmail in Railway (must be verified in SendGrid).";
+        if (!SendGridSenderEmail.Contains('@'))
+            return "Invalid - must be a full email address verified in SendGrid.";
+        return $"OK - {SendGridSenderEmail.Trim()}.";
+    }
+
+    public string DescribePublicBaseUrl()
+    {
+        if (string.IsNullOrWhiteSpace(PublicBaseUrl))
+            return "Not set - checkout still works via the Railway URL you browse. Set App__PublicBaseUrl when your custom domain is live.";
+
+        var url = PublicBaseUrl.TrimEnd('/');
+        if (url.Contains("railway.app", StringComparison.OrdinalIgnoreCase))
+            return $"Using Railway URL ({url}) - fine until bookpromoterai.us DNS is connected.";
+        if (url.Contains("bookpromoterai.us", StringComparison.OrdinalIgnoreCase))
+            return $"Custom domain configured ({url}).";
+        return $"Configured ({url}).";
+    }
+
+    public bool UsesCustomDomain =>
+        !string.IsNullOrWhiteSpace(PublicBaseUrl) &&
+        PublicBaseUrl.Contains("bookpromoterai.us", StringComparison.OrdinalIgnoreCase);
+
     public static AppSettings FromConfiguration(IConfiguration config)
     {
         return new()
