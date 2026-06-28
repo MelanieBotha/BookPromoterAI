@@ -1265,15 +1265,40 @@ class AppStoreDb
         return null;
     }
 
+    public List<string> GetAutoPostBlockers(string platform)
+    {
+        var schedule = Schedules.FirstOrDefault(s => s.Platform.Equals(platform, StringComparison.OrdinalIgnoreCase));
+        if (schedule is null || !schedule.AutoPostEnabled) return [];
+
+        var blockers = new List<string>();
+        if (schedule.PostsPerWeek <= 0)
+            blockers.Add("Set posts/week above 0.");
+        if (Books.Count == 0)
+            blockers.Add("Add at least one book.");
+
+        var pending = GeneratedAds
+            .Where(a => a.Platform.Equals(platform, StringComparison.OrdinalIgnoreCase) && a.PostStatus == "Pending")
+            .ToList();
+        if (pending.Count == 0)
+            blockers.Add("No pending posts yet — posts are created when you save the schedule or use Generate This Week's Posts in the Ad Library.");
+        else if (schedule.RequiresApproval && pending.All(a => !a.ApprovedForPosting))
+            blockers.Add("Approve posts in the Ad Library first (or turn off Approval required).");
+
+        return blockers;
+    }
+
     // ── Auto-posting (background scheduler) ───────────────────────────
-    public async Task<int> RunDuePostsAsync(SocialPostingService postingService)
+    public async Task<int> RunDuePostsAsync(SocialPostingService postingService, int? userId = null)
     {
         var count = 0;
         var now = DateTime.UtcNow;
         var currentWeek = System.Globalization.ISOWeek.GetWeekOfYear(now);
         using var db = Db();
 
-        var schedules = await db.SocialSchedules.Where(s => s.AutoPostEnabled && s.PostsPerWeek > 0).ToListAsync();
+        var schedulesQuery = db.SocialSchedules.Where(s => s.AutoPostEnabled && s.PostsPerWeek > 0);
+        if (userId is int uid)
+            schedulesQuery = schedulesQuery.Where(s => s.UserId == uid);
+        var schedules = await schedulesQuery.ToListAsync();
         foreach (var schedule in schedules)
         {
             if (schedule.WeekTrackerStart != currentWeek) { schedule.WeekTrackerStart = currentWeek; schedule.PostsSentThisWeek = 0; }

@@ -43,6 +43,7 @@ static class MyAccountPage
             var requiresApproval = schedule?.RequiresApproval ?? true;
             var checkedText = requiresApproval ? "checked" : "";
             var autoPostChecked = (schedule?.AutoPostEnabled ?? false) ? "checked" : "";
+            var autoPostHint = BuildAutoPostHint(store, account.Platform, schedule, postsPerWeek, requiresApproval);
 
             var removeFormId = $"remove-account-{account.Id}";
 
@@ -52,6 +53,7 @@ static class MyAccountPage
                         <strong>{H.Encode(account.Platform)}</strong>
                         <p>{H.Encode(account.DisplayName)} - @{H.Encode(account.Handle)}</p>
                         {connectionStatus}
+                        {autoPostHint}
                     </div>
                     <input type="hidden" name="platform" value="{H.Encode(account.Platform)}">
                     <label>Posts/week
@@ -98,7 +100,7 @@ static class MyAccountPage
             <section class="panel">
                 <h2>Connected Accounts &amp; Posting Schedule</h2>
                 <p class="muted">Connect or add each platform once. Set how many times a week it should post, whether posts need your approval first, and whether to auto-post automatically at the scheduled time &mdash; all in one place.</p>
-                <p class="muted small-text">Checking "Auto-post" means BookPromoter AI will publish generated posts to that platform automatically according to its weekly schedule, without you needing to manually copy/paste each one. If "Approval required" is also checked, auto-posting will only send posts you've approved in the Ad Library first.</p>
+                <p class="muted small-text">Check "Auto-post", set <strong>posts/week</strong> above 0, then click <strong>Save Posting Schedule</strong>. If "Approval required" is checked, approve posts in the Ad Library first. Auto-posting runs immediately on save and every few minutes after that. Until real OAuth is connected, posts are simulated (status updates in the Ad Library and Posting Activity Log below — not on the social network itself).</p>
                 {limitText}
                 {limitNotice}
                 <form method="post" action="/schedule" class="schedule-list">
@@ -233,5 +235,22 @@ static class MyAccountPage
             {deleteSection}
             {script}
             """;
+    }
+
+    static string BuildAutoPostHint(AppStoreDb store, string platform, SocialSchedule? schedule, int postsPerWeek, bool requiresApproval)
+    {
+        if (schedule?.AutoPostEnabled != true) return "";
+
+        if (postsPerWeek <= 0)
+            return """<p class="muted small-text">Auto-post is on — set posts/week above 0, then save.</p>""";
+
+        var blockers = store.GetAutoPostBlockers(platform);
+        if (blockers.Count > 0)
+            return $"""<p class="muted small-text">{H.Encode(string.Join(" ", blockers))}</p>""";
+
+        var approvalNote = requiresApproval
+            ? "Approved posts "
+            : "Posts ";
+        return $"""<p class="muted small-text">Auto-post active. {approvalNote}will go out on schedule (simulated until OAuth is live).</p>""";
     }
 }
