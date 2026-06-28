@@ -105,7 +105,7 @@ class AppSettings
         if (url.Contains("railway.app", StringComparison.OrdinalIgnoreCase))
             return $"Using Railway URL ({url}) - fine until bookpromoterai.us DNS is connected.";
         if (url.Contains("bookpromoterai.us", StringComparison.OrdinalIgnoreCase))
-            return $"Custom domain configured ({url}).";
+            return $"Custom domain configured ({url}). Point DNS at Railway if the site does not load yet.";
         return $"Configured ({url}).";
     }
 

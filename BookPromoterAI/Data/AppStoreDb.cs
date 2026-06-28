@@ -78,6 +78,7 @@ class AppStoreDb
     public string SendGridSenderEmailStatus => _settings.DescribeSendGridSenderEmail();
     public string PublicBaseUrlStatus => _settings.DescribePublicBaseUrl();
     public bool UsesCustomDomain => _settings.UsesCustomDomain;
+    public bool ShowSoftLaunchBanner => _settings.ShowSoftLaunchBanner;
 
     public DatabasePaths Database => _database;
 

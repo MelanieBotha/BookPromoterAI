@@ -115,6 +115,21 @@ static class OwnerPage
             ? $"""<p class="notice success">{H.Encode(store.PublicBaseUrlStatus)}</p>"""
             : $"""<p class="notice error">{H.Encode(store.PublicBaseUrlStatus)}</p>""";
 
+        var bannerStatus = store.ShowSoftLaunchBanner
+            ? """<p class="notice error">Beta banner is still visible on the marketing site. Set <code>Launch__ShowBetaBanner=false</code> in Railway or redeploy v1.4.2+.</p>"""
+            : """<p class="notice success">Beta banner is hidden — site shows as fully launched.</p>""";
+
+        var goLiveChecklist = $"""
+            <ul class="plan-features">
+                {GoLiveItem(store.IsBillingConfigured, "Stripe billing connected")}
+                {GoLiveItem(store.Database.UsesDataVolume, "Database on persistent /data volume")}
+                {GoLiveItem(store.UsesCustomDomain, "App configured for bookpromoterai.us (DNS must point to Railway)")}
+                {GoLiveItem(store.IsSendGridConfigured, "SendGrid email (password resets &amp; access codes)")}
+                {GoLiveItem(!store.ShowSoftLaunchBanner, "Soft-launch beta banner hidden")}
+                {GoLiveItem(false, "Railway cleanup: delete unused Postgres, Redis, and empty storage services (manual)")}
+            </ul>
+            """;
+
         return $"""
             <section class="panel">
                 <h1>Owner</h1>
@@ -123,6 +138,14 @@ static class OwnerPage
             </section>
 
             {notice}
+
+            <details class="owner-collapsible" open>
+                <summary class="owner-collapsible-heading">Go Live Checklist</summary>
+                <div class="panel owner-settings">
+                    {goLiveChecklist}
+                    {bannerStatus}
+                </div>
+            </details>
 
             <details class="owner-collapsible">
                 <summary class="owner-collapsible-heading">Data Storage (Railway Volume)</summary>
@@ -153,6 +176,7 @@ static class OwnerPage
                         <li>Redeploy. Stripe checkout already returns to the URL you browse; the custom domain is mainly for branding and email links.</li>
                     </ol>
                     <p class="muted">Stripe webhooks can stay on <code>https://bookpromoterai-production.up.railway.app/webhooks/stripe</code> — no change required.</p>
+                    <p class="muted"><strong>Your action:</strong> Railway &rarr; BookPromoterAI &rarr; Settings &rarr; Networking &rarr; add custom domains, then add CNAME records at your .us registrar. Test by opening <a href="https://bookpromoterai.us" target="_blank" rel="noopener">https://bookpromoterai.us</a>.</p>
                 </div>
             </details>
 
@@ -167,6 +191,20 @@ static class OwnerPage
                         <li><code>SendGrid__SenderName</code> (optional, e.g. Book Promoter AI)</li>
                     </ul>
                     <p class="muted">In SendGrid: Settings &rarr; Sender Authentication &rarr; verify <code>bothamelanief@gmail.com</code> or <code>noreply@bookpromoterai.us</code> after DNS is connected.</p>
+                    <p class="muted"><strong>Your action:</strong> Add the three Railway variables above, then Redeploy. Owner checklist will show green when SendGrid is connected.</p>
+                </div>
+            </details>
+
+            <details class="owner-collapsible">
+                <summary class="owner-collapsible-heading">Railway Cleanup (Unused Services)</summary>
+                <div class="panel owner-settings">
+                    <p class="muted">The app uses SQLite on the BookPromoterAI volume — not Postgres or Redis. Delete these to simplify the project and avoid extra cost:</p>
+                    <ol class="plan-features">
+                        <li>On the Railway project canvas, right-click <strong>Postgres</strong> &rarr; <strong>Delete Service</strong></li>
+                        <li>Right-click <strong>Redis</strong> &rarr; <strong>Delete Service</strong></li>
+                        <li>Right-click empty <strong>storage</strong> &rarr; <strong>Delete Service</strong></li>
+                    </ol>
+                    <p class="muted">Keep only <strong>BookPromoterAI</strong> (with its <code>/data</code> volume).</p>
                 </div>
             </details>
 
@@ -278,6 +316,9 @@ static class OwnerPage
             </details>
             """;
     }
+
+    static string GoLiveItem(bool done, string text) =>
+        $"""<li class="{(done ? "status available" : "muted")}">{(done ? "&#10003;" : "&#9744;")} {text}</li>""";
 
     static string FeedbackLogSection(AppStoreDb store)
     {
