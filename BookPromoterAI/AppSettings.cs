@@ -7,6 +7,7 @@ class AppSettings
     public string SendGridSenderName { get; init; } = "Book Promoter AI";
     public string PublicBaseUrl { get; init; } = "";
     public bool ShowSoftLaunchBanner { get; init; } = true;
+    public bool RailwayCleanupDone { get; init; }
 
     public string StripeSecretKey { get; init; } = "";
     public string StripePublishableKey { get; init; } = "";
@@ -122,6 +123,7 @@ class AppSettings
             SendGridSenderName = config["SendGrid:SenderName"] ?? config["SendGrid:FromName"] ?? "Book Promoter AI",
             PublicBaseUrl = config["App:PublicBaseUrl"] ?? "",
             ShowSoftLaunchBanner = config.GetValue("Launch:ShowBetaBanner", true),
+            RailwayCleanupDone = config.GetValue("Launch:RailwayCleanupDone", false),
             StripeSecretKey = CleanSecret(config["Stripe:SecretKey"]),
             StripePublishableKey = CleanSecret(config["Stripe:PublishableKey"]),
             StripeWebhookSecret = CleanSecret(config["Stripe:WebhookSecret"])

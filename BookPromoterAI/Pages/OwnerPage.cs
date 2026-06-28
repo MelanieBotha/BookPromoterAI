@@ -129,7 +129,7 @@ static class OwnerPage
                 {GoLiveItem(store.UsesCustomDomain, "App configured for bookpromoterai.us (DNS must point to Railway)")}
                 {GoLiveItem(store.IsSendGridConfigured, "SendGrid email (password resets &amp; access codes)")}
                 {GoLiveItem(!store.ShowSoftLaunchBanner, "Soft-launch beta banner hidden")}
-                {GoLiveItem(false, "Railway cleanup: delete unused Postgres, Redis, and empty storage services (manual)")}
+                {GoLiveItem(store.RailwayCleanupDone, "Railway cleanup: unused Postgres, Redis, and storage services removed")}
             </ul>
             """;
 
@@ -208,6 +208,9 @@ static class OwnerPage
                         <li>Right-click empty <strong>storage</strong> &rarr; <strong>Delete Service</strong></li>
                     </ol>
                     <p class="muted">Keep only <strong>BookPromoterAI</strong> (with its <code>/data</code> volume).</p>
+                    {(store.RailwayCleanupDone
+                        ? """<p class="notice success">Railway cleanup marked complete.</p>"""
+                        : """<p class="notice error">After deleting the extra services, add Railway variable <code>Launch__RailwayCleanupDone=true</code> and redeploy.</p>""")}
                 </div>
             </details>
 
