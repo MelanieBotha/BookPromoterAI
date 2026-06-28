@@ -28,7 +28,8 @@ static class TeamRoutes
             }
             else
             {
-                await EmailService.SendTeamInviteEmail(form["email"].ToString(), member.InviteCode, member.Role, settings.SendGridApiKey, settings.SendGridSenderEmail, settings.SendGridSenderName);
+                var baseUrl = PublicUrl.Base(http.Request, settings);
+                await EmailService.SendTeamInviteEmail(form["email"].ToString(), member.InviteCode, member.Role, settings.SendGridApiKey, settings.SendGridSenderEmail, settings.SendGridSenderName, baseUrl);
                 notice = !settings.IsSendGridConfigured
                     ? $"""<div class="notice success">{H.Encode(message)}<br><strong>Dev mode:</strong> Invite code: <strong>{H.Encode(member.InviteCode)}</strong></div>"""
                     : $"""<div class="notice success">{H.Encode(message)} Invite code emailed.</div>""";

@@ -61,20 +61,21 @@ static class MailingListRoutes
             if (!store.HasCustomerAccess || !store.IsLoggedIn) return Results.Redirect("/start");
             var form = await request.ReadFormAsync();
             var fromName = store.LoggedInEmail ?? settings.SendGridSenderName;
+            var baseUrl = PublicUrl.Base(request, settings);
             var (sent, failed, message) = await store.SendMailingListCampaignAsync(
                 form["subject"].ToString(),
                 form["body"].ToString(),
                 settings.SendGridApiKey,
                 settings.SendGridSenderEmail,
                 settings.SendGridSenderName,
-                fromName);
+                fromName,
+                baseUrl);
 
             var cls = sent > 0 ? "success" : "error";
             var devNote = !settings.IsSendGridConfigured && sent > 0
                 ? " <strong>Dev mode:</strong> SendGrid is not configured — emails were logged but not actually delivered."
                 : "";
             var notice = $"""<div class="notice {cls}">{H.Encode(message)}{devNote}</div>""";
-            var baseUrl = PublicUrl.Base(request, settings);
             return Results.Content(H.RenderPage(http, "Mailing List", MailingListPage.Render(store, notice, baseUrl), store), "text/html");
         });
 

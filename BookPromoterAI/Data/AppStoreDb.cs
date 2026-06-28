@@ -594,7 +594,7 @@ class AppStoreDb
     }
 
     public async Task<(int Sent, int Failed, string Message)> SendMailingListCampaignAsync(
-        string subject, string body, string apiKey, string senderEmail, string senderName, string fromDisplayName)
+        string subject, string body, string apiKey, string senderEmail, string senderName, string fromDisplayName, string? appBaseUrl = null)
     {
         var uid = CurrentUserId();
         if (uid == 0) return (0, 0, "Not logged in.");
@@ -609,7 +609,7 @@ class AppStoreDb
         var failed = 0;
         foreach (var sub in subscribers)
         {
-            var ok = await EmailService.SendMailingListEmail(sub.Email, sub.Name, subject, body, fromDisplayName, apiKey, senderEmail, senderName);
+            var ok = await EmailService.SendMailingListEmail(sub.Email, sub.Name, subject, body, fromDisplayName, apiKey, senderEmail, senderName, appBaseUrl);
             if (ok) sent++; else failed++;
         }
 
@@ -1253,7 +1253,7 @@ class AppStoreDb
     }
 
     public async Task<(int Sent, int Failed, string Message)> BroadcastAppEmailAsync(
-        string subject, string body, string apiKey, string senderEmail, string senderName)
+        string subject, string body, string apiKey, string senderEmail, string senderName, string? appBaseUrl = null)
     {
         if (!IsOwner) return (0, 0, "Only the owner can send app-wide emails.");
         if (string.IsNullOrWhiteSpace(subject)) return (0, 0, "Enter an email subject.");
@@ -1262,7 +1262,7 @@ class AppStoreDb
         var emails = GetAllUserEmails();
         if (emails.Count == 0) return (0, 0, "No registered users to email yet.");
 
-        var (sent, failed) = await EmailService.SendBroadcastEmailAsync(emails, subject, body, apiKey, senderEmail, senderName);
+        var (sent, failed) = await EmailService.SendBroadcastEmailAsync(emails, subject, body, apiKey, senderEmail, senderName, appBaseUrl);
         var devNote = !_settings.IsSendGridConfigured && sent > 0
             ? " (SendGrid not configured — logged only in dev.)"
             : "";

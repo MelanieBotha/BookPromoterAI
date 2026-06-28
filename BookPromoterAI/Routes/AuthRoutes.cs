@@ -58,7 +58,7 @@ static class AuthRoutes
             {
                 var baseUrl = PublicUrl.Base(request, settings);
                 var resetLink = $"{baseUrl}/reset-password?token={token}";
-                await EmailService.SendPasswordResetEmail(email, resetLink, settings.SendGridApiKey, settings.SendGridSenderEmail, settings.SendGridSenderName);
+                await EmailService.SendPasswordResetEmail(email, resetLink, settings.SendGridApiKey, settings.SendGridSenderEmail, settings.SendGridSenderName, baseUrl);
                 if (!settings.IsSendGridConfigured)
                 {
                     var devNotice = $"""<div class="notice error"><strong>Dev mode:</strong> <a href="/reset-password?token={H.Encode(token)}">Click here to reset</a> (expires in 1 hour).</div>""";
@@ -96,7 +96,8 @@ static class AuthRoutes
                 return Results.Content(H.RenderMarketingPage(http, "Access Code", AuthPages.TrialRequest("""<div class="notice error">Please enter your email address.</div>"""), store), "text/html");
 
             var promo = store.GenerateAccessCode(email);
-            await EmailService.SendAccessCodeEmail(email, promo.Code, settings.SendGridApiKey, settings.SendGridSenderEmail, settings.SendGridSenderName);
+            var baseUrl = PublicUrl.Base(request, settings);
+            await EmailService.SendAccessCodeEmail(email, promo.Code, settings.SendGridApiKey, settings.SendGridSenderEmail, settings.SendGridSenderName, baseUrl);
 
             var devNotice = !settings.IsSendGridConfigured
                 ? $"""<div class="notice error"><strong>Dev mode:</strong> Your access code is <strong>{H.Encode(promo.Code)}</strong> — enter it below.</div>"""

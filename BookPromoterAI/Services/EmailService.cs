@@ -18,7 +18,10 @@ static class EmailService
         string? toName,
         string subject,
         string plainBody,
-        string htmlBody)
+        string htmlBody,
+        string? appBaseUrl = null,
+        string? heading = null,
+        string? footerNote = null)
     {
         if (!UseSendGrid(apiKey, senderEmail))
         {
@@ -26,10 +29,11 @@ static class EmailService
             return true;
         }
 
+        var wrappedHtml = EmailTemplate.Wrap(appBaseUrl, heading ?? subject, htmlBody, footerNote);
         var client = new SendGridClient(apiKey);
         var from = new EmailAddress(senderEmail, senderName);
         var to = new EmailAddress(toEmail, string.IsNullOrWhiteSpace(toName) ? null : toName);
-        var msg = MailHelper.CreateSingleEmail(from, to, subject, plainBody, htmlBody);
+        var msg = MailHelper.CreateSingleEmail(from, to, subject, plainBody, wrappedHtml);
         var response = await client.SendEmailAsync(msg);
         return response.IsSuccessStatusCode;
     }
@@ -39,18 +43,18 @@ static class EmailService
         string accessCode,
         string apiKey,
         string senderEmail,
-        string senderName)
+        string senderName,
+        string? appBaseUrl = null)
     {
         var subject = "Your BookPromoter AI Access Code";
         var plainBody = $"Your access code is: {accessCode}\n\nThis code gives you 30 days of access. Enter it at the Access Code page along with this email address.";
         var htmlBody = $"""
-            <h2>Your BookPromoter AI Access Code</h2>
-            <p>Use the code below to activate your 30-day access:</p>
-            <p style="font-size:24px;font-weight:bold;letter-spacing:2px;background:#f4f7fb;padding:16px;border-radius:8px;display:inline-block">{accessCode}</p>
-            <p>Enter this code along with your email address on the Access Code page.</p>
-            <p>This code is assigned to {toEmail} and can only be used once.</p>
+            {EmailTemplate.Paragraph("Use the code below to activate your <strong>30-day access</strong>:")}
+            {EmailTemplate.CodeBlock(accessCode)}
+            {EmailTemplate.Paragraph("Enter this code along with your email address on the Access Code page.")}
+            {EmailTemplate.Paragraph($"This code is assigned to <strong>{HtmlEncode(toEmail)}</strong> and can only be used once.")}
             """;
-        return await SendSingleEmail(apiKey, senderEmail, senderName, toEmail, null, subject, plainBody, htmlBody);
+        return await SendSingleEmail(apiKey, senderEmail, senderName, toEmail, null, subject, plainBody, htmlBody, appBaseUrl, "Your Access Code");
     }
 
     public static async Task<bool> SendPasswordResetEmail(
@@ -58,20 +62,18 @@ static class EmailService
         string resetLink,
         string apiKey,
         string senderEmail,
-        string senderName)
+        string senderName,
+        string? appBaseUrl = null)
     {
         var subject = "Reset your BookPromoter AI password";
         var plainBody = $"Click this link to reset your password (valid for 1 hour):\n{resetLink}\n\nIf you didn't request this, ignore this email.";
         var htmlBody = $"""
-            <h2>Reset your BookPromoter AI password</h2>
-            <p>Click the button below to reset your password. This link expires in <strong>1 hour</strong>.</p>
-            <p style="margin:24px 0">
-                <a href="{resetLink}" style="background:#0f766e;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold">Reset Password</a>
-            </p>
-            <p>Or copy and paste this link: <span style="word-break:break-all;color:#667085">{resetLink}</span></p>
-            <p style="color:#667085;font-size:13px">If you didn't request this, ignore this email — your password won't change.</p>
+            {EmailTemplate.Paragraph("Click the button below to reset your password. This link expires in <strong>1 hour</strong>.")}
+            {EmailTemplate.PrimaryButton(resetLink, "Reset Password")}
+            {EmailTemplate.Paragraph($"""Or copy and paste this link: <span style="word-break:break-all;color:#667085">{HtmlEncode(resetLink)}</span>""")}
+            {EmailTemplate.MutedParagraph("If you didn't request this, ignore this email — your password won't change.")}
             """;
-        return await SendSingleEmail(apiKey, senderEmail, senderName, toEmail, null, subject, plainBody, htmlBody);
+        return await SendSingleEmail(apiKey, senderEmail, senderName, toEmail, null, subject, plainBody, htmlBody, appBaseUrl, "Reset Your Password");
     }
 
     public static async Task<bool> SendTeamInviteEmail(
@@ -80,18 +82,19 @@ static class EmailService
         string role,
         string apiKey,
         string senderEmail,
-        string senderName)
+        string senderName,
+        string? appBaseUrl = null)
     {
+        var baseUrl = EmailTemplate.ResolveBaseUrl(appBaseUrl);
         var subject = $"You've been invited to join BookPromoter AI as {role}";
         var plainBody = $"You've been invited to join BookPromoter AI as {role}.\nYour invite code is: {inviteCode}\nUse this code when creating your account.";
         var htmlBody = $"""
-            <h2>You're invited to BookPromoter AI</h2>
-            <p>You've been invited to join as a <strong>{role}</strong>.</p>
-            <p>Your invite code:</p>
-            <p style="font-size:24px;font-weight:bold;letter-spacing:2px;background:#f4f7fb;padding:16px;border-radius:8px;display:inline-block">{inviteCode}</p>
-            <p>Create your account at BookPromoter AI and enter this code to join the team.</p>
+            {EmailTemplate.Paragraph($"You've been invited to join as a <strong>{HtmlEncode(role)}</strong>.")}
+            {EmailTemplate.Paragraph("Your invite code:")}
+            {EmailTemplate.CodeBlock(inviteCode)}
+            {EmailTemplate.Paragraph($"""Create your account at <a href="{HtmlEncode(baseUrl)}/start" style="color:#0f766e;font-weight:600;">BookPromoter AI</a> and enter this code to join the team.""")}
             """;
-        return await SendSingleEmail(apiKey, senderEmail, senderName, toEmail, null, subject, plainBody, htmlBody);
+        return await SendSingleEmail(apiKey, senderEmail, senderName, toEmail, null, subject, plainBody, htmlBody, appBaseUrl, "You're Invited");
     }
 
     public static string GenerateThankYouEmail(string email, string category, string message)
@@ -144,11 +147,12 @@ static class EmailService
         string emailBody,
         string apiKey,
         string senderEmail,
-        string senderName)
+        string senderName,
+        string? appBaseUrl = null)
     {
         var subject = "Thank you for your feedback — BookPromoter AI";
-        var htmlBody = emailBody.Replace("\n", "<br>");
-        return await SendSingleEmail(apiKey, senderEmail, senderName, toEmail, null, subject, emailBody, htmlBody);
+        var htmlBody = FormatPlainTextAsHtml(emailBody);
+        return await SendSingleEmail(apiKey, senderEmail, senderName, toEmail, null, subject, emailBody, htmlBody, appBaseUrl, "Thank You for Your Feedback");
     }
 
     public static async Task<bool> SendMailingListEmail(
@@ -159,10 +163,16 @@ static class EmailService
         string fromDisplayName,
         string apiKey,
         string senderEmail,
-        string senderName)
+        string senderName,
+        string? appBaseUrl = null)
     {
-        var htmlBody = body.Replace("\n", "<br>");
-        return await SendSingleEmail(apiKey, senderEmail, fromDisplayName, toEmail, toName, subject, body, htmlBody);
+        var greeting = string.IsNullOrWhiteSpace(toName)
+            ? ""
+            : EmailTemplate.Paragraph($"Hi {HtmlEncode(toName.Trim())},");
+        var htmlBody = greeting + FormatPlainTextAsHtml(body);
+        return await SendSingleEmail(
+            apiKey, senderEmail, fromDisplayName, toEmail, toName, subject, body, htmlBody, appBaseUrl, subject,
+            footerNote: "You received this because you subscribed to this author's mailing list via BookPromoter AI.");
     }
 
     public static async Task<(int Sent, int Failed)> SendProductUpdateEmailAsync(
@@ -182,7 +192,9 @@ static class EmailService
         foreach (var email in recipientEmails.Distinct(StringComparer.OrdinalIgnoreCase))
         {
             var (plain, html) = BuildProductUpdateBodies(update, appBaseUrl);
-            var ok = await SendSingleEmail(apiKey, senderEmail, senderName, email, null, subject, plain, html);
+            var ok = await SendSingleEmail(
+                apiKey, senderEmail, senderName, email, null, subject, plain, html, appBaseUrl,
+                string.IsNullOrWhiteSpace(update.Title) ? $"What's New in v{update.Version}" : update.Title);
             if (ok) sent++; else failed++;
         }
 
@@ -195,15 +207,17 @@ static class EmailService
         string body,
         string apiKey,
         string senderEmail,
-        string senderName)
+        string senderName,
+        string? appBaseUrl = null)
     {
         var sent = 0;
         var failed = 0;
-        var htmlBody = body.Replace("\n", "<br>");
+        var htmlBody = FormatPlainTextAsHtml(body.Trim());
 
         foreach (var email in recipientEmails.Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            var ok = await SendSingleEmail(apiKey, senderEmail, senderName, email, null, subject.Trim(), body.Trim(), htmlBody);
+            var ok = await SendSingleEmail(
+                apiKey, senderEmail, senderName, email, null, subject.Trim(), body.Trim(), htmlBody, appBaseUrl, subject.Trim());
             if (ok) sent++; else failed++;
         }
 
@@ -234,17 +248,14 @@ static class EmailService
         plain.AppendLine("— The BookPromoter AI Team");
 
         var html = new System.Text.StringBuilder();
-        html.Append("<p>Hi,</p>");
-        html.Append("<p>");
-        html.Append(HtmlEncode(string.IsNullOrWhiteSpace(update.Title)
+        html.Append(EmailTemplate.Paragraph("Hi,"));
+        html.Append(EmailTemplate.Paragraph(HtmlEncode(string.IsNullOrWhiteSpace(update.Title)
             ? $"We've released BookPromoter AI v{update.Version}."
-            : update.Title));
-        html.Append("</p>");
+            : update.Title)));
         AppendHtmlSection(html, "Updated", updated);
         AppendHtmlSection(html, "New", created);
         AppendHtmlSection(html, "Added", added);
-        html.Append($"""<p style="margin:24px 0"><a href="{HtmlEncode(dashboardUrl)}" style="background:#0f766e;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold">Open Dashboard</a></p>""");
-        html.Append("<p>— The BookPromoter AI Team</p>");
+        html.Append(EmailTemplate.PrimaryButton(dashboardUrl, "Open Dashboard"));
 
         return (plain.ToString(), html.ToString());
     }
@@ -261,10 +272,26 @@ static class EmailService
     static void AppendHtmlSection(System.Text.StringBuilder sb, string heading, List<string> items)
     {
         if (items.Count == 0) return;
-        sb.Append($"<p><strong>{HtmlEncode(heading)}</strong></p><ul>");
+        sb.Append($"""<p style="margin:20px 0 8px;font-weight:700;color:#172033;">{HtmlEncode(heading)}</p><ul style="margin:0 0 16px;padding-left:20px;color:#172033;">""");
         foreach (var item in items)
-            sb.Append($"<li>{HtmlEncode(item)}</li>");
+            sb.Append($"""<li style="margin-bottom:6px;">{HtmlEncode(item)}</li>""");
         sb.Append("</ul>");
+    }
+
+    static string FormatPlainTextAsHtml(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return "";
+        var lines = text.Replace("\r\n", "\n").Split('\n');
+        var html = new System.Text.StringBuilder();
+        foreach (var line in lines)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+                html.Append("""<p style="margin:0 0 16px;">&nbsp;</p>""");
+            else
+                html.Append(EmailTemplate.Paragraph(HtmlEncode(line)));
+        }
+
+        return html.ToString();
     }
 
     static string HtmlEncode(string value) =>

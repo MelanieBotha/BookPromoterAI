@@ -64,12 +64,14 @@ static class OwnerRoutes
         {
             if (OwnerGuard(store) is { } guard) return guard;
             var form = await request.ReadFormAsync();
+            var baseUrl = PublicUrl.Base(http.Request, settings);
             var (_, _, message) = await store.BroadcastAppEmailAsync(
                 form["subject"].ToString(),
                 form["body"].ToString(),
                 settings.SendGridApiKey,
                 settings.SendGridSenderEmail,
-                settings.SendGridSenderName);
+                settings.SendGridSenderName,
+                baseUrl);
             var cls = message.Contains("sent to", StringComparison.OrdinalIgnoreCase) ? "success" : "error";
             return RenderOwner(http, store, settings, $"""<div class="notice {cls}">{H.Encode(message)}</div>""");
         });

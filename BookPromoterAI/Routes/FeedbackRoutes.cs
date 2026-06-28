@@ -20,7 +20,8 @@ static class FeedbackRoutes
             if (string.IsNullOrWhiteSpace(message))
                 return Results.Content(H.RenderPage(http, "Feedback &amp; Suggestions", FeedbackPage.Render(store, """<div class="notice error">Please enter a message.</div>"""), store), "text/html");
             var entry = store.AddFeedback(email, category, message);
-            await EmailService.SendThankYouEmail(email, entry.ThankYouEmail, settings.SendGridApiKey, settings.SendGridSenderEmail, settings.SendGridSenderName);
+            var baseUrl = PublicUrl.Base(http.Request, settings);
+            await EmailService.SendThankYouEmail(email, entry.ThankYouEmail, settings.SendGridApiKey, settings.SendGridSenderEmail, settings.SendGridSenderName, baseUrl);
             return Results.Content(H.RenderPage(http, "Feedback &amp; Suggestions", FeedbackPage.Render(store, """<div class="notice success">Thanks! Your feedback has been submitted.</div>"""), store), "text/html");
         });
     }
