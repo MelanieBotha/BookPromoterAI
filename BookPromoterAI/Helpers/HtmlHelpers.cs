@@ -440,6 +440,8 @@ textarea{min-height:120px}
 .mailing-history-header,.mailing-history-row{grid-template-columns:1.2fr 2fr 1fr auto}
 .email-body-view{margin-top:12px;padding:16px;background:var(--soft);border:1px solid var(--line);border-radius:8px;white-space:pre-line;line-height:1.6}
 .promo-header{background:var(--soft)}.promo-row{border-top:1px solid var(--line)}
+.post-preview{white-space:pre-wrap;font-size:13px;color:var(--ink);background:var(--soft);padding:10px;border-radius:8px;margin:0;max-height:160px;overflow:auto}
+.checkbox-label{display:flex;align-items:center;gap:8px;font-weight:500;margin:8px 0}
 .feedback-table .feedback-header,.feedback-table .feedback-row{grid-template-columns:1.4fr 160px 2fr}
 .feedback-row p{margin:0;font-size:13px;color:var(--ink)}
 .feedback-category-section{padding:0;overflow:hidden;margin-bottom:24px}

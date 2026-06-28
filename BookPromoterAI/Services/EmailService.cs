@@ -164,4 +164,109 @@ static class EmailService
         var htmlBody = body.Replace("\n", "<br>");
         return await SendSingleEmail(apiKey, senderEmail, fromDisplayName, toEmail, toName, subject, body, htmlBody);
     }
+
+    public static async Task<(int Sent, int Failed)> SendProductUpdateEmailAsync(
+        IEnumerable<string> recipientEmails,
+        ProductUpdate update,
+        string appBaseUrl,
+        string apiKey,
+        string senderEmail,
+        string senderName)
+    {
+        var subject = string.IsNullOrWhiteSpace(update.Title)
+            ? $"BookPromoter AI v{update.Version} — What's new"
+            : update.Title;
+        var sent = 0;
+        var failed = 0;
+
+        foreach (var email in recipientEmails.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var (plain, html) = BuildProductUpdateBodies(update, appBaseUrl);
+            var ok = await SendSingleEmail(apiKey, senderEmail, senderName, email, null, subject, plain, html);
+            if (ok) sent++; else failed++;
+        }
+
+        return (sent, failed);
+    }
+
+    public static async Task<(int Sent, int Failed)> SendBroadcastEmailAsync(
+        IEnumerable<string> recipientEmails,
+        string subject,
+        string body,
+        string apiKey,
+        string senderEmail,
+        string senderName)
+    {
+        var sent = 0;
+        var failed = 0;
+        var htmlBody = body.Replace("\n", "<br>");
+
+        foreach (var email in recipientEmails.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var ok = await SendSingleEmail(apiKey, senderEmail, senderName, email, null, subject.Trim(), body.Trim(), htmlBody);
+            if (ok) sent++; else failed++;
+        }
+
+        return (sent, failed);
+    }
+
+    static (string Plain, string Html) BuildProductUpdateBodies(ProductUpdate update, string appBaseUrl)
+    {
+        var dashboardUrl = $"{appBaseUrl.TrimEnd('/')}/dashboard";
+        var updated = AppPromoGenerator.ParseLines(update.UpdatedItems);
+        var created = AppPromoGenerator.ParseLines(update.CreatedItems);
+        var added = AppPromoGenerator.ParseLines(update.AddedItems);
+
+        var plain = new System.Text.StringBuilder();
+        plain.AppendLine("Hi,");
+        plain.AppendLine();
+        plain.AppendLine(string.IsNullOrWhiteSpace(update.Title)
+            ? $"We've released BookPromoter AI v{update.Version}."
+            : update.Title);
+        plain.AppendLine();
+
+        AppendSection(plain, "Updated", updated);
+        AppendSection(plain, "New", created);
+        AppendSection(plain, "Added", added);
+
+        plain.AppendLine($"Open your dashboard: {dashboardUrl}");
+        plain.AppendLine();
+        plain.AppendLine("— The BookPromoter AI Team");
+
+        var html = new System.Text.StringBuilder();
+        html.Append("<p>Hi,</p>");
+        html.Append("<p>");
+        html.Append(HtmlEncode(string.IsNullOrWhiteSpace(update.Title)
+            ? $"We've released BookPromoter AI v{update.Version}."
+            : update.Title));
+        html.Append("</p>");
+        AppendHtmlSection(html, "Updated", updated);
+        AppendHtmlSection(html, "New", created);
+        AppendHtmlSection(html, "Added", added);
+        html.Append($"""<p style="margin:24px 0"><a href="{HtmlEncode(dashboardUrl)}" style="background:#0f766e;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold">Open Dashboard</a></p>""");
+        html.Append("<p>— The BookPromoter AI Team</p>");
+
+        return (plain.ToString(), html.ToString());
+    }
+
+    static void AppendSection(System.Text.StringBuilder sb, string heading, List<string> items)
+    {
+        if (items.Count == 0) return;
+        sb.AppendLine($"{heading.ToUpperInvariant()}:");
+        foreach (var item in items)
+            sb.AppendLine($"• {item}");
+        sb.AppendLine();
+    }
+
+    static void AppendHtmlSection(System.Text.StringBuilder sb, string heading, List<string> items)
+    {
+        if (items.Count == 0) return;
+        sb.Append($"<p><strong>{HtmlEncode(heading)}</strong></p><ul>");
+        foreach (var item in items)
+            sb.Append($"<li>{HtmlEncode(item)}</li>");
+        sb.Append("</ul>");
+    }
+
+    static string HtmlEncode(string value) =>
+        System.Net.WebUtility.HtmlEncode(value);
 }

@@ -41,6 +41,7 @@ class AppDbContext : DbContext
     public DbSet<DbOwnerPayoutSettings> OwnerPayoutSettings => Set<DbOwnerPayoutSettings>();
     public DbSet<DbMailingListSubscriber> MailingListSubscribers => Set<DbMailingListSubscriber>();
     public DbSet<DbMailingListCampaign> MailingListCampaigns => Set<DbMailingListCampaign>();
+    public DbSet<DbProductUpdate> ProductUpdates => Set<DbProductUpdate>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -313,4 +314,20 @@ class DbMailingListCampaign
     public int FailedCount { get; set; }
     public DateTime SentAt { get; set; }
     public DbUser? User { get; set; }
+}
+
+class DbProductUpdate
+{
+    public int Id { get; set; }
+    public string Version { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string UpdatedItems { get; set; } = "";
+    public string CreatedItems { get; set; } = "";
+    public string AddedItems { get; set; } = "";
+    public string? SocialPostText { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? EmailedAt { get; set; }
+    public int EmailsSent { get; set; }
+    public int EmailsFailed { get; set; }
+    public int SocialPostsSent { get; set; }
 }

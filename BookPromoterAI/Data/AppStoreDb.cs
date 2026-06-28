@@ -1208,6 +1208,228 @@ class AppStoreDb
         book.ClientId = match?.Id;
     }
 
+    // ── Owner: app promotion & product updates ─────────────────────────
+    public List<ProductUpdate> ProductUpdates
+    {
+        get
+        {
+            using var db = Db();
+            return db.ProductUpdates.AsNoTracking()
+                .OrderByDescending(u => u.CreatedAt)
+                .Take(20)
+                .Select(ToModel)
+                .ToList();
+        }
+    }
+
+    public int RegisteredUserCount
+    {
+        get
+        {
+            using var db = Db();
+            return db.Users.Count(u => u.Email.Contains('@'));
+        }
+    }
+
+    public List<SocialAccount> OwnerSocialAccounts
+    {
+        get
+        {
+            using var db = Db();
+            var owner = db.Users.AsNoTracking().FirstOrDefault(u => u.Email == OwnerAccount.NormalizedEmail);
+            if (owner is null) return [];
+            return db.SocialAccounts.AsNoTracking()
+                .Where(a => a.UserId == owner.Id && a.IsConnected)
+                .Select(ToModel)
+                .ToList();
+        }
+    }
+
+    public async Task<(int Sent, int Failed, string Message)> BroadcastAppEmailAsync(
+        string subject, string body, string apiKey, string senderEmail, string senderName)
+    {
+        if (!IsOwner) return (0, 0, "Only the owner can send app-wide emails.");
+        if (string.IsNullOrWhiteSpace(subject)) return (0, 0, "Enter an email subject.");
+        if (string.IsNullOrWhiteSpace(body)) return (0, 0, "Enter a message to send.");
+
+        var emails = GetAllUserEmails();
+        if (emails.Count == 0) return (0, 0, "No registered users to email yet.");
+
+        var (sent, failed) = await EmailService.SendBroadcastEmailAsync(emails, subject, body, apiKey, senderEmail, senderName);
+        var devNote = !_settings.IsSendGridConfigured && sent > 0
+            ? " (SendGrid not configured — logged only in dev.)"
+            : "";
+        var message = failed == 0
+            ? $"Promo email sent to {sent} user(s).{devNote}"
+            : $"Sent to {sent} user(s). {failed} failed.{devNote}";
+        return (sent, failed, message);
+    }
+
+    public async Task<(int Posted, int Failed, string Message)> PostOwnerAppPromoAsync(
+        SocialPostingService postingService, string appBaseUrl, string? platformFilter = null)
+    {
+        if (!IsOwner) return (0, 0, "Only the owner can post app promotions.");
+
+        using var db = Db();
+        var owner = db.Users.FirstOrDefault(u => u.Email == OwnerAccount.NormalizedEmail);
+        if (owner is null) return (0, 0, "Owner account not found.");
+
+        var accounts = await db.SocialAccounts
+            .Where(a => a.UserId == owner.Id && a.IsConnected)
+            .ToListAsync();
+
+        if (!string.IsNullOrWhiteSpace(platformFilter))
+            accounts = accounts.Where(a => a.Platform.Equals(platformFilter, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        if (accounts.Count == 0)
+            return (0, 0, "Connect social accounts under My Account first, then try again.");
+
+        var promoPosts = AppPromoGenerator.GeneratePromoPosts(appBaseUrl);
+        var posted = 0;
+        var failed = 0;
+        var now = DateTime.UtcNow;
+
+        foreach (var account in accounts)
+        {
+            var postText = promoPosts.GetValueOrDefault(account.Platform)
+                ?? promoPosts.Values.FirstOrDefault()
+                ?? "";
+            if (string.IsNullOrWhiteSpace(postText)) continue;
+
+            var result = await postingService.PostAsync(ToModel(account), postText);
+            db.PostingLog.Add(new DbPostingLogEntry
+            {
+                UserId = owner.Id,
+                Platform = account.Platform,
+                BookTitle = "BookPromoter AI",
+                Success = result.Success,
+                Message = result.Message,
+                AttemptedAt = now
+            });
+            if (result.Success) posted++; else failed++;
+        }
+
+        await db.SaveChangesAsync();
+        var message = failed == 0
+            ? $"Posted to {posted} connected account(s). (Simulated until real OAuth is configured.)"
+            : $"Posted to {posted} account(s). {failed} failed.";
+        return (posted, failed, message);
+    }
+
+    public async Task<(bool Success, string Message, ProductUpdate? Update)> PublishProductUpdateAsync(
+        string version,
+        string title,
+        string updatedItems,
+        string createdItems,
+        string addedItems,
+        bool sendEmail,
+        bool postToSocial,
+        string appBaseUrl,
+        SocialPostingService postingService,
+        string apiKey,
+        string senderEmail,
+        string senderName)
+    {
+        if (!IsOwner) return (false, "Only the owner can publish product updates.", null);
+
+        version = version.Trim();
+        if (string.IsNullOrWhiteSpace(version)) return (false, "Enter a version number (e.g. 1.5.0).", null);
+
+        var hasChanges = AppPromoGenerator.ParseLines(updatedItems).Count > 0
+            || AppPromoGenerator.ParseLines(createdItems).Count > 0
+            || AppPromoGenerator.ParseLines(addedItems).Count > 0;
+        if (!hasChanges) return (false, "Add at least one item under Updated, New, or Added.", null);
+
+        using var db = Db();
+        var update = new DbProductUpdate
+        {
+            Version = version,
+            Title = title.Trim(),
+            UpdatedItems = updatedItems.Trim(),
+            CreatedItems = createdItems.Trim(),
+            AddedItems = addedItems.Trim(),
+            CreatedAt = DateTime.UtcNow
+        };
+
+        var socialPosts = AppPromoGenerator.GenerateUpdatePosts(ToModel(update), appBaseUrl);
+        update.SocialPostText = socialPosts.GetValueOrDefault("Facebook") ?? socialPosts.Values.FirstOrDefault();
+
+        if (sendEmail)
+        {
+            var emails = GetAllUserEmails();
+            if (emails.Count == 0)
+                return (false, "No registered users to email.", null);
+
+            var (sent, failed) = await EmailService.SendProductUpdateEmailAsync(
+                emails, ToModel(update), appBaseUrl, apiKey, senderEmail, senderName);
+            update.EmailedAt = DateTime.UtcNow;
+            update.EmailsSent = sent;
+            update.EmailsFailed = failed;
+        }
+
+        if (postToSocial)
+        {
+            var owner = db.Users.FirstOrDefault(u => u.Email == OwnerAccount.NormalizedEmail);
+            if (owner is not null)
+            {
+                var accounts = await db.SocialAccounts.Where(a => a.UserId == owner.Id && a.IsConnected).ToListAsync();
+                foreach (var account in accounts)
+                {
+                    var text = socialPosts.GetValueOrDefault(account.Platform)
+                        ?? AppPromoGenerator.GenerateUpdatePost(account.Platform, ToModel(update), appBaseUrl);
+                    var result = await postingService.PostAsync(ToModel(account), text);
+                    db.PostingLog.Add(new DbPostingLogEntry
+                    {
+                        UserId = owner.Id,
+                        Platform = account.Platform,
+                        BookTitle = $"Update v{version}",
+                        Success = result.Success,
+                        Message = result.Message,
+                        AttemptedAt = DateTime.UtcNow
+                    });
+                    if (result.Success) update.SocialPostsSent++;
+                }
+            }
+        }
+
+        db.ProductUpdates.Add(update);
+        await db.SaveChangesAsync();
+
+        var parts = new List<string> { $"Saved update v{version}." };
+        if (sendEmail) parts.Add($"Emailed {update.EmailsSent} user(s)" + (update.EmailsFailed > 0 ? $" ({update.EmailsFailed} failed)" : "") + ".");
+        if (postToSocial) parts.Add($"Posted to {update.SocialPostsSent} social account(s).");
+        if (sendEmail && !_settings.IsSendGridConfigured)
+            parts.Add("SendGrid is not configured — emails were not actually delivered.");
+
+        return (true, string.Join(" ", parts), ToModel(update));
+    }
+
+    List<string> GetAllUserEmails()
+    {
+        using var db = Db();
+        return db.Users.AsNoTracking()
+            .Where(u => u.Email.Contains('@'))
+            .Select(u => u.Email.Trim().ToLowerInvariant())
+            .Distinct()
+            .ToList();
+    }
+
+    static ProductUpdate ToModel(DbProductUpdate u) => new()
+    {
+        Id = u.Id,
+        Version = u.Version,
+        Title = u.Title,
+        UpdatedItems = u.UpdatedItems,
+        CreatedItems = u.CreatedItems,
+        AddedItems = u.AddedItems,
+        SocialPostText = u.SocialPostText,
+        CreatedAt = u.CreatedAt,
+        EmailedAt = u.EmailedAt,
+        EmailsSent = u.EmailsSent,
+        EmailsFailed = u.EmailsFailed,
+        SocialPostsSent = u.SocialPostsSent
+    };
+
     // ── Helpers ────────────────────────────────────────────────────────
     private static string GenerateCode(string prefix)
     {

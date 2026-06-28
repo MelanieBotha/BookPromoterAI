@@ -3,7 +3,7 @@ namespace BookPromoterAI;
 
 static class OwnerPage
 {
-    public static string Render(AppStoreDb store, string notice = "")
+    public static string Render(AppStoreDb store, string notice = "", string appBaseUrl = "https://bookpromoterai.us")
     {
         var accessRows = new StringBuilder();
         foreach (var code in store.PromoCodes.Where(c => !c.IsLifetimeFree))
@@ -307,6 +307,8 @@ static class OwnerPage
                     </div>
                 </div>
             </details>
+
+            {OwnerPromoPage.Render(store, appBaseUrl)}
 
             <details class="owner-collapsible">
                 <summary class="owner-collapsible-heading">Feedback &amp; Suggestions Report</summary>

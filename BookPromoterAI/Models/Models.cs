@@ -283,6 +283,22 @@ class MailingListCampaign
     public DateTime SentAt { get; set; }
 }
 
+class ProductUpdate
+{
+    public int Id { get; set; }
+    public string Version { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string UpdatedItems { get; set; } = "";
+    public string CreatedItems { get; set; } = "";
+    public string AddedItems { get; set; } = "";
+    public string? SocialPostText { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? EmailedAt { get; set; }
+    public int EmailsSent { get; set; }
+    public int EmailsFailed { get; set; }
+    public int SocialPostsSent { get; set; }
+}
+
 static class BookExtensions
 {
     public static string GenreOrDefault(this Book book) =>
