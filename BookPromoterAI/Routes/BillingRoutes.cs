@@ -91,6 +91,9 @@ static class BillingRoutes
             return Results.Content(H.RenderPage(http, "Subscription &amp; Billing", BillingPage.Render(store, changeNotice), store), "text/html");
         });
 
+        app.MapPost("/subscription/promo-code", async (HttpRequest request, HttpContext http, AppStoreDb store) =>
+            await RedeemPromoCodeAsync(request, http, store, subscribePage: true));
+
         app.MapGet("/billing", (HttpContext http, AppStoreDb store) =>
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
@@ -120,6 +123,9 @@ static class BillingRoutes
             var cls = message == "Payment method saved." ? "success" : "error";
             return Results.Content(H.RenderPage(http, "Subscription &amp; Billing", BillingPage.Render(store, $"""<div class="notice {cls}">{H.Encode(message)}</div>""", payment), store), "text/html");
         });
+
+        app.MapPost("/billing/promo-code", async (HttpRequest request, HttpContext http, AppStoreDb store) =>
+            await RedeemPromoCodeAsync(request, http, store, subscribePage: false));
 
         app.MapPost("/billing/cancel", async (HttpContext http, AppStoreDb store, StripeBillingService stripe) =>
         {
@@ -153,4 +159,21 @@ static class BillingRoutes
         Results.Content(
             H.RenderPage(http, "Checkout", BillingPage.CheckoutPage(store, planId, $"""<div class="notice error">{H.Encode(message)}</div>"""), store),
             "text/html");
+
+    static async Task<IResult> RedeemPromoCodeAsync(HttpRequest request, HttpContext http, AppStoreDb store, bool subscribePage)
+    {
+        if (!store.IsLoggedIn) return Results.Redirect("/start");
+
+        var form = await request.ReadFormAsync();
+        var result = store.RedeemPromoCode(null, form["promoCode"].ToString());
+        if (result.Success) return Results.Redirect("/dashboard");
+
+        var cls = "error";
+        var notice = $"""<div class="notice {cls}">{H.Encode(result.Message)}</div>""";
+        if (subscribePage)
+            return Results.Content(H.RenderPage(http, "Subscribe", BillingPage.SubscribePage(store, notice), store), "text/html");
+
+        if (!store.HasCustomerAccess) return Results.Redirect("/subscription");
+        return Results.Content(H.RenderPage(http, "Subscription &amp; Billing", BillingPage.Render(store, notice), store), "text/html");
+    }
 }

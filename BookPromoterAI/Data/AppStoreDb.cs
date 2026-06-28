@@ -901,29 +901,87 @@ class AppStoreDb
     };
 
     // ── Subscription ───────────────────────────────────────────────────
-    public PromoRedeemResult RedeemPromoCode(string email, string code)
+    public PromoRedeemResult RedeemPromoCode(string? email, string code)
     {
-        var cleanEmail = email.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(code)) return new(false, "Enter a promotional code.");
+
+        var cleanEmail = string.IsNullOrWhiteSpace(email)
+            ? LoggedInEmail?.Trim().ToLowerInvariant()
+            : email.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(cleanEmail)) return new(false, "Log in or enter your email address.");
+
         using var db = Db();
-        var user = db.Users.FirstOrDefault(u => u.Email == LoggedInEmail);
-        if (user is null) return new(false, "Not logged in.");
-        if (db.Subscriptions.Any(s => s.UserId == user.Id)) return new(false, "This account already has an active subscription.");
+        var user = db.Users.FirstOrDefault(u => u.Email == cleanEmail);
+        if (user is null) return new(false, "No account found for that email.");
+        if (!string.IsNullOrWhiteSpace(LoggedInEmail) && !user.Email.Equals(LoggedInEmail, StringComparison.OrdinalIgnoreCase))
+            return new(false, "That code cannot be applied to this account.");
+
+        if (user.AccessType == "Lifetime Free (Publisher)")
+            return new(false, "You already have lifetime free access.");
+
+        if (!string.IsNullOrWhiteSpace(user.StripeSubscriptionId) || !string.IsNullOrWhiteSpace(user.PayPalSubscriptionId))
+            return new(false, "Cancel your paid subscription first, then apply a lifetime promotional code.");
+
         var promo = db.PromoCodes.FirstOrDefault(p => p.Code == code.Trim().ToUpperInvariant());
-        if (promo is null) return new(false, "That access code is not valid.");
-        if (promo.IsRedeemed) return new(false, "That access code has already been used.");
-        if (!string.IsNullOrWhiteSpace(promo.IntendedRecipientEmail) && !promo.IntendedRecipientEmail.Equals(cleanEmail, StringComparison.OrdinalIgnoreCase)) return new(false, "That access code was not assigned to this email.");
+        if (promo is null) return new(false, "That promotional code is not valid.");
+        if (promo.IsRedeemed) return new(false, "That promotional code has already been used.");
+        if (!string.IsNullOrWhiteSpace(promo.IntendedRecipientEmail) && !promo.IntendedRecipientEmail.Equals(cleanEmail, StringComparison.OrdinalIgnoreCase))
+            return new(false, "That promotional code was not assigned to this email.");
 
-        promo.IsRedeemed = true; promo.RedeemedByEmail = cleanEmail; promo.RedeemedAt = DateTime.UtcNow;
-        var sub = new DbSubscription { UserId = user.Id, Email = cleanEmail, TrialStartedAt = DateTime.UtcNow, TrialEndsAt = promo.IsLifetimeFree ? DateTime.MaxValue : DateTime.UtcNow.AddDays(promo.FreeTrialDays), PromoCodeUsed = promo.Code };
-        db.Subscriptions.Add(sub);
+        var hasSubscription = db.Subscriptions.Any(s => s.UserId == user.Id);
+        if (hasSubscription && !promo.IsLifetimeFree)
+            return new(false, "This account already has access. Lifetime promotional codes can upgrade a trial; 30-day codes are for new accounts only.");
 
-        if (promo.IsLifetimeFree) { user.HasCustomerAccess = true; user.AccessType = "Lifetime Free (Publisher)"; user.CurrentPlanId = "publisher"; }
-        else { user.HasCustomerAccess = true; user.AccessType = "Free Trial"; user.AccessEndsAt = sub.TrialEndsAt; user.CurrentPlanId = "professional"; }
+        promo.IsRedeemed = true;
+        promo.RedeemedByEmail = cleanEmail;
+        promo.RedeemedAt = DateTime.UtcNow;
 
-        db.PromoCodes.Add(new DbPromoCode { Code = promo.IsLifetimeFree ? GenerateCode("LIFETIME-") : GenerateCode("ACCESS-"), IsLifetimeFree = promo.IsLifetimeFree, FreeTrialDays = promo.FreeTrialDays });
+        if (hasSubscription && promo.IsLifetimeFree)
+        {
+            var latest = db.Subscriptions.Where(s => s.UserId == user.Id).OrderByDescending(s => s.TrialStartedAt).First();
+            latest.TrialEndsAt = DateTime.MaxValue;
+            latest.PromoCodeUsed = promo.Code;
+        }
+        else
+        {
+            db.Subscriptions.Add(new DbSubscription
+            {
+                UserId = user.Id,
+                Email = cleanEmail,
+                TrialStartedAt = DateTime.UtcNow,
+                TrialEndsAt = promo.IsLifetimeFree ? DateTime.MaxValue : DateTime.UtcNow.AddDays(promo.FreeTrialDays),
+                PromoCodeUsed = promo.Code
+            });
+        }
+
+        if (promo.IsLifetimeFree)
+        {
+            user.HasCustomerAccess = true;
+            user.AccessType = "Lifetime Free (Publisher)";
+            user.CurrentPlanId = "publisher";
+            user.AccessEndsAt = null;
+            user.IsCancelled = false;
+            user.SubscriptionEndsAt = null;
+        }
+        else
+        {
+            user.HasCustomerAccess = true;
+            user.AccessType = "Free Trial";
+            user.AccessEndsAt = DateTime.UtcNow.AddDays(promo.FreeTrialDays);
+            user.CurrentPlanId = "professional";
+        }
+
+        db.PromoCodes.Add(new DbPromoCode
+        {
+            Code = promo.IsLifetimeFree ? GenerateCode("LIFETIME-") : GenerateCode("ACCESS-"),
+            IsLifetimeFree = promo.IsLifetimeFree,
+            FreeTrialDays = promo.FreeTrialDays
+        });
         db.SaveChanges();
         ClearUserCache();
-        return new(true, promo.IsLifetimeFree ? "Lifetime free access activated!" : $"Your {promo.FreeTrialDays}-day access code is active.");
+        return new(true, promo.IsLifetimeFree
+            ? "Lifetime free Publisher access activated!"
+            : $"Your {promo.FreeTrialDays}-day access code is active.");
     }
 
     public PromoRedeemResult StartPaidSubscription(string email, string planId, PaymentMethodInput payment)

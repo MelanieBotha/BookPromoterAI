@@ -59,6 +59,7 @@ static class BillingPage
             </section>
 
             {paymentFormSection}
+            {PromoCodeSection(store, "/billing/promo-code")}
             {cancelSection}
 
             {(store.HasProviderSubscription ? "" : """
@@ -86,6 +87,7 @@ static class BillingPage
                 </div>
             </section>
             {notice}
+            {PromoCodeSection(store, "/subscription/promo-code")}
             {PlanPicker(store, "/subscription/checkout", changeMode: false)}
             <section class="panel">
                 <h2>What You Get</h2>
@@ -194,6 +196,47 @@ static class BillingPage
             </section>
             <section class="choice-grid plans-grid plan-picker-grid">
                 {cards}
+            </section>
+            """;
+    }
+
+    static string PromoCodeSection(AppStoreDb store, string postAction)
+    {
+        if (store.AccessType == "Lifetime Free (Publisher)")
+        {
+            return """
+                <section class="panel">
+                    <h2>Promotional Code</h2>
+                    <p class="notice success">You have lifetime free Publisher access. No promotional code needed.</p>
+                </section>
+                """;
+        }
+
+        if (store.HasProviderSubscription)
+        {
+            return """
+                <section class="panel">
+                    <h2>Promotional Code</h2>
+                    <p class="muted">To apply a lifetime promotional code, cancel your paid subscription first. After access ends, return here and enter your code.</p>
+                </section>
+                """;
+        }
+
+        var hint = store.AccessType == "Free Trial"
+            ? "Have a lifetime access code from us? Enter it below to upgrade to lifetime free Publisher access."
+            : "Have a promotional code or lifetime access code? Enter it below to unlock access without subscribing.";
+
+        return $"""
+            <section class="panel">
+                <h2>Promotional Code</h2>
+                <p class="muted">{hint}</p>
+                <form method="post" action="{H.Encode(postAction)}" class="form promo-code-form">
+                    <label>Promotional code
+                        <input name="promoCode" placeholder="e.g. LIFETIME-XXXXXXXX" required autocomplete="off" spellcheck="false">
+                    </label>
+                    <button class="button secondary" type="submit">Apply Code</button>
+                </form>
+                <p class="muted small-text">Codes are one-time use. Lifetime codes grant permanent Publisher-tier access.</p>
             </section>
             """;
     }
