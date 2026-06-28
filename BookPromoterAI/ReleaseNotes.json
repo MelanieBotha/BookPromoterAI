@@ -1,0 +1,63 @@
+{
+  "1.7.1": {
+    "title": "BookPromoter AI v1.7.1 — What's new",
+    "updated": [],
+    "new": [
+      "Product Updates form auto-fills from ReleaseNotes.json on every deploy"
+    ],
+    "added": []
+  },
+  "1.7.0": {
+    "title": "BookPromoter AI v1.7.0 — What's new",
+    "updated": [],
+    "new": [
+      "Owner tier sections for Starter, Professional, Publisher, and Agency",
+      "All Owner page tabs collapsed by default"
+    ],
+    "added": []
+  },
+  "1.6.9": {
+    "title": "BookPromoter AI v1.6.9 — What's new",
+    "updated": [
+      "Owner page shows only redeemed promo codes"
+    ],
+    "new": [],
+    "added": []
+  },
+  "1.6.8": {
+    "title": "BookPromoter AI v1.6.8 — What's new",
+    "updated": [
+      "Access codes issued on signup only (no auto-replenish on redeem)"
+    ],
+    "new": [
+      "Owner promo code list capped at 20 entries"
+    ],
+    "added": []
+  },
+  "1.6.7": {
+    "title": "BookPromoter AI v1.6.7 — What's new",
+    "updated": [
+      "Book cover uploads persist on Railway /data volume",
+      "Ad Library shows the book's current cover after upload"
+    ],
+    "new": [],
+    "added": []
+  },
+  "1.6.6": {
+    "title": "BookPromoter AI v1.6.6 — What's new",
+    "updated": [
+      "Auto-post runs immediately when you save your posting schedule",
+      "Clear messages when auto-post is waiting on approval or posts/week"
+    ],
+    "new": [],
+    "added": []
+  },
+  "1.6.5": {
+    "title": "BookPromoter AI v1.6.5 — What's new",
+    "updated": [],
+    "new": [
+      "Railway cleanup checklist item (Launch__RailwayCleanupDone)"
+    ],
+    "added": []
+  }
+}

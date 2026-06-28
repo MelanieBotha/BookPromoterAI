@@ -4,8 +4,8 @@ static class OwnerRoutes
 {
     public static void Map(WebApplication app)
     {
-        app.MapGet("/owner-promos", (HttpContext http, AppStoreDb store, AppSettings settings) =>
-            OwnerGuard(store) ?? RenderOwner(http, store, settings));
+        app.MapGet("/owner-promos", (HttpContext http, AppStoreDb store, AppSettings settings, ReleaseNotesCatalog releaseNotes) =>
+            OwnerGuard(store) ?? RenderOwner(http, store, settings, releaseNotes));
 
         app.MapGet("/owner/promos", () => Results.Redirect("/owner-promos"));
         app.MapGet("/owner_promos", () => Results.Redirect("/owner-promos"));
@@ -40,7 +40,7 @@ static class OwnerRoutes
             return Results.Redirect("/owner-promos");
         });
 
-        app.MapPost("/owner/payout-settings", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings) =>
+        app.MapPost("/owner/payout-settings", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings, ReleaseNotesCatalog releaseNotes) =>
         {
             if (OwnerGuard(store) is { } guard) return guard;
             var form = await request.ReadFormAsync();
@@ -56,10 +56,10 @@ static class OwnerRoutes
             });
             var cls = message.EndsWith('.') && !message.Contains("Enter") ? "success" : "error";
             var notice = $"""<div class="notice {cls}">{H.Encode(message)}</div>""";
-            return RenderOwner(http, store, settings, notice);
+            return RenderOwner(http, store, settings, releaseNotes, notice);
         });
 
-        app.MapPost("/owner/app-promo/email", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings) =>
+        app.MapPost("/owner/app-promo/email", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings, ReleaseNotesCatalog releaseNotes) =>
         {
             if (OwnerGuard(store) is { } guard) return guard;
             var form = await request.ReadFormAsync();
@@ -72,10 +72,10 @@ static class OwnerRoutes
                 settings.SendGridSenderName,
                 baseUrl);
             var cls = message.Contains("sent to", StringComparison.OrdinalIgnoreCase) ? "success" : "error";
-            return RenderOwner(http, store, settings, $"""<div class="notice {cls}">{H.Encode(message)}</div>""");
+            return RenderOwner(http, store, settings, releaseNotes, $"""<div class="notice {cls}">{H.Encode(message)}</div>""");
         });
 
-        app.MapPost("/owner/app-promo/post-social", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings, SocialPostingService posting) =>
+        app.MapPost("/owner/app-promo/post-social", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings, SocialPostingService posting, ReleaseNotesCatalog releaseNotes) =>
         {
             if (OwnerGuard(store) is { } guard) return guard;
             var form = await request.ReadFormAsync();
@@ -86,10 +86,10 @@ static class OwnerRoutes
                 baseUrl,
                 string.IsNullOrWhiteSpace(platform) ? null : platform);
             var cls = message.Contains("Posted", StringComparison.OrdinalIgnoreCase) ? "success" : "error";
-            return RenderOwner(http, store, settings, $"""<div class="notice {cls}">{H.Encode(message)}</div>""");
+            return RenderOwner(http, store, settings, releaseNotes, $"""<div class="notice {cls}">{H.Encode(message)}</div>""");
         });
 
-        app.MapPost("/owner/product-update/publish", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings, SocialPostingService posting) =>
+        app.MapPost("/owner/product-update/publish", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings, SocialPostingService posting, ReleaseNotesCatalog releaseNotes) =>
         {
             if (OwnerGuard(store) is { } guard) return guard;
             var form = await request.ReadFormAsync();
@@ -108,7 +108,7 @@ static class OwnerRoutes
                 settings.SendGridSenderEmail,
                 settings.SendGridSenderName);
             var cls = success ? "success" : "error";
-            return RenderOwner(http, store, settings, $"""<div class="notice {cls}">{H.Encode(message)}</div>""");
+            return RenderOwner(http, store, settings, releaseNotes, $"""<div class="notice {cls}">{H.Encode(message)}</div>""");
         });
 
         app.MapPost("/owner/feedback/investigate/{id:int}", (int id, AppStoreDb store) =>
@@ -122,12 +122,12 @@ static class OwnerRoutes
         app.MapPost("/owner-login", (AppStoreDb store) => OwnerGuard(store) ?? Results.Redirect("/owner-promos"));
     }
 
-    static IResult RenderOwner(HttpContext http, AppStoreDb store, AppSettings settings, string notice = "")
+    static IResult RenderOwner(HttpContext http, AppStoreDb store, AppSettings settings, ReleaseNotesCatalog releaseNotes, string notice = "")
     {
         try
         {
             return Results.Content(
-                H.RenderPage(http, "Owner", OwnerPage.Render(store, notice, PublicUrl.Base(http.Request, settings)), store),
+                H.RenderPage(http, "Owner", OwnerPage.Render(store, notice, PublicUrl.Base(http.Request, settings), releaseNotes), store),
                 "text/html");
         }
         catch (Exception ex)

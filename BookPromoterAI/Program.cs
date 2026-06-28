@@ -61,7 +61,7 @@ builder.Services.AddSingleton(uploadsPaths);
 builder.Services.AddDbContextFactory<AppDbContext>(options =>
     options.UseSqlite($"Data Source={dbPath}"));
 
-builder.Services.AddScoped<AppStoreDb>();
+builder.Services.AddSingleton<ReleaseNotesCatalog>();
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<StripeBillingService>();
 

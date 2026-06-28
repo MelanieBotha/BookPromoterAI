@@ -3,9 +3,19 @@ namespace BookPromoterAI;
 
 static class OwnerPromoPage
 {
-    public static string Render(AppStoreDb store, string appBaseUrl)
+    public static string Render(AppStoreDb store, string appBaseUrl, ReleaseNotesCatalog? releaseNotes = null)
     {
         var returnPath = SocialConnectHelper.OwnerReturnPath;
+        var version = AppVersion.Display;
+        var draft = releaseNotes?.GetDraft(version) ?? ReleaseNoteDraft.ForVersion(version);
+        var title = string.IsNullOrWhiteSpace(draft.Title) ? $"BookPromoter AI v{version} — What's new" : draft.Title;
+        var alreadyPublished = store.ProductUpdates.Any(u => string.Equals(u.Version, version, StringComparison.OrdinalIgnoreCase));
+        var draftNotice = alreadyPublished
+            ? $"""<p class="notice success">v{H.Encode(version)} was already published. Bump <code>ReleaseNotes.json</code> and the version in <code>BookPromoterAI.csproj</code> for the next patch.</p>"""
+            : draft.HasContent
+                ? $"""<p class="notice success">Draft loaded automatically from <code>ReleaseNotes.json</code> for v{H.Encode(version)}. Review and click Publish update.</p>"""
+                : $"""<p class="notice error">No release notes found for v{H.Encode(version)}. Add an entry to <code>ReleaseNotes.json</code> when you bump the version.</p>""";
+
         var promoPosts = AppPromoGenerator.GeneratePromoPosts(appBaseUrl);
         var socialAccounts = store.OwnerSocialAccounts;
         var accountNote = socialAccounts.Count > 0
@@ -177,23 +187,24 @@ static class OwnerPromoPage
             <details class="owner-collapsible">
                 <summary class="owner-collapsible-heading">Product Updates (email users on release)</summary>
                 <div class="panel owner-settings">
-                    <p class="muted">When you ship a new version, list what changed. Users receive a structured email with <strong>Updated</strong>, <strong>New</strong>, and <strong>Added</strong> sections. Optionally post to your connected social accounts too.</p>
+                    <p class="muted">When you ship a new version, list what changed. The form below fills from <code>ReleaseNotes.json</code> on every deploy (keep it in sync with <code>BookPromoterAI.csproj</code>). Users receive a structured email with <strong>Updated</strong>, <strong>New</strong>, and <strong>Added</strong> sections.</p>
+                    {draftNotice}
                     {sendGridNote}
                     <form method="post" action="/owner/product-update/publish" class="form">
                         <label>Version
-                            <input name="version" value="{H.Encode(AppVersion.Display)}" required placeholder="1.5.0">
+                            <input name="version" value="{H.Encode(version)}" required placeholder="1.5.0">
                         </label>
                         <label>Email subject (optional — defaults to version headline)
-                            <input name="title" placeholder="BookPromoter AI v1.5.0 — What's new">
+                            <input name="title" value="{H.Encode(title)}" placeholder="BookPromoter AI v1.5.0 — What's new">
                         </label>
                         <label>Updated (one item per line)
-                            <textarea name="updatedItems" rows="4" placeholder="Stripe billing now live&#10;Custom domain support"></textarea>
+                            <textarea name="updatedItems" rows="4" placeholder="Stripe billing now live&#10;Custom domain support">{H.Encode(draft.UpdatedText)}</textarea>
                         </label>
                         <label>New (one item per line)
-                            <textarea name="createdItems" rows="4" placeholder="Go Live checklist on Owner page"></textarea>
+                            <textarea name="createdItems" rows="4" placeholder="Go Live checklist on Owner page">{H.Encode(draft.NewText)}</textarea>
                         </label>
                         <label>Added (one item per line)
-                            <textarea name="addedItems" rows="4" placeholder="Self-promotion tools for owner"></textarea>
+                            <textarea name="addedItems" rows="4" placeholder="Self-promotion tools for owner">{H.Encode(draft.AddedText)}</textarea>
                         </label>
                         <label class="checkbox-label"><input type="checkbox" name="sendEmail" value="true" checked> Email all registered users</label>
                         <label class="checkbox-label"><input type="checkbox" name="postToSocial" value="true"> Post update to connected social accounts</label>
