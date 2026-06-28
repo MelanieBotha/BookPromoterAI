@@ -104,7 +104,7 @@ static class OwnerPromoPage
             """;
 
         return $"""
-            <details class="owner-collapsible" open>
+            <details class="owner-collapsible">
                 <summary class="owner-collapsible-heading">Owner Social Media Accounts</summary>
                 <div class="panel owner-settings">
                     <p class="muted">Connect your social accounts here to auto-post BookPromoter AI promotions. These are separate from customer book-promotion accounts — they use your owner login.</p>
@@ -143,7 +143,7 @@ static class OwnerPromoPage
                 </div>
             </details>
 
-            <details class="owner-collapsible" open>
+            <details class="owner-collapsible">
                 <summary class="owner-collapsible-heading">Promote BookPromoter AI (Social &amp; Email)</summary>
                 <div class="panel owner-settings">
                     <p class="muted">Generate ready-to-share posts that promote BookPromoter AI. Copy to your social accounts, post to connected accounts, or email all {store.RegisteredUserCount} registered user(s).</p>
@@ -174,7 +174,7 @@ static class OwnerPromoPage
                 </div>
             </details>
 
-            <details class="owner-collapsible" open>
+            <details class="owner-collapsible">
                 <summary class="owner-collapsible-heading">Product Updates (email users on release)</summary>
                 <div class="panel owner-settings">
                     <p class="muted">When you ship a new version, list what changed. Users receive a structured email with <strong>Updated</strong>, <strong>New</strong>, and <strong>Added</strong> sections. Optionally post to your connected social accounts too.</p>

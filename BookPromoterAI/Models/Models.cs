@@ -68,6 +68,15 @@ class PromoCode
     public bool IsLifetimeFree { get; set; }
 }
 
+class OwnerPlanMember
+{
+    public string Email { get; set; } = "";
+    public string AccessType { get; set; } = "";
+    public string BillingLabel { get; set; } = "";
+    public bool IsCancelled { get; set; }
+    public DateTime? AccessEndsAt { get; set; }
+}
+
 class Subscription
 {
     public string Email { get; set; } = "";

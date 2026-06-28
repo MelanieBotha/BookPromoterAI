@@ -50,38 +50,9 @@ static class OwnerPage
         else if (lifetimeTotal > lifetimeCodes.Count)
             lifetimeRows.Append($"""<p class="muted small-text">Showing {lifetimeCodes.Count} of {lifetimeTotal} redeemed lifetime codes (most recent first).</p>""");
 
-        var planRows = new StringBuilder();
-        foreach (var plan in store.Plans)
-        {
-            planRows.Append($"""
-                <div class="promo-row plan-row">
-                    <span>{H.Encode(plan.Name)}</span>
-                    <span>
-                        <form method="post" action="/owner/plan-price" class="inline-form tight">
-                            <input type="hidden" name="planId" value="{H.Encode(plan.Id)}">
-                            <label>Monthly Fee
-                                <input name="monthlyFee" type="number" min="0" step="0.01" value="{plan.MonthlyFee:0.00}">
-                            </label>
-                            <button class="button small" type="submit">Save</button>
-                        </form>
-                    </span>
-                    <span class="status available">{plan.BookLimitText} books / {plan.SocialAccountLimitText} accounts</span>
-                </div>
-                <div class="promo-row plan-row">
-                    <span class="muted">{H.Encode(plan.Name)} payment IDs</span>
-                    <span>
-                        <form method="post" action="/owner/plan-payment-ids" class="inline-form tight">
-                            <input type="hidden" name="planId" value="{H.Encode(plan.Id)}">
-                            <label>Stripe Price ID
-                                <input name="stripePriceId" value="{H.Encode(plan.StripePriceId ?? "")}" placeholder="price_... (optional)">
-                            </label>
-                            <button class="button small" type="submit">Save IDs</button>
-                        </form>
-                    </span>
-                    <span></span>
-                </div>
-                """);
-        }
+        var tierSections = new StringBuilder();
+        foreach (var plan in store.Plans.OrderBy(p => p.MonthlyFee))
+            tierSections.Append(BuildPlanTierSection(store, plan));
 
         var stripeStatus = store.IsStripeConfigured ? "Connected" : "Not configured";
         var billingStatus = store.IsBillingConfigured
@@ -154,7 +125,7 @@ static class OwnerPage
 
             {notice}
 
-            <details class="owner-collapsible" open>
+            <details class="owner-collapsible">
                 <summary class="owner-collapsible-heading">Go Live Checklist</summary>
                 <div class="panel owner-settings">
                     {goLiveChecklist}
@@ -226,7 +197,7 @@ static class OwnerPage
                 </div>
             </details>
 
-            <details class="owner-collapsible" open>
+            <details class="owner-collapsible">
                 <summary class="owner-collapsible-heading">Stripe Billing</summary>
                 <div class="panel owner-settings">
                     {billingStatus}
@@ -308,20 +279,7 @@ static class OwnerPage
                 </div>
             </details>
 
-            <details class="owner-collapsible" open>
-                <summary class="owner-collapsible-heading">Subscription Plan Prices</summary>
-                <div class="panel owner-settings">
-                    <p class="muted">Production defaults: Starter $4.99, Professional $14.99, Publisher $29.99, Agency $49.99. Stripe Price ID is optional — leave blank to charge the Monthly Fee shown here.</p>
-                    <div class="promo-table">
-                        <div class="promo-header">
-                            <strong>Plan</strong>
-                            <strong>Monthly Fee</strong>
-                            <strong>Limits</strong>
-                        </div>
-                        {planRows}
-                    </div>
-                </div>
-            </details>
+            {tierSections}
 
             {PromoSection(store, appBaseUrl)}
 
@@ -343,7 +301,7 @@ static class OwnerPage
         catch (Exception ex)
         {
             return $"""
-                <details class="owner-collapsible" open>
+                <details class="owner-collapsible">
                     <summary class="owner-collapsible-heading">Promote BookPromoter AI (Social &amp; Email)</summary>
                     <div class="panel owner-settings">
                         <p class="notice error">Promotion tools could not load: {H.Encode(ex.Message)}. Other owner settings below still work. Redeploy v1.5.2 or contact support if this persists.</p>
@@ -351,6 +309,76 @@ static class OwnerPage
                 </details>
                 """;
         }
+    }
+
+    static string BuildPlanTierSection(AppStoreDb store, SubscriptionPlan plan)
+    {
+        var (members, total) = store.GetPlanMembersForDisplay(plan.Id);
+        var memberRows = new StringBuilder();
+        foreach (var member in members)
+        {
+            var statusClass = member.IsCancelled ? "used" : "available";
+            var statusText = member.IsCancelled ? "Cancelled" : "Active";
+            var endsNote = member.AccessEndsAt is DateTime ends && member.IsCancelled
+                ? $" &middot; ends {ends:MMM d, yyyy}"
+                : "";
+            memberRows.Append($"""
+                <div class="promo-row">
+                    <span>{H.Encode(member.Email)}</span>
+                    <span>{H.Encode(member.AccessType)} &middot; {H.Encode(member.BillingLabel)}{endsNote}</span>
+                    <span class="status {statusClass}">{statusText}</span>
+                </div>
+                """);
+        }
+        if (total == 0)
+            memberRows.Append($"""<p class="muted">No active {H.Encode(plan.Name)} subscribers yet.</p>""");
+        else if (total > members.Count)
+            memberRows.Append($"""<p class="muted small-text">Showing {members.Count} of {total} {H.Encode(plan.Name)} subscribers (most recent first).</p>""");
+
+        return $"""
+            <details class="owner-collapsible">
+                <summary class="owner-collapsible-heading">{H.Encode(plan.Name)} Tier (${plan.MonthlyFee:0.00}/mo)</summary>
+                <div class="panel owner-settings">
+                    <p class="muted">Active subscribers on the {H.Encode(plan.Name)} plan (up to {PromoConstants.MaxVisiblePromoCodes}). Limits: {H.Encode(plan.BookLimitText)} books / {H.Encode(plan.SocialAccountLimitText)} accounts.</p>
+                    <div class="promo-table">
+                        <div class="promo-header">
+                            <strong>Email</strong>
+                            <strong>Access / Billing</strong>
+                            <strong>Status</strong>
+                        </div>
+                        {memberRows}
+                    </div>
+                    <div class="promo-table" style="margin-top:16px">
+                        <div class="promo-row plan-row">
+                            <span>Monthly fee</span>
+                            <span>
+                                <form method="post" action="/owner/plan-price" class="inline-form tight">
+                                    <input type="hidden" name="planId" value="{H.Encode(plan.Id)}">
+                                    <label>Monthly Fee
+                                        <input name="monthlyFee" type="number" min="0" step="0.01" value="{plan.MonthlyFee:0.00}">
+                                    </label>
+                                    <button class="button small" type="submit">Save</button>
+                                </form>
+                            </span>
+                            <span class="status available">{H.Encode(plan.AiPostsPerMonthText)} AI posts/mo</span>
+                        </div>
+                        <div class="promo-row plan-row">
+                            <span>Stripe Price ID</span>
+                            <span>
+                                <form method="post" action="/owner/plan-payment-ids" class="inline-form tight">
+                                    <input type="hidden" name="planId" value="{H.Encode(plan.Id)}">
+                                    <label>Stripe Price ID
+                                        <input name="stripePriceId" value="{H.Encode(plan.StripePriceId ?? "")}" placeholder="price_... (optional)">
+                                    </label>
+                                    <button class="button small" type="submit">Save IDs</button>
+                                </form>
+                            </span>
+                            <span></span>
+                        </div>
+                    </div>
+                </div>
+            </details>
+            """;
     }
 
     static string GoLiveItem(bool done, string text) =>

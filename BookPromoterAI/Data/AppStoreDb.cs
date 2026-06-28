@@ -722,6 +722,40 @@ class AppStoreDb
         return (visible, total);
     }
 
+    public (List<OwnerPlanMember> Visible, int TotalCount) GetPlanMembersForDisplay(string planId)
+    {
+        var ownerEmail = OwnerAccount.NormalizedEmail;
+        using var db = Db();
+        var query = db.Users.AsNoTracking()
+            .Where(u => u.CurrentPlanId == planId
+                && u.HasCustomerAccess
+                && u.Email != ownerEmail
+                && u.AccessType != "Owner");
+        var total = query.Count();
+        var visible = query
+            .OrderByDescending(u => u.Id)
+            .Take(PromoConstants.MaxVisiblePromoCodes)
+            .Select(u => new OwnerPlanMember
+            {
+                Email = u.Email,
+                AccessType = u.AccessType,
+                BillingLabel = DescribePlanMemberBilling(u),
+                IsCancelled = u.IsCancelled,
+                AccessEndsAt = u.SubscriptionEndsAt ?? u.AccessEndsAt
+            })
+            .ToList();
+        return (visible, total);
+    }
+
+    static string DescribePlanMemberBilling(DbUser u)
+    {
+        if (!string.IsNullOrWhiteSpace(u.StripeSubscriptionId))
+            return string.IsNullOrWhiteSpace(u.BillingStatus) ? "Stripe subscription" : u.BillingStatus;
+        if (!string.IsNullOrWhiteSpace(u.PayPalSubscriptionId))
+            return "PayPal subscription";
+        return u.AccessType;
+    }
+
     public void SeedOwnerAccount()
     {
         using var db = Db();
