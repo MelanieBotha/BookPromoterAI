@@ -305,6 +305,7 @@ class DbMailingListSubscriber
     public string Name { get; set; } = "";
     public DateTime SubscribedAt { get; set; }
     public string Source { get; set; } = "Manual";
+    public string UnsubscribeToken { get; set; } = "";
     public DbUser? User { get; set; }
 }
 

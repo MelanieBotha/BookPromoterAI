@@ -12,7 +12,8 @@ static class SecurityMiddleware
             {
                 var path = context.Request.Path.Value ?? "";
                 if (!path.StartsWith("/go/", StringComparison.OrdinalIgnoreCase) &&
-                    !path.StartsWith("/webhooks/", StringComparison.OrdinalIgnoreCase))
+                    !path.StartsWith("/webhooks/", StringComparison.OrdinalIgnoreCase) &&
+                    !path.StartsWith("/readers/", StringComparison.OrdinalIgnoreCase))
                 {
                     var antiforgery = context.RequestServices.GetRequiredService<IAntiforgery>();
                     try
@@ -90,6 +91,7 @@ static class SecurityMiddleware
                path.Equals("/privacy-policy", StringComparison.OrdinalIgnoreCase) ||
                path.Equals("/logout", StringComparison.OrdinalIgnoreCase) ||
                path.Equals("/forgot-password", StringComparison.OrdinalIgnoreCase) ||
-               path.Equals("/reset-password", StringComparison.OrdinalIgnoreCase);
+               path.Equals("/reset-password", StringComparison.OrdinalIgnoreCase) ||
+               path.StartsWith("/readers/", StringComparison.OrdinalIgnoreCase);
     }
 }

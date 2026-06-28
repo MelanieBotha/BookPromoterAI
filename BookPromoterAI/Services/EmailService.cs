@@ -222,19 +222,24 @@ static class EmailService
         string apiKey,
         string senderEmail,
         string senderName,
-        string? appBaseUrl = null)
+        string? appBaseUrl = null,
+        string? unsubscribeUrl = null)
     {
         var greeting = string.IsNullOrWhiteSpace(toName)
             ? ""
             : EmailTemplate.Paragraph($"Hi {HtmlEncode(toName.Trim())},");
-        var htmlBody = greeting + FormatPlainTextAsHtml(body);
+        var htmlBody = greeting + FormatPlainTextAsHtml(body) + UnsubscribeHtml(unsubscribeUrl);
+        var plainBody = body.Trim() + UnsubscribePlain(unsubscribeUrl);
+        var footer = string.IsNullOrWhiteSpace(unsubscribeUrl)
+            ? "You received this because you subscribed to this author's mailing list via BookPromoter AI."
+            : "You received this because you subscribed to this author's mailing list via BookPromoter AI. Use the unsubscribe link below to stop receiving emails.";
         return await SendSingleEmail(
-            apiKey, senderEmail, fromDisplayName, toEmail, toName, subject, body, htmlBody, appBaseUrl, subject,
-            footerNote: "You received this because you subscribed to this author's mailing list via BookPromoter AI.");
+            apiKey, senderEmail, fromDisplayName, toEmail, toName, subject, plainBody, htmlBody, appBaseUrl, subject,
+            footerNote: footer);
     }
 
     public static async Task<(int Sent, int Failed)> SendProductUpdateEmailAsync(
-        IEnumerable<string> recipientEmails,
+        IEnumerable<(string Email, string UnsubscribeToken)> recipients,
         ProductUpdate update,
         string appBaseUrl,
         string apiKey,
@@ -247,12 +252,18 @@ static class EmailService
         var sent = 0;
         var failed = 0;
 
-        foreach (var email in recipientEmails.Distinct(StringComparer.OrdinalIgnoreCase))
+        foreach (var (email, token) in recipients.DistinctBy(r => r.Email, StringComparer.OrdinalIgnoreCase))
         {
-            var (plain, html) = BuildProductUpdateBodies(update, appBaseUrl);
+            var unsubUrl = string.IsNullOrWhiteSpace(token)
+                ? null
+                : $"{appBaseUrl.TrimEnd('/')}/readers/unsubscribe/{Uri.EscapeDataString(token)}";
+            var (plain, html) = BuildProductUpdateBodies(update, appBaseUrl, unsubUrl);
             var ok = await SendSingleEmail(
                 apiKey, senderEmail, senderName, email, null, subject, plain, html, appBaseUrl,
-                string.IsNullOrWhiteSpace(update.Title) ? $"What's New in v{update.Version}" : update.Title);
+                string.IsNullOrWhiteSpace(update.Title) ? $"What's New in v{update.Version}" : update.Title,
+                footerNote: unsubUrl is null
+                    ? null
+                    : "You received this because you subscribed to BookPromoter AI updates. Use the unsubscribe link below to stop receiving emails.");
             if (ok) sent++; else failed++;
         }
 
@@ -282,7 +293,7 @@ static class EmailService
         return (sent, failed);
     }
 
-    static (string Plain, string Html) BuildProductUpdateBodies(ProductUpdate update, string appBaseUrl)
+    static (string Plain, string Html) BuildProductUpdateBodies(ProductUpdate update, string appBaseUrl, string? unsubscribeUrl = null)
     {
         var dashboardUrl = $"{appBaseUrl.TrimEnd('/')}/dashboard";
         var updated = AppPromoGenerator.ParseLines(update.UpdatedItems);
@@ -302,6 +313,7 @@ static class EmailService
         AppendSection(plain, "Added", added);
 
         plain.AppendLine($"Open your dashboard: {dashboardUrl}");
+        plain.Append(UnsubscribePlain(unsubscribeUrl));
         plain.AppendLine();
         plain.AppendLine("— The BookPromoter AI Team");
 
@@ -314,8 +326,21 @@ static class EmailService
         AppendHtmlSection(html, "New", created);
         AppendHtmlSection(html, "Added", added);
         html.Append(EmailTemplate.PrimaryButton(dashboardUrl, "Open Dashboard"));
+        html.Append(UnsubscribeHtml(unsubscribeUrl));
 
         return (plain.ToString(), html.ToString());
+    }
+
+    static string UnsubscribePlain(string? unsubscribeUrl)
+    {
+        if (string.IsNullOrWhiteSpace(unsubscribeUrl)) return "";
+        return $"\n\nUnsubscribe from these emails: {unsubscribeUrl}\n";
+    }
+
+    static string UnsubscribeHtml(string? unsubscribeUrl)
+    {
+        if (string.IsNullOrWhiteSpace(unsubscribeUrl)) return "";
+        return EmailTemplate.MutedParagraph($"""Don't want these updates? <a href="{HtmlEncode(unsubscribeUrl)}">Unsubscribe</a>.""");
     }
 
     static void AppendSection(System.Text.StringBuilder sb, string heading, List<string> items)

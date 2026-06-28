@@ -95,5 +95,26 @@ static class MailingListRoutes
             var notice = $"""<div class="notice {cls}">{H.Encode(message)}</div>""";
             return Results.Content(H.RenderPage(http, "Join Mailing List", MailingListPage.SignupPage(userCode, authorEmail ?? "", notice), store), "text/html");
         });
+
+        app.MapGet("/readers/unsubscribe/{token}", (string token, HttpContext http, AppStoreDb store) =>
+            Results.Content(H.RenderPage(http, "Unsubscribe", MailingListPage.UnsubscribePage(token, "", store), store), "text/html"));
+
+        app.MapPost("/readers/unsubscribe/{token}", (string token, HttpContext http, AppStoreDb store) =>
+        {
+            var (success, message, _) = store.UnsubscribeByToken(token);
+            var cls = success ? "success" : "error";
+            var notice = $"""<div class="notice {cls}">{H.Encode(message)}</div>""";
+            return Results.Content(H.RenderPage(http, "Unsubscribe", MailingListPage.UnsubscribePage(token, notice, store, unsubscribed: success), store), "text/html");
+        });
+
+        app.MapPost("/mailing-list/unsubscribe/{id:int}", async (int id, HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings) =>
+        {
+            if (!store.IsLoggedIn) return Results.Redirect("/start");
+            var (success, message) = store.UnsubscribeFromMailingList(id);
+            var cls = success ? "success" : "error";
+            var notice = $"""<div class="notice {cls}">{H.Encode(message)}</div>""";
+            var baseUrl = PublicUrl.Base(request, settings);
+            return Results.Content(H.RenderPage(http, "Mailing List", MailingListPage.Render(store, notice, baseUrl), store), "text/html");
+        });
     }
 }

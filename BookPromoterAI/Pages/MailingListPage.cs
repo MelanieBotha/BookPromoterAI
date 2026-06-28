@@ -7,6 +7,34 @@ static class MailingListPage
     {
         var userCode = store.CurrentUserCode ?? "";
         var signupUrl = string.IsNullOrWhiteSpace(userCode) ? "" : $"{baseUrl}/readers/signup/{Uri.EscapeDataString(userCode)}";
+        var mySubscriptions = store.GetMailingListSubscriptionsForLoggedInUser();
+        var subscriptionRows = new StringBuilder();
+        foreach (var sub in mySubscriptions)
+        {
+            var ownerLabel = OwnerAccount.IsOwnerEmail(sub.ListOwnerEmail)
+                ? "BookPromoter AI product updates"
+                : $"Updates from {sub.ListOwnerEmail}";
+            subscriptionRows.Append($"""
+                <article class="book-row">
+                    <div>
+                        <strong>{H.Encode(ownerLabel)}</strong>
+                        <p class="muted small-text">Subscribed {sub.SubscribedAt:MMM d, yyyy} &middot; via {H.Encode(sub.Source)}</p>
+                    </div>
+                    <form method="post" action="/mailing-list/unsubscribe/{sub.Id}" onsubmit="return confirm('Unsubscribe from {H.Encode(ownerLabel)}?');">
+                        <button class="button secondary small" type="submit">Unsubscribe</button>
+                    </form>
+                </article>
+                """);
+        }
+        var subscriptionsSection = mySubscriptions.Count == 0
+            ? ""
+            : $"""
+                <section class="panel">
+                    <h2>Your Email Preferences</h2>
+                    <p class="muted">Lists you're subscribed to with <strong>{H.Encode(store.LoggedInEmail ?? "")}</strong>. Unsubscribe anytime if you don't want updates.</p>
+                    {subscriptionRows}
+                </section>
+                """;
 
         var rows = new StringBuilder();
         foreach (var sub in store.MailingListSubscribers)
@@ -84,6 +112,8 @@ static class MailingListPage
 
             {notice}
 
+            {subscriptionsSection}
+
             <section class="panel">
                 <h2>Public Signup Link</h2>
                 {signupSection}
@@ -154,7 +184,37 @@ static class MailingListPage
                     <label>Email address <input name="email" type="email" required placeholder="you@example.com"></label>
                     <button class="button" type="submit">Subscribe</button>
                 </form>
+                <p class="muted small-text">You can unsubscribe anytime from the link in any email, or from Mailing List after you log in.</p>
                 {(string.IsNullOrWhiteSpace(authorEmail) ? "" : """<p class="muted small-text">List managed via BookPromoter AI.</p>""")}
+            </section>
+            """;
+    }
+
+    public static string UnsubscribePage(string token, string notice, AppStoreDb store, bool unsubscribed = false)
+    {
+        var actionSection = unsubscribed
+            ? """<p><a class="button secondary" href="/">Return to home</a></p>"""
+            : $"""
+                <form method="post" action="/readers/unsubscribe/{Uri.EscapeDataString(token)}" class="form" style="max-width:480px">
+                    <p class="muted">Click below to stop receiving emails from this list. You can always re-subscribe later using the author's signup link.</p>
+                    <button class="button secondary" type="submit">Unsubscribe</button>
+                </form>
+                <p class="muted small-text"><a href="/">Keep receiving updates</a></p>
+                """;
+
+        return $"""
+            <section class="hero">
+                <div>
+                    <p class="eyebrow">Email preferences</p>
+                    <h1>{(unsubscribed ? "You're unsubscribed" : "Unsubscribe from this list")}</h1>
+                    <p class="muted">{(unsubscribed ? "You won't receive further emails from this mailing list." : "Choose whether to keep receiving updates from this author.")}</p>
+                </div>
+            </section>
+
+            {notice}
+
+            <section class="panel">
+                {actionSection}
             </section>
             """;
     }

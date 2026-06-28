@@ -281,6 +281,15 @@ class MailingListSubscriber
     public string Name { get; set; } = "";
     public DateTime SubscribedAt { get; set; }
     public string Source { get; set; } = "Manual";
+    public string UnsubscribeToken { get; set; } = "";
+}
+
+class MailingListSubscription
+{
+    public int Id { get; set; }
+    public string ListOwnerEmail { get; set; } = "";
+    public DateTime SubscribedAt { get; set; }
+    public string Source { get; set; } = "";
 }
 
 class MailingListCampaign

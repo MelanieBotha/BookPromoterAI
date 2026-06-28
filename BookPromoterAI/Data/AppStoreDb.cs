@@ -580,7 +580,15 @@ class AppStoreDb
         if (string.IsNullOrWhiteSpace(cleanEmail) || !cleanEmail.Contains('@')) return (false, "Enter a valid email address.");
         using var db = Db();
         if (db.MailingListSubscribers.Any(s => s.UserId == uid && s.Email == cleanEmail)) return (false, "That email is already on your mailing list.");
-        db.MailingListSubscribers.Add(new DbMailingListSubscriber { UserId = uid, Email = cleanEmail, Name = name.Trim(), SubscribedAt = DateTime.UtcNow, Source = source });
+        db.MailingListSubscribers.Add(new DbMailingListSubscriber
+        {
+            UserId = uid,
+            Email = cleanEmail,
+            Name = name.Trim(),
+            SubscribedAt = DateTime.UtcNow,
+            Source = source,
+            UnsubscribeToken = NewUnsubscribeToken()
+        });
         db.SaveChanges();
         return (true, $"Added {cleanEmail} to your mailing list.");
     }
@@ -593,6 +601,71 @@ class AppStoreDb
         if (sub is not null) { db.MailingListSubscribers.Remove(sub); db.SaveChanges(); }
     }
 
+    public (bool Success, string Message) UnsubscribeFromMailingList(int subscriptionId)
+    {
+        if (!IsLoggedIn || string.IsNullOrWhiteSpace(LoggedInEmail))
+            return (false, "Log in to manage your email preferences.");
+
+        var email = LoggedInEmail.Trim().ToLowerInvariant();
+        using var db = Db();
+        var sub = db.MailingListSubscribers.FirstOrDefault(s => s.Id == subscriptionId && s.Email == email);
+        if (sub is null) return (false, "Subscription not found.");
+        db.MailingListSubscribers.Remove(sub);
+        db.SaveChanges();
+        return (true, "You've been unsubscribed from that mailing list.");
+    }
+
+    public List<MailingListSubscription> GetMailingListSubscriptionsForLoggedInUser()
+    {
+        if (!IsLoggedIn || string.IsNullOrWhiteSpace(LoggedInEmail)) return [];
+        var email = LoggedInEmail.Trim().ToLowerInvariant();
+        using var db = Db();
+        return db.MailingListSubscribers.AsNoTracking()
+            .Where(s => s.Email == email)
+            .Join(db.Users.AsNoTracking(), s => s.UserId, u => u.Id, (s, u) => new MailingListSubscription
+            {
+                Id = s.Id,
+                ListOwnerEmail = u.Email,
+                SubscribedAt = s.SubscribedAt,
+                Source = s.Source
+            })
+            .OrderByDescending(s => s.SubscribedAt)
+            .ToList();
+    }
+
+    public (bool Success, string Message, string? AuthorEmail) UnsubscribeByToken(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token)) return (false, "Invalid unsubscribe link.", null);
+        using var db = Db();
+        var cleanToken = token.Trim();
+        var sub = db.MailingListSubscribers.FirstOrDefault(s => s.UnsubscribeToken == cleanToken);
+        if (sub is null) return (false, "This unsubscribe link is not valid or has already been used.", null);
+        var author = db.Users.AsNoTracking().FirstOrDefault(u => u.Id == sub.UserId);
+        db.MailingListSubscribers.Remove(sub);
+        db.SaveChanges();
+        return (true, "You've been unsubscribed. You won't receive further emails from this list.", author?.Email);
+    }
+
+    public string? GetUnsubscribeUrl(string? appBaseUrl, string token)
+    {
+        if (string.IsNullOrWhiteSpace(appBaseUrl) || string.IsNullOrWhiteSpace(token)) return null;
+        return $"{appBaseUrl.TrimEnd('/')}/readers/unsubscribe/{Uri.EscapeDataString(token)}";
+    }
+
+    public void EnsureMailingListUnsubscribeTokens()
+    {
+        using var db = Db();
+        var updated = false;
+        foreach (var sub in db.MailingListSubscribers.Where(s => string.IsNullOrEmpty(s.UnsubscribeToken)))
+        {
+            sub.UnsubscribeToken = NewUnsubscribeToken();
+            updated = true;
+        }
+        if (updated) db.SaveChanges();
+    }
+
+    static string NewUnsubscribeToken() => Guid.NewGuid().ToString("N");
+
     public (bool Success, string Message, string? AuthorLabel) SubscribeToMailingListByUserCode(string userCode, string email, string name)
     {
         var cleanEmail = email.Trim().ToLowerInvariant();
@@ -601,7 +674,15 @@ class AppStoreDb
         var user = db.Users.FirstOrDefault(u => u.UserCode == userCode.Trim());
         if (user is null) return (false, "This signup link is not valid.", null);
         if (db.MailingListSubscribers.Any(s => s.UserId == user.Id && s.Email == cleanEmail)) return (false, "You're already subscribed to this mailing list.", user.Email);
-        db.MailingListSubscribers.Add(new DbMailingListSubscriber { UserId = user.Id, Email = cleanEmail, Name = name.Trim(), SubscribedAt = DateTime.UtcNow, Source = "Signup" });
+        db.MailingListSubscribers.Add(new DbMailingListSubscriber
+        {
+            UserId = user.Id,
+            Email = cleanEmail,
+            Name = name.Trim(),
+            SubscribedAt = DateTime.UtcNow,
+            Source = "Signup",
+            UnsubscribeToken = NewUnsubscribeToken()
+        });
         db.SaveChanges();
         return (true, "You're subscribed! Watch your inbox for updates.", user.Email);
     }
@@ -628,7 +709,8 @@ class AppStoreDb
         var failed = 0;
         foreach (var sub in subscribers)
         {
-            var ok = await EmailService.SendMailingListEmail(sub.Email, sub.Name, subject, body, fromDisplayName, apiKey, senderEmail, senderName, appBaseUrl);
+            var unsubUrl = GetUnsubscribeUrl(appBaseUrl, sub.UnsubscribeToken);
+            var ok = await EmailService.SendMailingListEmail(sub.Email, sub.Name, subject, body, fromDisplayName, apiKey, senderEmail, senderName, appBaseUrl, unsubUrl);
             if (ok) sent++; else failed++;
         }
 
@@ -801,6 +883,7 @@ class AppStoreDb
         db.SaveChanges();
         if (LoggedInEmail == email) ClearUserCache();
         SyncAllUsersToOwnerMailingList();
+        EnsureMailingListUnsubscribeTokens();
     }
 
     public PromoCode GenerateAccessCode(string? email = null)
@@ -889,7 +972,8 @@ class AppStoreDb
             Email = cleanEmail,
             Name = name.Trim(),
             SubscribedAt = DateTime.UtcNow,
-            Source = source
+            Source = source,
+            UnsubscribeToken = NewUnsubscribeToken()
         });
         db.SaveChanges();
     }
@@ -915,7 +999,8 @@ class AppStoreDb
                 Email = user.Email,
                 Name = "",
                 SubscribedAt = DateTime.UtcNow,
-                Source = "Auto sync"
+                Source = "Auto sync",
+                UnsubscribeToken = NewUnsubscribeToken()
             });
             added++;
         }
@@ -1695,12 +1780,12 @@ class AppStoreDb
 
         if (sendEmail)
         {
-            var emails = GetAllUserEmails();
-            if (emails.Count == 0)
-                return (false, "No registered users to email.", null);
+            var recipients = GetOwnerMailingListRecipients();
+            if (recipients.Count == 0)
+                return (false, "No mailing list subscribers to email. Users can re-subscribe from the public signup link.", null);
 
             var (sent, failed) = await EmailService.SendProductUpdateEmailAsync(
-                emails, ToProductUpdate(update), appBaseUrl, apiKey, senderEmail, senderName);
+                recipients, ToProductUpdate(update), appBaseUrl, apiKey, senderEmail, senderName);
             update.EmailedAt = DateTime.UtcNow;
             update.EmailsSent = sent;
             update.EmailsFailed = failed;
@@ -1750,6 +1835,17 @@ class AppStoreDb
             .Where(u => u.Email.Contains("@"))
             .Select(u => u.Email.Trim().ToLowerInvariant())
             .Distinct()
+            .ToList();
+    }
+
+    List<(string Email, string UnsubscribeToken)> GetOwnerMailingListRecipients()
+    {
+        using var db = Db();
+        var owner = db.Users.AsNoTracking().FirstOrDefault(u => u.Email == OwnerAccount.NormalizedEmail);
+        if (owner is null) return [];
+        return db.MailingListSubscribers.AsNoTracking()
+            .Where(s => s.UserId == owner.Id)
+            .Select(s => new ValueTuple<string, string>(s.Email, s.UnsubscribeToken))
             .ToList();
     }
 
@@ -1805,6 +1901,6 @@ class AppStoreDb
         RoutingOrSortCode = s.RoutingOrSortCode, AccountNumber = s.AccountNumber, Iban = s.Iban,
         Notes = s.Notes, StripeConnectAccountId = s.StripeConnectAccountId
     };
-    static MailingListSubscriber ToModel(DbMailingListSubscriber s) => new() { Id = s.Id, Email = s.Email, Name = s.Name, SubscribedAt = s.SubscribedAt, Source = s.Source };
+    static MailingListSubscriber ToModel(DbMailingListSubscriber s) => new() { Id = s.Id, Email = s.Email, Name = s.Name, SubscribedAt = s.SubscribedAt, Source = s.Source, UnsubscribeToken = s.UnsubscribeToken };
     static MailingListCampaign ToModel(DbMailingListCampaign c) => new() { Id = c.Id, Subject = c.Subject, Body = c.Body, RecipientCount = c.RecipientCount, FailedCount = c.FailedCount, SentAt = c.SentAt };
 }
