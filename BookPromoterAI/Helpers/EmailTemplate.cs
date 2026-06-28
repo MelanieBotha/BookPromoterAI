@@ -9,10 +9,10 @@ static class EmailTemplate
     const string Line = "#d7dde8";
     const string Soft = "#f4f7fb";
 
-    public static string Wrap(string? appBaseUrl, string? heading, string bodyHtml, string? footerNote = null)
+    public static string Wrap(string? appBaseUrl, string? heading, string bodyHtml, string? footerNote = null, string? logoSrc = null)
     {
         var baseUrl = ResolveBaseUrl(appBaseUrl);
-        var logoUrl = PostBranding.AbsoluteLogoUrl(baseUrl);
+        var logoUrl = string.IsNullOrWhiteSpace(logoSrc) ? PostBranding.AbsoluteLogoUrl(baseUrl) : logoSrc;
         var siteHost = new Uri(baseUrl).Host;
         var headingBlock = string.IsNullOrWhiteSpace(heading)
             ? ""

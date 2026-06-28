@@ -29,11 +29,13 @@ static class EmailService
             return true;
         }
 
-        var wrappedHtml = EmailTemplate.Wrap(appBaseUrl, heading ?? subject, htmlBody, footerNote);
+        var logoSrc = EmailBranding.ResolveLogoSrc(appBaseUrl);
+        var wrappedHtml = EmailTemplate.Wrap(appBaseUrl, heading ?? subject, htmlBody, footerNote, logoSrc);
         var client = new SendGridClient(apiKey);
         var from = new EmailAddress(senderEmail, senderName);
         var to = new EmailAddress(toEmail, string.IsNullOrWhiteSpace(toName) ? null : toName);
         var msg = MailHelper.CreateSingleEmail(from, to, subject, plainBody, wrappedHtml);
+        EmailBranding.AttachInlineLogo(msg);
         var response = await client.SendEmailAsync(msg);
         return response.IsSuccessStatusCode;
     }
