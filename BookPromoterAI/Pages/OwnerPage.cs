@@ -258,7 +258,7 @@ static class OwnerPage
             <details class="owner-collapsible" open>
                 <summary class="owner-collapsible-heading">Subscription Plan Prices</summary>
                 <div class="panel owner-settings">
-                    <p class="muted">Production defaults: Starter $9.99, Professional $14.99, Publisher $29.99, Agency $49.99. Stripe Price ID is optional — leave blank to charge the Monthly Fee shown here.</p>
+                    <p class="muted">Production defaults: Starter $4.99, Professional $14.99, Publisher $29.99, Agency $49.99. Stripe Price ID is optional — leave blank to charge the Monthly Fee shown here.</p>
                     <div class="promo-table">
                         <div class="promo-header">
                             <strong>Plan</strong>

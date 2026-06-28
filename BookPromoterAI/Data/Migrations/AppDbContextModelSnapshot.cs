@@ -558,7 +558,7 @@ namespace BookPromoterAI.Data.Migrations
                             HasAdvancedAnalytics = false,
                             HasMultiClient = false,
                             HasTeamAccess = false,
-                            MonthlyFee = 9.99m,
+                            MonthlyFee = 4.99m,
                             Name = "Starter",
                             SocialAccountLimit = 2
                         },

@@ -18,6 +18,17 @@ static class DatabaseInitializer
 
         db.Database.Migrate();
         RepairMissingColumns(db);
+        RepairPlanDefaults(db);
+    }
+
+    static void RepairPlanDefaults(AppDbContext db)
+    {
+        var starter = db.SubscriptionPlans.Find("starter");
+        if (starter is not null && starter.MonthlyFee != 4.99m)
+        {
+            starter.MonthlyFee = 4.99m;
+            db.SaveChanges();
+        }
     }
 
     static void RepairMissingColumns(AppDbContext db)
