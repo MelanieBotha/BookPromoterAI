@@ -145,6 +145,10 @@ static class H
                 softLaunchBanner = SoftLaunchBanner(settings);
         }
 
+        var helpPanel = http is not null && store.HasCustomerAccess
+            ? HelpGuide.RenderPanel(store, http.Request.Path.Value)
+            : "";
+
         return $"""
         <!DOCTYPE html>
         <html lang="en">
@@ -161,6 +165,7 @@ static class H
                 <a class="brand" href="/"><img src="/images/BookPromoterAI.logo.png" alt="BookPromoter AI" class="brand-logo"></a>
                 <nav>
                     {(store.HasCustomerAccess ? "" : """<a href="/start">Start</a>""")}
+                    {(store.HasCustomerAccess ? """<a href="/help">Help</a>""" : "")}
                     <a href="/dashboard">Dashboard</a>
                     {ManageDropdown(store)}
                     {AccountDropdown(store)}
@@ -170,6 +175,7 @@ static class H
             <main class="page">
                 {softLaunchBanner}
                 {AccountBanner(store)}
+                {helpPanel}
                 {body}
             </main>
             <footer class="app-footer">
@@ -254,6 +260,7 @@ static class H
                     <div class="nav-dropdown-divider"></div>
                     <a href="/my-account">My Account</a>
                     <a href="{billingHref}">{billingLabel}</a>
+                    <a href="/help">Help guide</a>
                     <a href="/feedback">Feedback &amp; Suggestions</a>
                 </div>
             </div>
@@ -573,6 +580,14 @@ details[open] .owner-collapsible-heading::after{transform:rotate(180deg)}
 .legal-accept-summary li{margin-bottom:8px}
 .signup-legal-consent{margin-top:4px}
 .legal-accept-checkbox a{font-weight:600}
+.help-guide{border-left:4px solid var(--accent);margin-bottom:22px}
+.help-guide-top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px}
+.help-guide-title{margin:4px 0 0;font-size:20px}
+.help-guide-list{margin:12px 0}
+.help-guide-next{margin:12px 0 16px;font-size:14px;line-height:1.55}
+.help-guide-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.help-step-card{margin-bottom:18px}
+.help-step-current{border-left:4px solid var(--accent)}
 @media(max-width:900px){.landing-hero,.landing-feature-grid,.landing-steps-list{grid-template-columns:1fr}}
 """;
 }

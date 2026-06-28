@@ -110,6 +110,7 @@ AnalyticsRoutes.Map(app);
 ClientRoutes.Map(app);
 OwnerRoutes.Map(app);
 FeedbackRoutes.Map(app);
+HelpRoutes.Map(app);
 MailingListRoutes.Map(app, mailingListEmailGenerator);
 
 app.Run();
