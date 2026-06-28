@@ -7,6 +7,9 @@ static class OwnerRoutes
         app.MapGet("/owner-promos", (HttpContext http, AppStoreDb store, AppSettings settings) =>
             OwnerGuard(store) ?? RenderOwner(http, store, settings));
 
+        app.MapGet("/owner/promos", () => Results.Redirect("/owner-promos"));
+        app.MapGet("/owner_promos", () => Results.Redirect("/owner-promos"));
+
         app.MapPost("/owner/generate-access-code", (AppStoreDb store) =>
         {
             if (OwnerGuard(store) is { } guard) return guard;

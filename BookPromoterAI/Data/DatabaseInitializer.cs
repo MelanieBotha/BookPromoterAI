@@ -18,7 +18,50 @@ static class DatabaseInitializer
 
         db.Database.Migrate();
         RepairMissingColumns(db);
+        RepairMissingTables(db);
         RepairPlanDefaults(db);
+    }
+
+    static void RepairMissingTables(AppDbContext db)
+    {
+        if (TableExists(db, "ProductUpdates")) return;
+
+        db.Database.ExecuteSqlRaw("""
+            CREATE TABLE IF NOT EXISTS "ProductUpdates" (
+                "Id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                "Version" TEXT NOT NULL,
+                "Title" TEXT NOT NULL,
+                "UpdatedItems" TEXT NOT NULL,
+                "CreatedItems" TEXT NOT NULL,
+                "AddedItems" TEXT NOT NULL,
+                "SocialPostText" TEXT NULL,
+                "CreatedAt" TEXT NOT NULL,
+                "EmailedAt" TEXT NULL,
+                "EmailsSent" INTEGER NOT NULL,
+                "EmailsFailed" INTEGER NOT NULL,
+                "SocialPostsSent" INTEGER NOT NULL
+            );
+            """);
+
+        db.Database.ExecuteSqlRaw(
+            "INSERT OR IGNORE INTO __EFMigrationsHistory (MigrationId, ProductVersion) VALUES ({0}, {1})",
+            "20260628031754_AddProductUpdates",
+            "8.0.0");
+    }
+
+    static bool TableExists(AppDbContext db, string table)
+    {
+        var conn = db.Database.GetDbConnection();
+        if (conn.State != ConnectionState.Open)
+            conn.Open();
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=$name";
+        var param = cmd.CreateParameter();
+        param.ParameterName = "$name";
+        param.Value = table;
+        cmd.Parameters.Add(param);
+        return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
     }
 
     static void RepairPlanDefaults(AppDbContext db)

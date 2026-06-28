@@ -3,8 +3,11 @@ namespace BookPromoterAI;
 
 static class OwnerPage
 {
-    public static string Render(AppStoreDb store, string notice = "", string appBaseUrl = "https://bookpromoterai.us")
+    public static string Render(AppStoreDb store, string notice = "", string appBaseUrl = "")
     {
+        if (string.IsNullOrWhiteSpace(appBaseUrl))
+            appBaseUrl = "https://bookpromoterai.us";
+
         var accessRows = new StringBuilder();
         foreach (var code in store.PromoCodes.Where(c => !c.IsLifetimeFree))
         {
