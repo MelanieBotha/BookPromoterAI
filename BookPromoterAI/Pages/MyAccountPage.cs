@@ -92,23 +92,7 @@ static class MyAccountPage
             : """<p class="muted small-text">Your plan includes unlimited AI posts per month.</p>""";
 
         // ── OAuth connect buttons ─────────────────────────────────────
-        var defaultPlatforms = new[] { "Facebook", "X", "Instagram", "LinkedIn", "Pinterest", "TikTok" };
-        var platformColors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["Facebook"] = "#1877F2", ["X"] = "#000000", ["Instagram"] = "#E4405F",
-            ["LinkedIn"] = "#0A66C2", ["Pinterest"] = "#E60023", ["TikTok"] = "#000000"
-        };
-
-        var connectButtons = new StringBuilder();
-        foreach (var p in defaultPlatforms)
-        {
-            var color = platformColors.TryGetValue(p, out var c) ? c : "#0f766e";
-            connectButtons.Append($"""
-                <a class="button" href="/social-accounts/connect/{Uri.EscapeDataString(p)}" style="background:{color}">
-                    Connect {H.Encode(p)}
-                </a>
-                """);
-        }
+        var connectButtons = SocialConnectHelper.ConnectButtons("/my-account");
 
         var socialSection = $"""
             <section class="panel">

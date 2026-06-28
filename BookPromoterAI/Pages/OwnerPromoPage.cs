@@ -5,11 +5,48 @@ static class OwnerPromoPage
 {
     public static string Render(AppStoreDb store, string appBaseUrl)
     {
+        var returnPath = SocialConnectHelper.OwnerReturnPath;
         var promoPosts = AppPromoGenerator.GeneratePromoPosts(appBaseUrl);
         var socialAccounts = store.OwnerSocialAccounts;
         var accountNote = socialAccounts.Count > 0
-            ? $"""<p class="notice success">{socialAccounts.Count} social account(s) connected — posts will go to: {H.Encode(string.Join(", ", socialAccounts.Select(a => a.Platform)))}.</p>"""
-            : """<p class="notice error">No social accounts connected yet. Connect platforms under <strong>My Account</strong> to auto-post app promotions.</p>""";
+            ? $"""<p class="notice success">{socialAccounts.Count} social account(s) connected for app promotions: {H.Encode(string.Join(", ", socialAccounts.Select(a => a.Platform)))}.</p>"""
+            : """<p class="notice error">No social accounts connected yet. Use the connect buttons below to link platforms for auto-posting app promotions.</p>""";
+
+        var connectedRows = new StringBuilder();
+        foreach (var account in socialAccounts)
+        {
+            var status = account.ConnectedViaOAuth
+                ? "OAuth (simulated)"
+                : "Manual";
+            connectedRows.Append($"""
+                <div class="promo-row plan-row">
+                    <span>{H.Encode(account.Platform)}</span>
+                    <span>
+                        <strong>{H.Encode(account.DisplayName)}</strong>
+                        <span class="muted"> @{H.Encode(account.Handle)} &middot; {status}</span>
+                    </span>
+                    <span>
+                        <a class="button secondary small" href="/social-accounts/edit/{account.Id}?return={Uri.EscapeDataString(returnPath)}">Edit</a>
+                        <form method="post" action="/social-accounts/delete/{account.Id}" class="inline-form tight">
+                            <input type="hidden" name="return" value="{returnPath}">
+                            <button class="danger-button small" type="submit">Remove</button>
+                        </form>
+                    </span>
+                </div>
+                """);
+        }
+        if (socialAccounts.Count == 0)
+            connectedRows.Append("""<p class="muted">Connect a platform below to enable Post buttons in the promotion section.</p>""");
+
+        var alreadyAdded = socialAccounts.Select(a => a.Platform).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var platformOptions = new StringBuilder();
+        platformOptions.Append("""<option value="">Choose a platform...</option>""");
+        foreach (var platform in SocialConnectHelper.DefaultPlatforms)
+        {
+            if (alreadyAdded.Contains(platform)) continue;
+            platformOptions.Append($"""<option value="{H.Encode(platform)}">{H.Encode(platform)}</option>""");
+        }
+        platformOptions.Append("""<option value="__custom__">Other (type your own)...</option>""");
 
         var promoCards = new StringBuilder();
         foreach (var platform in AppPromoGenerator.SupportedPlatforms)
@@ -67,6 +104,45 @@ static class OwnerPromoPage
             """;
 
         return $"""
+            <details class="owner-collapsible" open>
+                <summary class="owner-collapsible-heading">Owner Social Media Accounts</summary>
+                <div class="panel owner-settings">
+                    <p class="muted">Connect your social accounts here to auto-post BookPromoter AI promotions. These are separate from customer book-promotion accounts — they use your owner login.</p>
+                    {accountNote}
+                    <h3>Connected accounts</h3>
+                    <div class="promo-table">
+                        <div class="promo-header">
+                            <strong>Platform</strong>
+                            <strong>Account</strong>
+                            <strong>Actions</strong>
+                        </div>
+                        {connectedRows}
+                    </div>
+                    <h3 style="margin-top:20px">Connect a platform</h3>
+                    <p class="muted small-text">Click to start login (simulated until real OAuth API keys are configured).</p>
+                    <div class="connect-buttons">
+                        {SocialConnectHelper.ConnectButtons(returnPath)}
+                    </div>
+                    <h3 style="margin-top:20px">Or add manually</h3>
+                    <form method="post" action="/social-accounts" class="form">
+                        <input type="hidden" name="return" value="{returnPath}">
+                        <label>Platform
+                            <select name="platform" onchange="toggleOwnerCustomPlatform(this)">{platformOptions}</select>
+                        </label>
+                        <label class="owner-custom-platform" style="display:none">Custom platform name
+                            <input name="customPlatform" placeholder="e.g. Threads">
+                        </label>
+                        <label>Display Name
+                            <input name="displayName" placeholder="BookPromoter AI" required>
+                        </label>
+                        <label>Handle
+                            <input name="handle" placeholder="bookpromoterai" required>
+                        </label>
+                        <button class="button" type="submit">Add account</button>
+                    </form>
+                </div>
+            </details>
+
             <details class="owner-collapsible" open>
                 <summary class="owner-collapsible-heading">Promote BookPromoter AI (Social &amp; Email)</summary>
                 <div class="panel owner-settings">
@@ -137,8 +213,18 @@ static class OwnerPromoPage
             </details>
 
             {CopyScript()}
+            {OwnerCustomPlatformScript()}
             """;
     }
+
+    static string OwnerCustomPlatformScript() => """
+        <script>
+        function toggleOwnerCustomPlatform(select) {
+            var custom = document.querySelector('.owner-custom-platform');
+            if (custom) custom.style.display = select.value === '__custom__' ? 'block' : 'none';
+        }
+        </script>
+        """;
 
     static string CopyScript() => """
         <script>
