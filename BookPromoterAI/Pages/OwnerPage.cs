@@ -311,7 +311,7 @@ static class OwnerPage
                 </div>
             </details>
 
-            {OwnerPromoPage.Render(store, appBaseUrl)}
+            {PromoSection(store, appBaseUrl)}
 
             <details class="owner-collapsible">
                 <summary class="owner-collapsible-heading">Feedback &amp; Suggestions Report</summary>
@@ -320,6 +320,25 @@ static class OwnerPage
                 </div>
             </details>
             """;
+    }
+
+    static string PromoSection(AppStoreDb store, string appBaseUrl)
+    {
+        try
+        {
+            return OwnerPromoPage.Render(store, appBaseUrl);
+        }
+        catch (Exception ex)
+        {
+            return $"""
+                <details class="owner-collapsible" open>
+                    <summary class="owner-collapsible-heading">Promote BookPromoter AI (Social &amp; Email)</summary>
+                    <div class="panel owner-settings">
+                        <p class="notice error">Promotion tools could not load: {H.Encode(ex.Message)}. Other owner settings below still work. Redeploy v1.5.2 or contact support if this persists.</p>
+                    </div>
+                </details>
+                """;
+        }
     }
 
     static string GoLiveItem(bool done, string text) =>

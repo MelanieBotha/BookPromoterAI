@@ -121,10 +121,28 @@ static class OwnerRoutes
         app.MapPost("/owner-login", (AppStoreDb store) => OwnerGuard(store) ?? Results.Redirect("/owner-promos"));
     }
 
-    static IResult RenderOwner(HttpContext http, AppStoreDb store, AppSettings settings, string notice = "") =>
-        Results.Content(
-            H.RenderPage(http, "Owner", OwnerPage.Render(store, notice, PublicUrl.Base(http.Request, settings)), store),
-            "text/html");
+    static IResult RenderOwner(HttpContext http, AppStoreDb store, AppSettings settings, string notice = "")
+    {
+        try
+        {
+            return Results.Content(
+                H.RenderPage(http, "Owner", OwnerPage.Render(store, notice, PublicUrl.Base(http.Request, settings)), store),
+                "text/html");
+        }
+        catch (Exception ex)
+        {
+            return Results.Content(
+                H.RenderPage(http, "Owner", $"""
+                    <section class="panel">
+                        <h1>Owner</h1>
+                        <p class="notice error">Could not load owner page: {H.Encode(ex.Message)}</p>
+                        <p class="muted">Try logging out and back in, or use <a href="/owner-promos">/owner-promos</a> (with a hyphen).</p>
+                    </section>
+                    """, store),
+                "text/html",
+                statusCode: StatusCodes.Status500InternalServerError);
+        }
+    }
 
     static IResult? OwnerGuard(AppStoreDb store)
     {

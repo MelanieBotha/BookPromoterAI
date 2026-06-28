@@ -1213,12 +1213,19 @@ class AppStoreDb
     {
         get
         {
-            using var db = Db();
-            return db.ProductUpdates.AsNoTracking()
-                .OrderByDescending(u => u.CreatedAt)
-                .Take(20)
-                .Select(ToModel)
-                .ToList();
+            try
+            {
+                using var db = Db();
+                return db.ProductUpdates.AsNoTracking()
+                    .OrderByDescending(u => u.CreatedAt)
+                    .Take(20)
+                    .Select(u => ToProductUpdate(u))
+                    .ToList();
+            }
+            catch
+            {
+                return [];
+            }
         }
     }
 
@@ -1351,7 +1358,7 @@ class AppStoreDb
             CreatedAt = DateTime.UtcNow
         };
 
-        var socialPosts = AppPromoGenerator.GenerateUpdatePosts(ToModel(update), appBaseUrl);
+        var socialPosts = AppPromoGenerator.GenerateUpdatePosts(ToProductUpdate(update), appBaseUrl);
         update.SocialPostText = socialPosts.GetValueOrDefault("Facebook") ?? socialPosts.Values.FirstOrDefault();
 
         if (sendEmail)
@@ -1361,7 +1368,7 @@ class AppStoreDb
                 return (false, "No registered users to email.", null);
 
             var (sent, failed) = await EmailService.SendProductUpdateEmailAsync(
-                emails, ToModel(update), appBaseUrl, apiKey, senderEmail, senderName);
+                emails, ToProductUpdate(update), appBaseUrl, apiKey, senderEmail, senderName);
             update.EmailedAt = DateTime.UtcNow;
             update.EmailsSent = sent;
             update.EmailsFailed = failed;
@@ -1376,7 +1383,7 @@ class AppStoreDb
                 foreach (var account in accounts)
                 {
                     var text = socialPosts.GetValueOrDefault(account.Platform)
-                        ?? AppPromoGenerator.GenerateUpdatePost(account.Platform, ToModel(update), appBaseUrl);
+                        ?? AppPromoGenerator.GenerateUpdatePost(account.Platform, ToProductUpdate(update), appBaseUrl);
                     var result = await postingService.PostAsync(ToModel(account), text);
                     db.PostingLog.Add(new DbPostingLogEntry
                     {
@@ -1401,7 +1408,7 @@ class AppStoreDb
         if (sendEmail && !_settings.IsSendGridConfigured)
             parts.Add("SendGrid is not configured — emails were not actually delivered.");
 
-        return (true, string.Join(" ", parts), ToModel(update));
+        return (true, string.Join(" ", parts), ToProductUpdate(update));
     }
 
     List<string> GetAllUserEmails()
@@ -1414,7 +1421,7 @@ class AppStoreDb
             .ToList();
     }
 
-    static ProductUpdate ToModel(DbProductUpdate u) => new()
+    static ProductUpdate ToProductUpdate(DbProductUpdate u) => new()
     {
         Id = u.Id,
         Version = u.Version,

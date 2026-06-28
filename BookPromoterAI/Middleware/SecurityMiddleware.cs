@@ -29,6 +29,14 @@ static class SecurityMiddleware
             }
 
             var requestPath = context.Request.Path.Value ?? "";
+
+            if (requestPath.Equals("/owner/promos", StringComparison.OrdinalIgnoreCase) ||
+                requestPath.Equals("/owner_promos", StringComparison.OrdinalIgnoreCase))
+            {
+                context.Response.Redirect("/owner-promos");
+                return;
+            }
+
             if (requestPath.StartsWith("/owner", StringComparison.OrdinalIgnoreCase))
             {
                 var ownerStore = context.RequestServices.GetService<AppStoreDb>();
