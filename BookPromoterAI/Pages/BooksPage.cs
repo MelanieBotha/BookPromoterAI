@@ -22,7 +22,9 @@ static class BooksPage
         var genre = editing?.Genre ?? "";
         var description = editing?.Description ?? "";
         var coverImageUrl = editing?.CoverImageUrl ?? "";
-        var coverSourceUrl = editing?.CoverSourceUrl ?? "";
+        var currentCoverNote = editing is not null && !string.IsNullOrWhiteSpace(coverImageUrl)
+            ? """<p class="muted small-text">Your current cover is saved. Upload a new file only to replace it.</p>"""
+            : "";
 
         var linkRows = new StringBuilder();
         var existingLinks = editing?.Links ?? [];
@@ -87,13 +89,9 @@ static class BooksPage
 
                     <div class="cover-section">
                         <label>Book Cover</label>
-                        <p class="muted small-text">Upload a cover image, paste a direct image URL, or paste the listing page URL.</p>
+                        <p class="muted small-text">Upload a cover image from your computer (JPG, PNG, or WebP).</p>
                         <label class="sub-label">Upload cover from your computer <input name="coverFile" type="file" accept="image/*"></label>
-                        <label class="sub-label">Manual cover image URL <input name="coverImageUrl" value="{H.Encode(coverImageUrl)}" placeholder="https://example.com/cover.jpg"></label>
-                        <label class="sub-label">Or use cover from listing page
-                            <input name="coverSourceUrl" value="{H.Encode(coverSourceUrl)}" placeholder="https://www.amazon.com/dp/XXXXXXX">
-                        </label>
-                        <p class="muted small-text">Tip: right-click the cover image on the listing page → "Copy image address" → paste into the URL field above.</p>
+                        {currentCoverNote}
                     </div>
 
                     <div class="form-actions">
