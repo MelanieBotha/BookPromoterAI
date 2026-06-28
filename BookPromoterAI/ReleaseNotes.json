@@ -1,4 +1,12 @@
 {
+  "1.7.3": {
+    "title": "BookPromoter AI v1.7.3 — What's new",
+    "updated": [
+      "Fix Railway deploy healthcheck failure (restore AppStoreDb registration)"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.7.2": {
     "title": "BookPromoter AI v1.7.2 — What's new",
     "updated": [],
