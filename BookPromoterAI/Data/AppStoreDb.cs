@@ -707,19 +707,25 @@ class AppStoreDb
         return (visible, total);
     }
 
-    public (List<PromoCode> Visible, int TotalCount) GetLifetimeCodesForDisplay()
+    public (List<PromoCode> Available, List<PromoCode> Redeemed, int RedeemedTotal) GetLifetimeCodesForDisplay()
     {
         using var db = Db();
-        var query = db.PromoCodes.AsNoTracking().Where(p => p.IsLifetimeFree && p.IsRedeemed);
-        var total = query.Count();
-        var visible = query
+        var available = db.PromoCodes.AsNoTracking()
+            .Where(p => p.IsLifetimeFree && !p.IsRedeemed)
+            .OrderByDescending(p => p.Id)
+            .ToList()
+            .Select(ToModel)
+            .ToList();
+        var redeemedQuery = db.PromoCodes.AsNoTracking().Where(p => p.IsLifetimeFree && p.IsRedeemed);
+        var redeemedTotal = redeemedQuery.Count();
+        var redeemed = redeemedQuery
             .OrderByDescending(p => p.RedeemedAt)
             .ThenByDescending(p => p.Id)
             .Take(PromoConstants.MaxVisiblePromoCodes)
             .ToList()
             .Select(ToModel)
             .ToList();
-        return (visible, total);
+        return (available, redeemed, redeemedTotal);
     }
 
     public (List<OwnerPlanMember> Visible, int TotalCount) GetPlanMembersForDisplay(string planId)

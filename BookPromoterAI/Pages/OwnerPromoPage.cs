@@ -3,8 +3,9 @@ namespace BookPromoterAI;
 
 static class OwnerPromoPage
 {
-    public static string Render(AppStoreDb store, string appBaseUrl, ReleaseNotesCatalog? releaseNotes = null)
+    public static string Render(AppStoreDb store, string appBaseUrl, ReleaseNotesCatalog? releaseNotes = null, string? activeSection = null)
     {
+        var open = (string id) => string.Equals(id, activeSection, StringComparison.OrdinalIgnoreCase) ? " open" : "";
         var returnPath = SocialConnectHelper.OwnerReturnPath;
         var version = AppVersion.Display;
         var draft = releaseNotes?.GetDraft(version) ?? ReleaseNoteDraft.ForVersion(version);
@@ -114,7 +115,7 @@ static class OwnerPromoPage
             """;
 
         return $"""
-            <details class="owner-collapsible">
+            <details class="owner-collapsible" id="owner-section-owner-social"{open("owner-social")}>
                 <summary class="owner-collapsible-heading">Owner Social Media Accounts</summary>
                 <div class="panel owner-settings">
                     <p class="muted">Connect your social accounts here to auto-post BookPromoter AI promotions. These are separate from customer book-promotion accounts — they use your owner login.</p>
@@ -153,7 +154,7 @@ static class OwnerPromoPage
                 </div>
             </details>
 
-            <details class="owner-collapsible">
+            <details class="owner-collapsible" id="owner-section-promote-app"{open("promote-app")}>
                 <summary class="owner-collapsible-heading">Promote BookPromoter AI (Social &amp; Email)</summary>
                 <div class="panel owner-settings">
                     <p class="muted">Generate ready-to-share posts that promote BookPromoter AI. Copy to your social accounts, post to connected accounts, or email all {store.RegisteredUserCount} registered user(s).</p>
@@ -184,7 +185,7 @@ static class OwnerPromoPage
                 </div>
             </details>
 
-            <details class="owner-collapsible">
+            <details class="owner-collapsible" id="owner-section-product-updates"{open("product-updates")}>
                 <summary class="owner-collapsible-heading">Product Updates (email users on release)</summary>
                 <div class="panel owner-settings">
                     <p class="muted">When you ship a new version, list what changed. The form below fills from <code>ReleaseNotes.json</code> on every deploy (keep it in sync with <code>BookPromoterAI.csproj</code>). Users receive a structured email with <strong>Updated</strong>, <strong>New</strong>, and <strong>Added</strong> sections.</p>

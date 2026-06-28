@@ -5,7 +5,11 @@ static class OwnerRoutes
     public static void Map(WebApplication app)
     {
         app.MapGet("/owner-promos", (HttpContext http, AppStoreDb store, AppSettings settings, ReleaseNotesCatalog releaseNotes) =>
-            OwnerGuard(store) ?? RenderOwner(http, store, settings, releaseNotes));
+        {
+            if (OwnerGuard(store) is { } guard) return guard;
+            var section = http.Request.Query["section"].ToString();
+            return RenderOwner(http, store, settings, releaseNotes, activeSection: section);
+        });
 
         app.MapGet("/owner/promos", () => Results.Redirect("/owner-promos"));
         app.MapGet("/owner_promos", () => Results.Redirect("/owner-promos"));
@@ -16,11 +20,17 @@ static class OwnerRoutes
             return Results.Redirect("/owner-promos");
         });
 
-        app.MapPost("/owner/generate-lifetime-code", (AppStoreDb store) =>
+        app.MapPost("/owner/generate-lifetime-code", (HttpContext http, AppStoreDb store, AppSettings settings, ReleaseNotesCatalog releaseNotes) =>
         {
             if (OwnerGuard(store) is { } guard) return guard;
-            store.GenerateLifetimeCode();
-            return Results.Redirect("/owner-promos");
+            var code = store.GenerateLifetimeCode();
+            var notice = $"""
+                <div class="notice success">
+                    New lifetime code: <strong>{H.Encode(code.Code)}</strong> — copy and send to your beta author.
+                    They enter it on Billing to unlock lifetime Publisher access.
+                </div>
+                """;
+            return RenderOwner(http, store, settings, releaseNotes, notice, "lifetime");
         });
 
         app.MapPost("/owner/plan-price", async (HttpRequest request, AppStoreDb store) =>
@@ -122,12 +132,12 @@ static class OwnerRoutes
         app.MapPost("/owner-login", (AppStoreDb store) => OwnerGuard(store) ?? Results.Redirect("/owner-promos"));
     }
 
-    static IResult RenderOwner(HttpContext http, AppStoreDb store, AppSettings settings, ReleaseNotesCatalog releaseNotes, string notice = "")
+    static IResult RenderOwner(HttpContext http, AppStoreDb store, AppSettings settings, ReleaseNotesCatalog releaseNotes, string notice = "", string? activeSection = null)
     {
         try
         {
             return Results.Content(
-                H.RenderPage(http, "Owner", OwnerPage.Render(store, notice, PublicUrl.Base(http.Request, settings), releaseNotes), store),
+                H.RenderPage(http, "Owner", OwnerPage.Render(store, notice, PublicUrl.Base(http.Request, settings), releaseNotes, activeSection), store),
                 "text/html");
         }
         catch (Exception ex)

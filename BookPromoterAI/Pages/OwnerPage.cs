@@ -3,10 +3,12 @@ namespace BookPromoterAI;
 
 static class OwnerPage
 {
-    public static string Render(AppStoreDb store, string notice = "", string appBaseUrl = "", ReleaseNotesCatalog? releaseNotes = null)
+    public static string Render(AppStoreDb store, string notice = "", string appBaseUrl = "", ReleaseNotesCatalog? releaseNotes = null, string? activeSection = null)
     {
         if (string.IsNullOrWhiteSpace(appBaseUrl))
             appBaseUrl = "https://bookpromoterai.us";
+
+        var open = (string id) => SectionOpen(id, activeSection);
 
         var (accessCodes, accessTotal) = store.GetAccessCodesForDisplay();
         var accessRows = new StringBuilder();
@@ -29,9 +31,22 @@ static class OwnerPage
         else if (accessTotal > accessCodes.Count)
             accessRows.Append($"""<p class="muted small-text">Showing {accessCodes.Count} of {accessTotal} redeemed access codes (most recent first).</p>""");
 
-        var (lifetimeCodes, lifetimeTotal) = store.GetLifetimeCodesForDisplay();
+        var (lifetimeAvailable, lifetimeRedeemed, lifetimeRedeemedTotal) = store.GetLifetimeCodesForDisplay();
         var lifetimeRows = new StringBuilder();
-        foreach (var code in lifetimeCodes)
+        foreach (var code in lifetimeAvailable)
+        {
+            var assignee = string.IsNullOrWhiteSpace(code.IntendedRecipientEmail)
+                ? "Unassigned"
+                : H.Encode(code.IntendedRecipientEmail);
+            lifetimeRows.Append($"""
+                <div class="promo-row">
+                    <span>{H.Encode(code.Code)}</span>
+                    <span>{assignee} &middot; Lifetime Free (Publisher)</span>
+                    <span class="status available">Available</span>
+                </div>
+                """);
+        }
+        foreach (var code in lifetimeRedeemed)
         {
             var redeemedInfo = !string.IsNullOrWhiteSpace(code.RedeemedByEmail)
                 ? H.Encode(code.RedeemedByEmail)
@@ -45,14 +60,14 @@ static class OwnerPage
                 </div>
                 """);
         }
-        if (lifetimeTotal == 0)
-            lifetimeRows.Append("""<p class="muted">No lifetime codes have been redeemed yet. Generate one below for beta authors.</p>""");
-        else if (lifetimeTotal > lifetimeCodes.Count)
-            lifetimeRows.Append($"""<p class="muted small-text">Showing {lifetimeCodes.Count} of {lifetimeTotal} redeemed lifetime codes (most recent first).</p>""");
+        if (lifetimeAvailable.Count == 0 && lifetimeRedeemedTotal == 0)
+            lifetimeRows.Append("""<p class="muted">No lifetime codes yet. Generate one below for beta authors.</p>""");
+        else if (lifetimeRedeemedTotal > lifetimeRedeemed.Count)
+            lifetimeRows.Append($"""<p class="muted small-text">Showing {lifetimeRedeemed.Count} of {lifetimeRedeemedTotal} redeemed lifetime codes (most recent first).</p>""");
 
         var tierSections = new StringBuilder();
         foreach (var plan in store.Plans.OrderBy(p => p.MonthlyFee))
-            tierSections.Append(BuildPlanTierSection(store, plan));
+            tierSections.Append(BuildPlanTierSection(store, plan, activeSection));
 
         var stripeStatus = store.IsStripeConfigured ? "Connected" : "Not configured";
         var billingStatus = store.IsBillingConfigured
@@ -125,7 +140,7 @@ static class OwnerPage
 
             {notice}
 
-            <details class="owner-collapsible">
+            <details class="owner-collapsible" id="owner-section-go-live"{open("go-live")}>
                 <summary class="owner-collapsible-heading">Go Live Checklist</summary>
                 <div class="panel owner-settings">
                     {goLiveChecklist}
@@ -133,7 +148,7 @@ static class OwnerPage
                 </div>
             </details>
 
-            <details class="owner-collapsible">
+            <details class="owner-collapsible" id="owner-section-data-storage"{open("data-storage")}>
                 <summary class="owner-collapsible-heading">Data Storage (Railway Volume)</summary>
                 <div class="panel owner-settings">
                     {storageNotice}
@@ -149,7 +164,7 @@ static class OwnerPage
                 </div>
             </details>
 
-            <details class="owner-collapsible">
+            <details class="owner-collapsible" id="owner-section-custom-domain"{open("custom-domain")}>
                 <summary class="owner-collapsible-heading">Custom Domain (bookpromoterai.us)</summary>
                 <div class="panel owner-settings">
                     {domainStatus}
@@ -166,7 +181,7 @@ static class OwnerPage
                 </div>
             </details>
 
-            <details class="owner-collapsible">
+            <details class="owner-collapsible" id="owner-section-email"{open("email")}>
                 <summary class="owner-collapsible-heading">Email (SendGrid)</summary>
                 <div class="panel owner-settings">
                     {emailStatus}
@@ -181,7 +196,7 @@ static class OwnerPage
                 </div>
             </details>
 
-            <details class="owner-collapsible">
+            <details class="owner-collapsible" id="owner-section-railway-cleanup"{open("railway-cleanup")}>
                 <summary class="owner-collapsible-heading">Railway Cleanup (Unused Services)</summary>
                 <div class="panel owner-settings">
                     <p class="muted">The app uses SQLite on the BookPromoterAI volume — not Postgres or Redis. Delete these to simplify the project and avoid extra cost:</p>
@@ -197,7 +212,7 @@ static class OwnerPage
                 </div>
             </details>
 
-            <details class="owner-collapsible">
+            <details class="owner-collapsible" id="owner-section-stripe"{open("stripe")}>
                 <summary class="owner-collapsible-heading">Stripe Billing</summary>
                 <div class="panel owner-settings">
                     {billingStatus}
@@ -210,7 +225,7 @@ static class OwnerPage
                 </div>
             </details>
 
-            <details class="owner-collapsible">
+            <details class="owner-collapsible" id="owner-section-payout"{open("payout")}>
                 <summary class="owner-collapsible-heading">Payout Bank Account</summary>
                 <div class="panel owner-settings">
                     <p class="muted">Optional reference for where you want subscription revenue deposited. Stripe pays out to the bank account linked in your Stripe dashboard.</p>
@@ -246,7 +261,7 @@ static class OwnerPage
                 </div>
             </details>
 
-            <details class="owner-collapsible">
+            <details class="owner-collapsible" id="owner-section-access-codes"{open("access-codes")}>
                 <summary class="owner-collapsible-heading">Access Codes (30-Day Access)</summary>
                 <div class="panel owner-settings">
                     <p class="muted">Redeemed 30-day access codes only (most recent first, up to {PromoConstants.MaxVisiblePromoCodes}). New codes are created on signup and are not listed here until used.</p>
@@ -261,10 +276,10 @@ static class OwnerPage
                 </div>
             </details>
 
-            <details class="owner-collapsible">
+            <details class="owner-collapsible" id="owner-section-lifetime"{open("lifetime")}>
                 <summary class="owner-collapsible-heading">Lifetime Free Codes (Publisher Tier)</summary>
                 <div class="panel owner-settings">
-                    <p class="muted">Redeemed lifetime codes only (most recent first, up to {PromoConstants.MaxVisiblePromoCodes}). Generate new codes below for beta authors — they appear here after redemption.</p>
+                    <p class="muted">Available codes are ready to share. Redeemed codes show as Used (most recent first, up to {PromoConstants.MaxVisiblePromoCodes}).</p>
                     <div class="promo-table">
                         <div class="promo-header">
                             <strong>Code</strong>
@@ -281,27 +296,70 @@ static class OwnerPage
 
             {tierSections}
 
-            {PromoSection(store, appBaseUrl, releaseNotes)}
+            {PromoSection(store, appBaseUrl, releaseNotes, activeSection)}
 
-            <details class="owner-collapsible">
+            <details class="owner-collapsible" id="owner-section-feedback"{open("feedback")}>
                 <summary class="owner-collapsible-heading">Feedback &amp; Suggestions Report</summary>
                 <div>
                     {FeedbackLogSection(store)}
                 </div>
             </details>
+
+            {OwnerScrollScript}
             """;
     }
 
-    static string PromoSection(AppStoreDb store, string appBaseUrl, ReleaseNotesCatalog? releaseNotes)
+    static string SectionOpen(string sectionId, string? activeSection) =>
+        string.Equals(sectionId, activeSection, StringComparison.OrdinalIgnoreCase) ? " open" : "";
+
+    const string OwnerScrollScript = """
+        <script>
+        (function () {
+            var KEY = 'ownerPageState';
+            function saveState() {
+                var open = [];
+                document.querySelectorAll('details.owner-collapsible[open]').forEach(function (d) {
+                    if (d.id) open.push(d.id);
+                });
+                sessionStorage.setItem(KEY, JSON.stringify({ open: open, scroll: window.scrollY }));
+            }
+            document.addEventListener('DOMContentLoaded', function () {
+                var raw = sessionStorage.getItem(KEY);
+                if (raw) {
+                    sessionStorage.removeItem(KEY);
+                    try {
+                        var state = JSON.parse(raw);
+                        if (state.open) {
+                            state.open.forEach(function (id) {
+                                var d = document.getElementById(id);
+                                if (d) d.open = true;
+                            });
+                        }
+                        if (typeof state.scroll === 'number') {
+                            requestAnimationFrame(function () { window.scrollTo(0, state.scroll); });
+                        }
+                    } catch (e) {}
+                }
+                document.querySelectorAll('form').forEach(function (f) {
+                    var action = f.getAttribute('action') || '';
+                    if (action.indexOf('/owner') === -1 && action.indexOf('/social-accounts') === -1) return;
+                    f.addEventListener('submit', saveState);
+                });
+            });
+        })();
+        </script>
+        """;
+
+    static string PromoSection(AppStoreDb store, string appBaseUrl, ReleaseNotesCatalog? releaseNotes, string? activeSection)
     {
         try
         {
-            return OwnerPromoPage.Render(store, appBaseUrl, releaseNotes);
+            return OwnerPromoPage.Render(store, appBaseUrl, releaseNotes, activeSection);
         }
         catch (Exception ex)
         {
             return $"""
-                <details class="owner-collapsible">
+                <details class="owner-collapsible" id="owner-section-promote"{SectionOpen("promote", activeSection)}>
                     <summary class="owner-collapsible-heading">Promote BookPromoter AI (Social &amp; Email)</summary>
                     <div class="panel owner-settings">
                         <p class="notice error">Promotion tools could not load: {H.Encode(ex.Message)}. Other owner settings below still work. Redeploy v1.5.2 or contact support if this persists.</p>
@@ -311,8 +369,9 @@ static class OwnerPage
         }
     }
 
-    static string BuildPlanTierSection(AppStoreDb store, SubscriptionPlan plan)
+    static string BuildPlanTierSection(AppStoreDb store, SubscriptionPlan plan, string? activeSection)
     {
+        var sectionId = $"tier-{plan.Id}";
         var (members, total) = store.GetPlanMembersForDisplay(plan.Id);
         var memberRows = new StringBuilder();
         foreach (var member in members)
@@ -336,7 +395,7 @@ static class OwnerPage
             memberRows.Append($"""<p class="muted small-text">Showing {members.Count} of {total} {H.Encode(plan.Name)} subscribers (most recent first).</p>""");
 
         return $"""
-            <details class="owner-collapsible">
+            <details class="owner-collapsible" id="owner-section-{sectionId}"{SectionOpen(sectionId, activeSection)}>
                 <summary class="owner-collapsible-heading">{H.Encode(plan.Name)} Tier (${plan.MonthlyFee:0.00}/mo)</summary>
                 <div class="panel owner-settings">
                     <p class="muted">Active subscribers on the {H.Encode(plan.Name)} plan (up to {PromoConstants.MaxVisiblePromoCodes}). Limits: {H.Encode(plan.BookLimitText)} books / {H.Encode(plan.SocialAccountLimitText)} accounts.</p>
