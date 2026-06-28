@@ -84,6 +84,7 @@ static class H
                     <a href="/#features">Features</a>
                     <a href="/#pricing">Pricing</a>
                     <a href="/trial">Access code</a>
+                    <a href="/terms">Terms</a>
                     {navActions}
                 </nav>
             </header>
@@ -94,9 +95,10 @@ static class H
             <footer class="app-footer marketing-footer">
                 <span>BookPromoter AI</span>
                 <span>v{AppVersion.Display}</span>
+                <a href="/terms">Terms &amp; Conditions</a>
                 <a href="/start">Sign in</a>
                 <a href="/trial">Free access code</a>
-                <span>&copy; {DateTime.UtcNow.Year}</span>
+                <span>&copy; {DateTime.UtcNow.Year} Melanie Botha</span>
             </footer>
             {csrfScript}
         </body>
@@ -171,7 +173,8 @@ static class H
             <footer class="app-footer">
                 <span>BookPromoter AI</span>
                 <span>v{AppVersion.Display}</span>
-                <span>&copy; {DateTime.UtcNow.Year}</span>
+                <a href="/terms">Terms &amp; Conditions</a>
+                <span>&copy; {DateTime.UtcNow.Year} Melanie Botha</span>
             </footer>
             {csrfScript}
         </body>
@@ -547,7 +550,26 @@ details[open] .owner-collapsible-heading::after{transform:rotate(180deg)}
 .landing-final-cta{text-align:center;padding:32px 24px}
 .landing-final-cta h2{margin-top:0}
 .landing-final-cta .landing-cta-row{justify-content:center}
-.marketing-footer a{color:var(--accent);text-decoration:none;font-weight:600}
+.marketing-footer a,.app-footer a{color:var(--accent);text-decoration:none;font-weight:600}
+.legal-page{max-width:820px;margin:0 auto}
+.legal-header{margin-bottom:28px}
+.legal-intro{line-height:1.65;margin:16px 0 0}
+.legal-section{margin-top:28px;padding-top:24px;border-top:1px solid var(--line)}
+.legal-section:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.legal-section h2{font-size:18px;margin:0 0 12px;color:var(--ink)}
+.legal-section p,.legal-section li{line-height:1.65;color:var(--ink);font-size:15px}
+.legal-section ul{margin:12px 0;padding-left:22px}
+.legal-section li{margin-bottom:8px}
+.legal-footer-note{margin-top:32px;padding-top:20px;border-top:1px solid var(--line)}
+.legal-accept-panel{max-width:720px}
+.legal-accept-summary{margin:24px 0;background:var(--soft)}
+.legal-accept-summary h2{font-size:17px;margin:0 0 12px}
+.legal-accept-summary ul{margin:0;padding-left:22px;line-height:1.65}
+.legal-accept-summary li{margin-bottom:8px}
+.legal-accept-form{margin-top:24px}
+.legal-accept-checkbox{align-items:flex-start;line-height:1.5}
+.legal-accept-checkbox input{margin-top:3px;flex-shrink:0}
+.legal-accept-checkbox a{font-weight:600}
 @media(max-width:900px){.landing-hero,.landing-feature-grid,.landing-steps-list{grid-template-columns:1fr}}
 """;
 }

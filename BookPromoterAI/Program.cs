@@ -86,6 +86,7 @@ Directory.CreateDirectory(uploadsDir);
 app.UseStaticFiles();
 
 LandingRoutes.Map(app);
+LegalRoutes.Map(app);
 DashboardRoutes.Map(app, generator);
 BookRoutes.Map(app, generator, uploadsDir);
 ScheduleRoutes.Map(app, generator);

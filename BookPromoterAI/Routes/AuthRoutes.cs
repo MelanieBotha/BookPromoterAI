@@ -28,7 +28,10 @@ static class AuthRoutes
         app.MapPost("/signup", async (HttpRequest request, HttpContext http, AppStoreDb store) =>
         {
             var form = await request.ReadFormAsync();
-            var result = store.Register(form["email"].ToString(), form["password"].ToString());
+            var acceptedTerms = form["acceptTerms"].ToString();
+            var accepted = acceptedTerms.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+                           acceptedTerms.Equals("on", StringComparison.OrdinalIgnoreCase);
+            var result = store.Register(form["email"].ToString(), form["password"].ToString(), accepted);
             if (!result.Success)
                 return Results.Content(H.RenderMarketingPage(http, "Start", AuthPages.StartLogin($"""<div class="notice error">{H.Encode(result.Message)}</div>"""), store), "text/html");
             return Results.Redirect("/start");
@@ -40,6 +43,8 @@ static class AuthRoutes
             var result = store.Login(form["email"].ToString(), form["password"].ToString());
             if (!result.Success)
                 return Results.Content(H.RenderMarketingPage(request.HttpContext, "Start", AuthPages.StartLogin($"""<div class="notice error">{H.Encode(result.Message)}</div>"""), store), "text/html");
+            if (!store.HasAcceptedTerms)
+                return Results.Redirect("/accept-terms");
             return Results.Redirect(store.HasCustomerAccess ? "/dashboard" : "/start");
         });
 

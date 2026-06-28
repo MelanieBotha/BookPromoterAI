@@ -108,6 +108,10 @@ class DbUser
     public string? ResetToken { get; set; }
     public DateTime? ResetTokenExpiresAt { get; set; }
 
+    // Terms & Conditions acceptance
+    public DateTime? TermsAcceptedAt { get; set; }
+    public string? TermsAcceptedVersion { get; set; }
+
     // Navigation
     public List<DbBook> Books { get; set; } = [];
     public List<DbSocialAccount> SocialAccounts { get; set; } = [];

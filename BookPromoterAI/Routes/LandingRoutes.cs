@@ -6,8 +6,13 @@ static class LandingRoutes
     {
         app.MapGet("/", (HttpContext http, AppStoreDb store) =>
         {
-            if (store.IsLoggedIn && store.HasCustomerAccess)
-                return Results.Redirect("/dashboard");
+            if (store.IsLoggedIn)
+            {
+                if (!store.HasAcceptedTerms)
+                    return Results.Redirect("/accept-terms");
+                if (store.HasCustomerAccess)
+                    return Results.Redirect("/dashboard");
+            }
 
             return Results.Content(
                 H.RenderMarketingPage(http, "Promote your books smarter", LandingPage.Render(store), store),

@@ -47,6 +47,13 @@ static class SecurityMiddleware
                 }
             }
 
+            var store = context.RequestServices.GetService<AppStoreDb>();
+            if (store?.IsLoggedIn == true && !store.HasAcceptedTerms && !IsTermsExemptPath(requestPath))
+            {
+                context.Response.Redirect("/accept-terms");
+                return;
+            }
+
             if (context.Request.Path.StartsWithSegments("/books") ||
                 context.Request.Path.StartsWithSegments("/ad-library") ||
                 context.Request.Path.StartsWithSegments("/analytics") ||
@@ -60,11 +67,27 @@ static class SecurityMiddleware
                 context.Request.Path.StartsWithSegments("/mailing-list") ||
                 context.Request.Path == "/dashboard")
             {
-                var store = context.RequestServices.GetService<AppStoreDb>();
                 store?.CheckAccessExpiry();
             }
 
             await next();
         });
+    }
+
+    static bool IsTermsExemptPath(string path)
+    {
+        if (string.IsNullOrEmpty(path) || path == "/") return true;
+        if (path.StartsWith("/images/", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/uploads/", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/go/", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/webhooks/", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return path.Equals("/accept-terms", StringComparison.OrdinalIgnoreCase) ||
+               path.Equals("/terms", StringComparison.OrdinalIgnoreCase) ||
+               path.Equals("/terms-and-conditions", StringComparison.OrdinalIgnoreCase) ||
+               path.Equals("/logout", StringComparison.OrdinalIgnoreCase) ||
+               path.Equals("/forgot-password", StringComparison.OrdinalIgnoreCase) ||
+               path.Equals("/reset-password", StringComparison.OrdinalIgnoreCase);
     }
 }

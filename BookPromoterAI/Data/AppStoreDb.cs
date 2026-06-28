@@ -45,6 +45,17 @@ class AppStoreDb
 
     public bool IsOwner => OwnerAccount.IsOwnerEmail(LoggedInEmail);
 
+    public bool HasAcceptedTerms
+    {
+        get
+        {
+            if (IsOwner) return true;
+            var user = GetCurrentUser();
+            return user?.TermsAcceptedAt is not null &&
+                   string.Equals(user.TermsAcceptedVersion, LegalConstants.CurrentTermsVersion, StringComparison.Ordinal);
+        }
+    }
+
     public string? CurrentUserCode => GetCurrentUser()?.UserCode;
 
     // ── DB helper ──────────────────────────────────────────────────────
@@ -662,7 +673,9 @@ class AppStoreDb
                 UserCode = GenerateCode("BPA-"),
                 HasCustomerAccess = true,
                 AccessType = "Owner",
-                CurrentPlanId = "publisher"
+                CurrentPlanId = "publisher",
+                TermsAcceptedAt = DateTime.UtcNow,
+                TermsAcceptedVersion = LegalConstants.CurrentTermsVersion
             };
             db.Users.Add(user);
         }
@@ -724,19 +737,40 @@ class AppStoreDb
     }
 
     // ── Auth ───────────────────────────────────────────────────────────
-    public PromoRedeemResult Register(string email, string password)
+    public PromoRedeemResult Register(string email, string password, bool acceptedTerms)
     {
         var cleanEmail = email.Trim().ToLowerInvariant();
         if (OwnerAccount.IsOwnerEmail(cleanEmail))
             return new(false, "This email is reserved for the site owner.");
         if (string.IsNullOrWhiteSpace(cleanEmail) || string.IsNullOrWhiteSpace(password)) return new(false, "Enter an email and password.");
+        if (!acceptedTerms) return new(false, "You must accept the Terms & Conditions to create an account.");
         using var db = Db();
         if (db.Users.Any(u => u.Email == cleanEmail)) return new(false, "An account with that email already exists.");
         var code = GenerateCode("BPA-");
-        var user = new DbUser { Email = cleanEmail, PasswordHash = PasswordHasher.Hash(password), UserCode = code };
+        var user = new DbUser
+        {
+            Email = cleanEmail,
+            PasswordHash = PasswordHasher.Hash(password),
+            UserCode = code,
+            TermsAcceptedAt = DateTime.UtcNow,
+            TermsAcceptedVersion = LegalConstants.CurrentTermsVersion
+        };
         db.Users.Add(user); db.SaveChanges();
         LoggedInEmail = cleanEmail;
         return new(true, $"Account created. Your account code is {code}.");
+    }
+
+    public PromoRedeemResult AcceptTerms()
+    {
+        if (!IsLoggedIn) return new(false, "Please log in first.");
+        using var db = Db();
+        var user = db.Users.FirstOrDefault(u => u.Email == LoggedInEmail);
+        if (user is null) return new(false, "Account not found.");
+        user.TermsAcceptedAt = DateTime.UtcNow;
+        user.TermsAcceptedVersion = LegalConstants.CurrentTermsVersion;
+        db.SaveChanges();
+        ClearUserCache();
+        return new(true, "Thank you. You may now use BookPromoter AI.");
     }
 
     public PromoRedeemResult Login(string email, string password)
