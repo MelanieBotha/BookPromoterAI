@@ -97,6 +97,10 @@ static class OwnerPage
         var savingsSelected = payout.AccountType.Equals("Savings", StringComparison.OrdinalIgnoreCase) ? "selected" : "";
         var businessSelected = payout.AccountType.Equals("Business", StringComparison.OrdinalIgnoreCase) ? "selected" : "";
 
+        var storageNotice = store.Database.UsesDataVolume
+            ? $"""<p class="notice success">{H.Encode(store.Database.StatusSummary)}</p>"""
+            : $"""<p class="notice error">{H.Encode(store.Database.StatusSummary)}</p>""";
+
         return $"""
             <section class="panel">
                 <h1>Owner</h1>
@@ -105,6 +109,22 @@ static class OwnerPage
             </section>
 
             {notice}
+
+            <details class="owner-collapsible">
+                <summary class="owner-collapsible-heading">Data Storage (Railway Volume)</summary>
+                <div class="panel owner-settings">
+                    {storageNotice}
+                    <p class="muted"><strong>Database path:</strong> <code>{H.Encode(store.Database.Path)}</code></p>
+                    <p class="muted">To persist customers, subscriptions, and access codes across redeploys:</p>
+                    <ol class="plan-features">
+                        <li>Railway &rarr; <strong>BookPromoterAI</strong> service &rarr; right-click &rarr; <strong>Add Volume</strong></li>
+                        <li>Mount path: <code>/data</code></li>
+                        <li>Variable (already in Dockerfile): <code>DATABASE_PATH=/data/bookpromoter.db</code></li>
+                        <li>Redeploy the service</li>
+                    </ol>
+                    <p class="muted">If you had data before adding the volume, the app copies the old database into <code>/data</code> on first boot.</p>
+                </div>
+            </details>
 
             <details class="owner-collapsible" open>
                 <summary class="owner-collapsible-heading">Stripe Billing</summary>

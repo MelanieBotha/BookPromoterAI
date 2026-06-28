@@ -35,9 +35,23 @@ builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-TOKEN");
 
 var dbPath = Environment.GetEnvironmentVariable("DATABASE_PATH")
     ?? Path.Combine(builder.Environment.ContentRootPath, "bookpromoter.db");
-var dbDir = Path.GetDirectoryName(dbPath);
-if (!string.IsNullOrEmpty(dbDir))
-    Directory.CreateDirectory(dbDir);
+
+var legacyDbPath = Path.Combine(builder.Environment.ContentRootPath, "bookpromoter.db");
+if (dbPath.Replace('\\', '/').Contains("/data/", StringComparison.OrdinalIgnoreCase)
+    && !File.Exists(dbPath)
+    && File.Exists(legacyDbPath))
+{
+    var dbDir = Path.GetDirectoryName(dbPath);
+    if (!string.IsNullOrEmpty(dbDir))
+        Directory.CreateDirectory(dbDir);
+    File.Copy(legacyDbPath, dbPath);
+}
+
+var dbDirEnsure = Path.GetDirectoryName(dbPath);
+if (!string.IsNullOrEmpty(dbDirEnsure))
+    Directory.CreateDirectory(dbDirEnsure);
+
+builder.Services.AddSingleton(DatabasePaths.Resolve(dbPath));
 
 builder.Services.AddDbContextFactory<AppDbContext>(options =>
     options.UseSqlite($"Data Source={dbPath}"));

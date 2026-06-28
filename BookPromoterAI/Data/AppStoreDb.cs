@@ -14,15 +14,17 @@ class AppStoreDb
     private readonly IDbContextFactory<AppDbContext> _dbFactory;
     private readonly IHttpContextAccessor _http;
     private readonly AppSettings _settings;
+    private readonly DatabasePaths _database;
     private DbUser? _cachedUser;
 
     private const string SessionEmailKey = "LoggedInEmail";
 
-    public AppStoreDb(IDbContextFactory<AppDbContext> dbFactory, IHttpContextAccessor http, AppSettings settings)
+    public AppStoreDb(IDbContextFactory<AppDbContext> dbFactory, IHttpContextAccessor http, AppSettings settings, DatabasePaths database)
     {
         _dbFactory = dbFactory;
         _http = http;
         _settings = settings;
+        _database = database;
     }
 
     private ISession? Session => _http.HttpContext?.Session;
@@ -71,6 +73,8 @@ class AppStoreDb
     public string StripeSecretKeyStatus => _settings.DescribeStripeSecretKey();
     public string StripePublishableKeyStatus => _settings.DescribeStripePublishableKey();
     public string StripeWebhookSecretStatus => _settings.DescribeStripeWebhookSecret();
+
+    public DatabasePaths Database => _database;
 
     public DbUser? GetCurrentDbUser() => GetCurrentUser();
 
