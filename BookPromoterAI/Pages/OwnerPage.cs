@@ -12,37 +12,43 @@ static class OwnerPage
         var accessRows = new StringBuilder();
         foreach (var code in accessCodes)
         {
-            var cls = code.IsRedeemed ? "used" : "available";
+            var redeemedInfo = !string.IsNullOrWhiteSpace(code.RedeemedByEmail)
+                ? H.Encode(code.RedeemedByEmail)
+                : H.Encode(code.IntendedRecipientEmail ?? "Unknown");
+            var redeemedWhen = code.RedeemedAt is DateTime at ? at.ToString("MMM d, yyyy") : "";
             accessRows.Append($"""
                 <div class="promo-row">
                     <span>{H.Encode(code.Code)}</span>
-                    <span>{H.Encode(code.IntendedRecipientEmail ?? "Any email")} &middot; {code.FreeTrialDays}-day access</span>
-                    <span class="status {cls}">{(code.IsRedeemed ? "Used" : "Ready")}</span>
+                    <span>{redeemedInfo} &middot; {code.FreeTrialDays}-day access{(string.IsNullOrEmpty(redeemedWhen) ? "" : $" &middot; {redeemedWhen}")}</span>
+                    <span class="status used">Used</span>
                 </div>
                 """);
         }
         if (accessTotal == 0)
-            accessRows.Append("""<p class="muted">No access codes yet. Codes are created automatically when someone signs up.</p>""");
+            accessRows.Append("""<p class="muted">No access codes have been redeemed yet.</p>""");
         else if (accessTotal > accessCodes.Count)
-            accessRows.Append($"""<p class="muted small-text">Showing {accessCodes.Count} of {accessTotal} access codes (most recent, ready codes first).</p>""");
+            accessRows.Append($"""<p class="muted small-text">Showing {accessCodes.Count} of {accessTotal} redeemed access codes (most recent first).</p>""");
 
         var (lifetimeCodes, lifetimeTotal) = store.GetLifetimeCodesForDisplay();
         var lifetimeRows = new StringBuilder();
         foreach (var code in lifetimeCodes)
         {
-            var cls = code.IsRedeemed ? "used" : "available";
+            var redeemedInfo = !string.IsNullOrWhiteSpace(code.RedeemedByEmail)
+                ? H.Encode(code.RedeemedByEmail)
+                : H.Encode(code.IntendedRecipientEmail ?? "Unknown");
+            var redeemedWhen = code.RedeemedAt is DateTime at ? at.ToString("MMM d, yyyy") : "";
             lifetimeRows.Append($"""
                 <div class="promo-row">
                     <span>{H.Encode(code.Code)}</span>
-                    <span>{H.Encode(code.IntendedRecipientEmail ?? "Any email")} &middot; Lifetime Free (Publisher)</span>
-                    <span class="status {cls}">{(code.IsRedeemed ? "Used" : "Ready")}</span>
+                    <span>{redeemedInfo} &middot; Lifetime Free (Publisher){(string.IsNullOrEmpty(redeemedWhen) ? "" : $" &middot; {redeemedWhen}")}</span>
+                    <span class="status used">Used</span>
                 </div>
                 """);
         }
         if (lifetimeTotal == 0)
-            lifetimeRows.Append("""<p class="muted">No lifetime free codes yet. Click "Generate New Lifetime Code" below.</p>""");
+            lifetimeRows.Append("""<p class="muted">No lifetime codes have been redeemed yet. Generate one below for beta authors.</p>""");
         else if (lifetimeTotal > lifetimeCodes.Count)
-            lifetimeRows.Append($"""<p class="muted small-text">Showing {lifetimeCodes.Count} of {lifetimeTotal} lifetime codes (most recent, ready codes first).</p>""");
+            lifetimeRows.Append($"""<p class="muted small-text">Showing {lifetimeCodes.Count} of {lifetimeTotal} redeemed lifetime codes (most recent first).</p>""");
 
         var planRows = new StringBuilder();
         foreach (var plan in store.Plans)
@@ -272,7 +278,7 @@ static class OwnerPage
             <details class="owner-collapsible">
                 <summary class="owner-collapsible-heading">Access Codes (30-Day Access)</summary>
                 <div class="panel owner-settings">
-                    <p class="muted">30-day access codes are created automatically when a new user signs up (one code per email). They are not replaced when redeemed.</p>
+                    <p class="muted">Redeemed 30-day access codes only (most recent first, up to {PromoConstants.MaxVisiblePromoCodes}). New codes are created on signup and are not listed here until used.</p>
                     <div class="promo-table">
                         <div class="promo-header">
                             <strong>Code</strong>
@@ -287,7 +293,7 @@ static class OwnerPage
             <details class="owner-collapsible">
                 <summary class="owner-collapsible-heading">Lifetime Free Codes (Publisher Tier)</summary>
                 <div class="panel owner-settings">
-                    <p class="muted">Grants permanent Publisher-tier access with no billing. Generate manually for beta authors and partners.</p>
+                    <p class="muted">Redeemed lifetime codes only (most recent first, up to {PromoConstants.MaxVisiblePromoCodes}). Generate new codes below for beta authors — they appear here after redemption.</p>
                     <div class="promo-table">
                         <div class="promo-header">
                             <strong>Code</strong>

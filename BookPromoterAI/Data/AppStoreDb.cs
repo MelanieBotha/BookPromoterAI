@@ -695,10 +695,10 @@ class AppStoreDb
     public (List<PromoCode> Visible, int TotalCount) GetAccessCodesForDisplay()
     {
         using var db = Db();
-        var query = db.PromoCodes.AsNoTracking().Where(p => !p.IsLifetimeFree);
+        var query = db.PromoCodes.AsNoTracking().Where(p => !p.IsLifetimeFree && p.IsRedeemed);
         var total = query.Count();
         var visible = query
-            .OrderBy(p => p.IsRedeemed)
+            .OrderByDescending(p => p.RedeemedAt)
             .ThenByDescending(p => p.Id)
             .Take(PromoConstants.MaxVisiblePromoCodes)
             .ToList()
@@ -710,10 +710,10 @@ class AppStoreDb
     public (List<PromoCode> Visible, int TotalCount) GetLifetimeCodesForDisplay()
     {
         using var db = Db();
-        var query = db.PromoCodes.AsNoTracking().Where(p => p.IsLifetimeFree);
+        var query = db.PromoCodes.AsNoTracking().Where(p => p.IsLifetimeFree && p.IsRedeemed);
         var total = query.Count();
         var visible = query
-            .OrderBy(p => p.IsRedeemed)
+            .OrderByDescending(p => p.RedeemedAt)
             .ThenByDescending(p => p.Id)
             .Take(PromoConstants.MaxVisiblePromoCodes)
             .ToList()
