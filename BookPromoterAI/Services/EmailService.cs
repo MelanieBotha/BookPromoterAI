@@ -157,6 +157,62 @@ static class EmailService
         return await SendSingleEmail(apiKey, senderEmail, senderName, toEmail, null, subject, emailBody, htmlBody, appBaseUrl, "Thank You for Your Feedback");
     }
 
+    public static async Task<bool> SendOwnerFeedbackNotificationEmail(
+        FeedbackEntry entry,
+        string apiKey,
+        string senderEmail,
+        string senderName,
+        string? appBaseUrl = null)
+    {
+        var ownerEmail = OwnerAccount.Email;
+        var baseUrl = EmailTemplate.ResolveBaseUrl(appBaseUrl);
+        var ownerUrl = $"{baseUrl}/owner-promos";
+        var category = string.IsNullOrWhiteSpace(entry.Category) ? "Suggestion" : entry.Category.Trim();
+        var fromEmail = string.IsNullOrWhiteSpace(entry.Email) ? "(not provided)" : entry.Email.Trim();
+        var submitted = entry.SubmittedAt.ToUniversalTime().ToString("MMMM d, yyyy 'at' h:mm tt 'UTC'");
+
+        var subject = $"New {category} — BookPromoter AI feedback";
+        var plainBody = $"""
+            A user submitted feedback on BookPromoter AI.
+
+            Category: {category}
+            From: {fromEmail}
+            Submitted: {submitted}
+
+            Message:
+            {entry.Message}
+
+            Review all feedback in the Owner panel:
+            {ownerUrl}
+            """;
+
+        var htmlBody = $"""
+            {EmailTemplate.Paragraph("A user just submitted <strong>feedback or a suggestion</strong> on BookPromoter AI.")}
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0;width:100%;border-collapse:collapse;">
+                <tr>
+                    <td style="padding:10px 12px;background:#f4f7fb;border:1px solid #d7dde8;font-weight:700;width:120px;">Category</td>
+                    <td style="padding:10px 12px;border:1px solid #d7dde8;">{HtmlEncode(category)}</td>
+                </tr>
+                <tr>
+                    <td style="padding:10px 12px;background:#f4f7fb;border:1px solid #d7dde8;font-weight:700;">From</td>
+                    <td style="padding:10px 12px;border:1px solid #d7dde8;">{HtmlEncode(fromEmail)}</td>
+                </tr>
+                <tr>
+                    <td style="padding:10px 12px;background:#f4f7fb;border:1px solid #d7dde8;font-weight:700;">Submitted</td>
+                    <td style="padding:10px 12px;border:1px solid #d7dde8;">{HtmlEncode(submitted)}</td>
+                </tr>
+            </table>
+            {EmailTemplate.Paragraph("<strong>Message</strong>")}
+            <p style="margin:0 0 16px;padding:16px;background:#f4f7fb;border:1px solid #d7dde8;border-radius:8px;white-space:pre-wrap;line-height:1.6;">{HtmlEncode(entry.Message)}</p>
+            {EmailTemplate.PrimaryButton(ownerUrl, "View in Owner Panel")}
+            {EmailTemplate.MutedParagraph("You receive this because you are the BookPromoter AI site owner.")}
+            """;
+
+        return await SendSingleEmail(
+            apiKey, senderEmail, senderName, ownerEmail, "Melanie",
+            subject, plainBody, htmlBody, appBaseUrl, "New Feedback Received");
+    }
+
     public static async Task<bool> SendMailingListEmail(
         string toEmail,
         string toName,
