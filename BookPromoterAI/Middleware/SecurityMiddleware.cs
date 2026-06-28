@@ -86,6 +86,8 @@ static class SecurityMiddleware
         return path.Equals("/accept-terms", StringComparison.OrdinalIgnoreCase) ||
                path.Equals("/terms", StringComparison.OrdinalIgnoreCase) ||
                path.Equals("/terms-and-conditions", StringComparison.OrdinalIgnoreCase) ||
+               path.Equals("/privacy", StringComparison.OrdinalIgnoreCase) ||
+               path.Equals("/privacy-policy", StringComparison.OrdinalIgnoreCase) ||
                path.Equals("/logout", StringComparison.OrdinalIgnoreCase) ||
                path.Equals("/forgot-password", StringComparison.OrdinalIgnoreCase) ||
                path.Equals("/reset-password", StringComparison.OrdinalIgnoreCase);

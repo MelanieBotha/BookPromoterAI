@@ -11,6 +11,13 @@ static class LegalRoutes
 
         app.MapGet("/terms-and-conditions", () => Results.Redirect("/terms"));
 
+        app.MapGet("/privacy", (HttpContext http, AppStoreDb store) =>
+            Results.Content(
+                H.RenderMarketingPage(http, "Privacy Policy", LegalPage.PrivacyPolicy(), store),
+                "text/html"));
+
+        app.MapGet("/privacy-policy", () => Results.Redirect("/privacy"));
+
         app.MapGet("/accept-terms", (HttpContext http, AppStoreDb store) =>
         {
             if (!store.IsLoggedIn) return Results.Redirect("/start");

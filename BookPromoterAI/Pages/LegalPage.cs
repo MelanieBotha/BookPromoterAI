@@ -150,6 +150,173 @@ static class LegalPage
 
             <p class="legal-footer-note muted small-text">
                 By using BookPromoter AI, you acknowledge that you have read, understood, and agree to these Terms &amp; Conditions.
+                See also our <a href="/privacy">Privacy Policy</a>.
+            </p>
+        </section>
+        """;
+
+    public static string PrivacyPolicy() => $"""
+        <section class="panel legal-page">
+            <header class="legal-header">
+                <p class="eyebrow">Legal</p>
+                <h1>Privacy Policy</h1>
+                <p class="muted">Last updated: {DateTime.UtcNow:MMMM d, yyyy} (UTC)</p>
+                <p class="legal-intro">
+                    This Privacy Policy explains how BookPromoter AI (&ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;) collects, uses, stores, and shares information when you use
+                    <strong>bookpromoterai.us</strong> and related services (the &ldquo;Service&rdquo;). It should be read together with our
+                    <a href="/terms">Terms &amp; Conditions</a>.
+                </p>
+            </header>
+
+            {Section("1. Who we are",
+                """
+                <p>The Service is operated by <strong>Melanie Botha</strong>, owner of BookPromoter AI.</p>
+                <p>For privacy questions or requests, contact us at <a href="mailto:bothamelanief@gmail.com">bothamelanief@gmail.com</a>.</p>
+                """)}
+
+            {Section("2. Information we collect",
+                """
+                <p>We collect information you provide directly, information generated through your use of the Service, and limited technical data needed to operate the platform.</p>
+                <p><strong>Account information</strong></p>
+                <ul>
+                    <li>Email address and password (stored as a secure hash, not plain text)</li>
+                    <li>Account codes, subscription status, and access type (trial, paid plan, etc.)</li>
+                    <li>Terms acceptance date and version</li>
+                </ul>
+                <p><strong>Content you add to the Service</strong></p>
+                <ul>
+                    <li>Book details (titles, authors, genres, descriptions, cover images, store links)</li>
+                    <li>Generated or edited social posts and ad library content</li>
+                    <li>Social account connection details (platform, display name, handle)</li>
+                    <li>Mailing list subscriber names and email addresses you collect through the Service</li>
+                    <li>Feedback, bug reports, and support messages you submit</li>
+                </ul>
+                <p><strong>Usage and technical data</strong></p>
+                <ul>
+                    <li>Click tracking on promo links you create</li>
+                    <li>Posting logs and scheduling preferences</li>
+                    <li>Session cookies required to keep you logged in</li>
+                    <li>Basic server logs (such as IP address, browser type, and pages requested) maintained by our hosting provider</li>
+                </ul>
+                <p><strong>Payment information</strong></p>
+                <ul>
+                    <li>Subscriptions are processed by <strong>Stripe</strong>. We do not store full credit card numbers on our servers. Stripe provides us with identifiers and billing status needed to manage your subscription.</li>
+                </ul>
+                """)}
+
+            {Section("3. How we use your information",
+                """
+                <p>We use collected information to:</p>
+                <ul>
+                    <li>Create and manage your account</li>
+                    <li>Provide book promotion tools, post generation, scheduling, and analytics</li>
+                    <li>Send transactional emails (access codes, password resets, team invites, product updates you request as owner)</li>
+                    <li>Send emails you initiate (mailing list campaigns, owner broadcasts)</li>
+                    <li>Process subscriptions and prevent fraud</li>
+                    <li>Respond to feedback and improve the Service</li>
+                    <li>Comply with legal obligations and enforce our Terms</li>
+                </ul>
+                <p>We do not sell your personal information to third parties.</p>
+                """)}
+
+            {Section("4. Email communications",
+                """
+                <p>We use <strong>SendGrid</strong> to deliver email. Depending on how you use the Service, emails may include:</p>
+                <ul>
+                    <li>Account and security messages (password reset, access codes)</li>
+                    <li>Thank-you messages after feedback submissions</li>
+                    <li>Mailing list messages you send to your own subscribers</li>
+                    <li>Product update or promotional messages from the site owner</li>
+                </ul>
+                <p>If you are an author using the mailing list feature, <strong>you are responsible</strong> for having a lawful basis to email your subscribers and for honoring unsubscribe requests, in addition to following this Privacy Policy and our Terms.</p>
+                """)}
+
+            {Section("5. Third-party services",
+                """
+                <p>We rely on trusted providers to operate the Service. These may process data on our behalf:</p>
+                <ul>
+                    <li><strong>Stripe</strong> — subscription billing and payment processing</li>
+                    <li><strong>SendGrid</strong> — transactional and user-initiated email delivery</li>
+                    <li><strong>Railway</strong> (or similar hosting) — application hosting and data storage</li>
+                    <li><strong>Social platforms</strong> — when you connect accounts or post content (Facebook, Instagram, X, Bluesky, etc.), those platforms&rsquo; own privacy policies apply</li>
+                </ul>
+                <p>We only share information with these providers as needed to deliver the Service. Each third party processes data under its own terms and privacy policy.</p>
+                """)}
+
+            {Section("6. Cookies and session data",
+                """
+                <p>We use essential cookies and similar technologies to:</p>
+                <ul>
+                    <li>Keep you logged in during your session</li>
+                    <li>Protect forms against cross-site request forgery (CSRF)</li>
+                </ul>
+                <p>We do not use third-party advertising cookies on the Service at this time. You can control cookies through your browser settings, but disabling essential cookies may prevent you from logging in.</p>
+                """)}
+
+            {Section("7. How long we keep data",
+                """
+                <p>We retain information for as long as your account is active or as needed to provide the Service, comply with law, resolve disputes, and enforce our agreements.</p>
+                <ul>
+                    <li><strong>Account data</strong> — until you delete your account or ask us to delete it, subject to legal retention requirements</li>
+                    <li><strong>Billing records</strong> — as required for tax, accounting, and fraud prevention</li>
+                    <li><strong>Server logs</strong> — for a limited period according to our hosting provider&rsquo;s practices</li>
+                </ul>
+                <p>You may delete your account from the Service where that option is available, or contact us to request deletion.</p>
+                """)}
+
+            {Section("8. Security",
+                """
+                <p>We use reasonable technical and organizational measures to protect your information, including encrypted passwords, HTTPS, and secure session handling. No method of transmission or storage is 100% secure, and we cannot guarantee absolute security.</p>
+                <p>Please use a strong password and notify us immediately at <a href="mailto:bothamelanief@gmail.com">bothamelanief@gmail.com</a> if you believe your account has been compromised.</p>
+                """)}
+
+            {Section("9. Your rights and choices",
+                """
+                <p>Depending on where you live, you may have rights to:</p>
+                <ul>
+                    <li>Access the personal information we hold about you</li>
+                    <li>Correct inaccurate information</li>
+                    <li>Request deletion of your account and associated data</li>
+                    <li>Object to or restrict certain processing</li>
+                    <li>Withdraw consent where processing is based on consent</li>
+                    <li>Receive a copy of your data in a portable format</li>
+                </ul>
+                <p>To exercise these rights, email <a href="mailto:bothamelanief@gmail.com">bothamelanief@gmail.com</a>. We may need to verify your identity before fulfilling a request.</p>
+                <p>If you are in the European Economic Area or United Kingdom, you may also have the right to lodge a complaint with your local data protection authority.</p>
+                """)}
+
+            {Section("10. International users",
+                """
+                <p>BookPromoter AI is operated from the United States. If you access the Service from outside the U.S., your information may be transferred to, stored, and processed in the United States or other countries where our service providers operate.</p>
+                <p>By using the Service, you understand that your information may be processed in jurisdictions that may have different data protection laws than your country of residence.</p>
+                """)}
+
+            {Section("11. Children&rsquo;s privacy",
+                """
+                <p>The Service is not intended for anyone under 18 years of age (or the age of majority in your jurisdiction). We do not knowingly collect personal information from children. If you believe a child has provided us with personal information, contact us and we will take steps to delete it.</p>
+                """)}
+
+            {Section("12. Mailing list subscribers (readers)",
+                """
+                <p>When readers sign up to an author&rsquo;s mailing list through a BookPromoter AI signup link, we store their name and email address on behalf of that author. The author controls how that list is used. Readers should contact the author directly for list-related requests, or contact us if they need help reaching the account holder.</p>
+                """)}
+
+            {Section("13. Changes to this Privacy Policy",
+                """
+                <p>We may update this Privacy Policy from time to time. When we do, we will revise the &ldquo;Last updated&rdquo; date at the top of this page. Material changes may be communicated through the Service or by email where appropriate.</p>
+                <p>Your continued use of the Service after changes become effective means you accept the updated Privacy Policy.</p>
+                """)}
+
+            {Section("14. Contact us",
+                """
+                <p>Questions about this Privacy Policy or our data practices:</p>
+                <p><strong>Melanie Botha</strong><br>
+                Email: <a href="mailto:bothamelanief@gmail.com">bothamelanief@gmail.com</a><br>
+                Website: <a href="https://bookpromoterai.us">bookpromoterai.us</a></p>
+                """)}
+
+            <p class="legal-footer-note muted small-text">
+                See also our <a href="/terms">Terms &amp; Conditions</a>.
             </p>
         </section>
         """;
@@ -175,7 +342,7 @@ static class LegalPage
                     <li>You are responsible for your own posts, emails, and compliance with social platforms and laws.</li>
                     <li>The service is provided &ldquo;as is&rdquo; with limited liability as described in the full Terms.</li>
                 </ul>
-                <p><a href="/terms" target="_blank" rel="noopener"><strong>Read the full Terms &amp; Conditions</strong></a></p>
+                <p><a href="/terms" target="_blank" rel="noopener"><strong>Read the full Terms &amp; Conditions</strong></a> and <a href="/privacy" target="_blank" rel="noopener"><strong>Privacy Policy</strong></a>.</p>
             </div>
 
             <form method="post" action="/accept-terms" class="form legal-accept-form">
