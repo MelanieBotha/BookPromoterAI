@@ -1234,7 +1234,7 @@ class AppStoreDb
         get
         {
             using var db = Db();
-            return db.Users.Count(u => u.Email.Contains('@'));
+            return db.Users.Count(u => u.Email.Contains("@"));
         }
     }
 
@@ -1415,7 +1415,7 @@ class AppStoreDb
     {
         using var db = Db();
         return db.Users.AsNoTracking()
-            .Where(u => u.Email.Contains('@'))
+            .Where(u => u.Email.Contains("@"))
             .Select(u => u.Email.Trim().ToLowerInvariant())
             .Distinct()
             .ToList();
