@@ -46,11 +46,13 @@ static class AdLibraryPage
             var cards = new StringBuilder();
             foreach (var ad in week.OrderByDescending(a => a.GeneratedAt))
             {
-                var cover = string.IsNullOrWhiteSpace(ad.CoverImageUrl)
-                    ? """<div class="cover-placeholder large">No cover</div>"""
-                    : $"""<img class="book-cover large" src="{H.Encode(ad.CoverImageUrl)}" alt="{H.Encode(ad.BookTitle)} cover">""";
-
                 var book = store.Books.FirstOrDefault(b => b.Id == ad.BookId);
+                var coverPath = !string.IsNullOrWhiteSpace(book?.CoverImageUrl) ? book!.CoverImageUrl : ad.CoverImageUrl;
+                var coverSrc = PostBranding.AbsoluteImageUrl(assetBaseUrl, coverPath);
+                var cover = string.IsNullOrWhiteSpace(coverPath)
+                    ? """<div class="cover-placeholder large">No cover</div>"""
+                    : $"""<img class="book-cover large" src="{H.Encode(coverSrc)}" alt="{H.Encode(ad.BookTitle)} cover">""";
+
                 var searchField = string.IsNullOrWhiteSpace(search) ? "" : $"""<input type="hidden" name="search" value="{H.Encode(search)}">""";
                 var regenButton = book is not null
                     ? $"""<form method="post" action="/ad-library/regenerate/{ad.Id}">{searchField}<button class="button secondary small" type="submit">Regenerate</button></form>"""
@@ -80,7 +82,7 @@ static class AdLibraryPage
 
                 var charCount = PostLimits.CharacterCountLabel(ad.Platform, ad.PostText);
                 var focusClass = focus == $"ad-{ad.Id}" ? " post-card-focused" : "";
-                var coverUrl = PostBranding.AbsoluteImageUrl(assetBaseUrl, ad.CoverImageUrl);
+                var coverUrl = PostBranding.AbsoluteImageUrl(assetBaseUrl, coverPath);
                 cards.Append($"""
                     <article class="post-card{focusClass}" id="ad-{ad.Id}">
                         <div class="post-card-cover">{cover}</div>

@@ -1,6 +1,7 @@
 using BookPromoterAI;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -51,7 +52,11 @@ var dbDirEnsure = Path.GetDirectoryName(dbPath);
 if (!string.IsNullOrEmpty(dbDirEnsure))
     Directory.CreateDirectory(dbDirEnsure);
 
+var uploadsPaths = UploadPaths.Resolve(dbPath, builder.Environment.ContentRootPath);
+UploadPaths.EnsureReady(uploadsPaths.Path, builder.Environment.ContentRootPath);
+
 builder.Services.AddSingleton(DatabasePaths.Resolve(dbPath));
+builder.Services.AddSingleton(uploadsPaths);
 
 builder.Services.AddDbContextFactory<AppDbContext>(options =>
     options.UseSqlite($"Data Source={dbPath}"));
@@ -81,9 +86,13 @@ app.UseHttpsRedirection();
 app.UseSession();
 app.UseBookPromoterSecurity();
 
-var uploadsDir = Path.Combine(builder.Environment.ContentRootPath, "wwwroot", "uploads");
-Directory.CreateDirectory(uploadsDir);
+var uploadsDir = uploadsPaths.Path;
 app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(uploadsDir),
+    RequestPath = "/uploads"
+});
 
 LandingRoutes.Map(app);
 LegalRoutes.Map(app);

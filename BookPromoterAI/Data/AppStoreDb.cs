@@ -220,6 +220,11 @@ class AppStoreDb
         existing.ClientId = book.ClientId;
         db.BookLinks.RemoveRange(existing.Links);
         existing.Links = book.Links.Select(l => new DbBookLink { StoreName = l.StoreName, Url = l.Url }).ToList();
+        foreach (var ad in db.GeneratedAds.Where(a => a.BookId == book.Id && a.UserId == uid))
+        {
+            ad.CoverImageUrl = book.CoverImageUrl;
+            ad.BookTitle = book.Title;
+        }
         db.SaveChanges();
     }
 
@@ -393,6 +398,8 @@ class AppStoreDb
         var purchaseUrl = PostBranding.PrimaryPurchaseUrl(model) ?? "";
         var text = generator.Generate(model, ad.Platform, purchaseUrl, book.PostVariantSeed, baseUrl);
         ad.PostText = text;
+        ad.CoverImageUrl = book.CoverImageUrl;
+        ad.BookTitle = book.Title;
         ad.GeneratedAt = DateTime.UtcNow;
         ad.ApprovedForPosting = false;
         db.SaveChanges();
