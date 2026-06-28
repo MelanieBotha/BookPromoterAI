@@ -54,10 +54,12 @@ static class AuthPages
                     </div>
                 </label>
                 <p class="muted small-text">At least 6 characters. You choose your own password &mdash; we don't generate one for you.</p>
-                <label class="checkbox-label legal-accept-checkbox">
-                    <input type="checkbox" name="acceptTerms" value="true" required>
-                    <span>I have read and agree to the <a href="/terms" target="_blank" rel="noopener">Terms &amp; Conditions</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span>
-                </label>
+                <div class="signup-legal-consent">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="acceptTerms" value="true" required>
+                        <span>I have read and agree to the <a href="/terms" target="_blank" rel="noopener">Terms &amp; Conditions</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span>
+                    </label>
+                </div>
                 <button class="button" type="submit">Create Account</button>
             </form>
         </section>

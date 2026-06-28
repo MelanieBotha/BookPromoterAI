@@ -401,7 +401,7 @@ h2{font-size:22px}
 .char-count-over{color:#b91c1c;font-weight:700}
 .split{display:grid;grid-template-columns:380px 1fr;gap:18px;align-items:start}
 .form{display:grid;gap:14px}
-label{display:grid;gap:6px;color:var(--muted);font-size:14px}
+label:not(.checkbox-label){display:grid;gap:6px;color:var(--muted);font-size:14px}
 label.sub-label{margin-top:6px}
 input,textarea,select{width:100%;border:1px solid var(--line);border-radius:6px;padding:10px;font:inherit;color:var(--ink);background:white}
 textarea{min-height:120px}
@@ -447,7 +447,9 @@ textarea{min-height:120px}
 .email-body-view{margin-top:12px;padding:16px;background:var(--soft);border:1px solid var(--line);border-radius:8px;white-space:pre-line;line-height:1.6}
 .promo-header{background:var(--soft)}.promo-row{border-top:1px solid var(--line)}
 .post-preview{white-space:pre-wrap;font-size:13px;color:var(--ink);background:var(--soft);padding:10px;border-radius:8px;margin:0;max-height:160px;overflow:auto}
-.checkbox-label{display:flex;align-items:center;gap:8px;font-weight:500;margin:8px 0}
+.checkbox-label{display:flex;align-items:flex-start;gap:10px;font-weight:500;margin:8px 0;max-width:100%}
+.checkbox-label input[type=checkbox]{width:auto;min-width:16px;flex:0 0 auto;margin-top:2px}
+.checkbox-label span{color:var(--muted);font-size:13px;line-height:1.5}
 .feedback-table .feedback-header,.feedback-table .feedback-row{grid-template-columns:1.4fr 160px 2fr}
 .feedback-row p{margin:0;font-size:13px;color:var(--ink)}
 .feedback-category-section{padding:0;overflow:hidden;margin-bottom:24px}
@@ -569,9 +571,7 @@ details[open] .owner-collapsible-heading::after{transform:rotate(180deg)}
 .legal-accept-summary h2{font-size:17px;margin:0 0 12px}
 .legal-accept-summary ul{margin:0;padding-left:22px;line-height:1.65}
 .legal-accept-summary li{margin-bottom:8px}
-.legal-accept-form{margin-top:24px}
-.legal-accept-checkbox{align-items:flex-start;line-height:1.5}
-.legal-accept-checkbox input{margin-top:3px;flex-shrink:0}
+.signup-legal-consent{margin-top:4px}
 .legal-accept-checkbox a{font-weight:600}
 @media(max-width:900px){.landing-hero,.landing-feature-grid,.landing-steps-list{grid-template-columns:1fr}}
 """;
