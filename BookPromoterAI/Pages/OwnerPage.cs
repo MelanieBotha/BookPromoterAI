@@ -193,7 +193,7 @@ static class OwnerPage
                         <li><code>SendGrid__SenderEmail</code> (verified sender in SendGrid)</li>
                         <li><code>SendGrid__SenderName</code> (optional, e.g. Book Promoter AI)</li>
                     </ul>
-                    <p class="muted">In SendGrid: Settings &rarr; Sender Authentication &rarr; verify <code>bothamelanief@gmail.com</code> or <code>noreply@bookpromoterai.us</code> after DNS is connected.</p>
+                    <p class="muted">In SendGrid: Settings &rarr; Sender Authentication &rarr; verify <code>{LegalConstants.ContactEmail}</code> or <code>noreply@bookpromoterai.us</code> after DNS is connected.</p>
                     <p class="muted"><strong>Your action:</strong> Add the three Railway variables above, then Redeploy. Owner checklist will show green when SendGrid is connected.</p>
                 </div>
             </details>

@@ -16,8 +16,8 @@ static class LegalPage
 
             {Section("1. Who we are",
                 """
-                <p>BookPromoter AI (&ldquo;BookPromoter AI,&rdquo; &ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;) is operated by Melanie Botha, the owner and operator of the BookPromoter AI platform available at <strong>bookpromoterai.us</strong> and related subdomains (the &ldquo;Service&rdquo;).</p>
-                <p>These Terms form a binding agreement between you (&ldquo;you,&rdquo; &ldquo;User,&rdquo; or &ldquo;Customer&rdquo;) and Melanie Botha.</p>
+                <p>BookPromoter AI (&ldquo;BookPromoter AI,&rdquo; &ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;) is operated by the {LegalConstants.ContactName}, the operator of the BookPromoter AI platform available at <strong>bookpromoterai.us</strong> and related subdomains (the &ldquo;Service&rdquo;).</p>
+                <p>These Terms form a binding agreement between you (&ldquo;you,&rdquo; &ldquo;User,&rdquo; or &ldquo;Customer&rdquo;) and the {LegalConstants.ContactName}.</p>
                 """)}
 
             {Section("2. Acceptance of terms",
@@ -31,10 +31,10 @@ static class LegalPage
                 <p>If you do not agree, you must not use the Service.</p>
                 """)}
 
-            {Section("3. Copyright &amp; intellectual property",
+            {Section("3. Copyright & intellectual property",
                 """
-                <p><strong>Our property.</strong> The Service, including but not limited to its software, source code, design, layout, logos, branding, text, graphics, features, workflows, and documentation, is owned by Melanie Botha and is protected by copyright, trademark, and other intellectual property laws.</p>
-                <p>&copy; {DateTime.UtcNow.Year} Melanie Botha. All rights reserved.</p>
+                <p><strong>Our property.</strong> The Service, including but not limited to its software, source code, design, layout, logos, branding, text, graphics, features, workflows, and documentation, is owned by the {LegalConstants.ContactName} and is protected by copyright, trademark, and other intellectual property laws.</p>
+                <p>&copy; {DateTime.UtcNow.Year} {LegalConstants.ContactName}. All rights reserved.</p>
                 <p>Except for the limited license granted below, no part of the Service may be copied, modified, distributed, sold, leased, reverse-engineered, decompiled, or used to create a competing product without our prior written consent.</p>
                 <p><strong>Your content.</strong> You retain ownership of content you submit (such as book titles, descriptions, cover images, store links, mailing list data, and generated post text). You grant us a non-exclusive, worldwide, royalty-free license to host, store, process, display, and transmit your content solely to operate and improve the Service.</p>
                 """)}
@@ -45,13 +45,13 @@ static class LegalPage
                 <p>You may not sublicense, resell, white-label, or make the Service available to third parties except as expressly permitted by your subscription plan (for example, agency features where offered).</p>
                 """)}
 
-            {Section("5. Accounts &amp; security",
-                """
-                <p>You are responsible for maintaining the confidentiality of your login credentials and for all activity under your account. Notify us promptly at <a href="mailto:bothamelanief@gmail.com">bothamelanief@gmail.com</a> if you suspect unauthorized access.</p>
+            {Section("5. Accounts & security",
+                $"""
+                <p>You are responsible for maintaining the confidentiality of your login credentials and for all activity under your account. Notify us promptly at <a href="mailto:{LegalConstants.ContactEmail}">{LegalConstants.ContactEmail}</a> if you suspect unauthorized access.</p>
                 <p>We may suspend or terminate accounts that violate these Terms or pose a security risk.</p>
                 """)}
 
-            {Section("6. Subscriptions, billing &amp; refunds",
+            {Section("6. Subscriptions, billing & refunds",
                 """
                 <p>Paid plans, pricing, and features are described on the Service. Payments are processed by third-party providers (such as Stripe). By subscribing, you authorize recurring charges according to your selected plan until you cancel.</p>
                 <p>Fees are generally non-refundable except where required by applicable law or explicitly stated otherwise. Downgrades and cancellations take effect at the end of the current billing period unless stated otherwise.</p>
@@ -72,7 +72,7 @@ static class LegalPage
                 <p>Your results depend on many factors outside our control, including your books, pricing, market conditions, platform algorithms, and your own marketing efforts. <strong>Any examples, statistics, or descriptions on the Service are illustrative only and not promises of future performance.</strong></p>
                 """)}
 
-            {Section("8. Social media, email &amp; third-party platforms",
+            {Section("8. Social media, email & third-party platforms",
                 """
                 <p>The Service may help you draft posts, schedule content, track links, or send emails. You are solely responsible for:</p>
                 <ul>
@@ -106,14 +106,14 @@ static class LegalPage
 
             {Section("11. Limitation of liability",
                 """
-                <p>To the fullest extent permitted by law, Melanie Botha and BookPromoter AI shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or for any loss of profits, revenue, data, goodwill, book sales, or business opportunities arising from or related to your use of the Service — even if we have been advised of the possibility of such damages.</p>
+                <p>To the fullest extent permitted by law, the {LegalConstants.ContactName} and BookPromoter AI shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or for any loss of profits, revenue, data, goodwill, book sales, or business opportunities arising from or related to your use of the Service — even if we have been advised of the possibility of such damages.</p>
                 <p>Our total aggregate liability for any claim arising out of or relating to the Service or these Terms shall not exceed the greater of (a) the amount you paid us in the twelve (12) months before the event giving rise to the claim, or (b) one hundred U.S. dollars (USD $100).</p>
                 <p>Some jurisdictions do not allow certain limitations; in those cases, our liability is limited to the maximum extent permitted by law.</p>
                 """)}
 
             {Section("12. Indemnification",
                 """
-                <p>You agree to defend, indemnify, and hold harmless Melanie Botha, BookPromoter AI, and our affiliates, officers, and agents from any claims, damages, losses, liabilities, and expenses (including reasonable attorneys&rsquo; fees) arising from:</p>
+                <p>You agree to defend, indemnify, and hold harmless the {LegalConstants.ContactName}, BookPromoter AI, and our affiliates, officers, and agents from any claims, damages, losses, liabilities, and expenses (including reasonable attorneys&rsquo; fees) arising from:</p>
                 <ul>
                     <li>Your use of the Service;</li>
                     <li>Your content, posts, emails, or promotions;</li>
@@ -134,17 +134,17 @@ static class LegalPage
                 <p>Your continued use after changes become effective constitutes acceptance of the revised Terms.</p>
                 """)}
 
-            {Section("15. Governing law &amp; disputes",
+            {Section("15. Governing law & disputes",
                 """
                 <p>These Terms are governed by the laws of the United States, without regard to conflict-of-law principles.</p>
                 <p>Any dispute arising from these Terms or the Service shall be resolved in the state or federal courts located in the United States, and you consent to their exclusive jurisdiction, except where prohibited by law.</p>
                 """)}
 
             {Section("16. Contact",
-                """
+                $"""
                 <p>Questions about these Terms may be sent to:</p>
-                <p><strong>Melanie Botha</strong><br>
-                Email: <a href="mailto:bothamelanief@gmail.com">bothamelanief@gmail.com</a><br>
+                <p><strong>{LegalConstants.ContactName}</strong><br>
+                Email: <a href="mailto:{LegalConstants.ContactEmail}">{LegalConstants.ContactEmail}</a><br>
                 Website: <a href="https://bookpromoterai.us">bookpromoterai.us</a></p>
                 """)}
 
@@ -169,9 +169,9 @@ static class LegalPage
             </header>
 
             {Section("1. Who we are",
-                """
-                <p>The Service is operated by <strong>Melanie Botha</strong>, owner of BookPromoter AI.</p>
-                <p>For privacy questions or requests, contact us at <a href="mailto:bothamelanief@gmail.com">bothamelanief@gmail.com</a>.</p>
+                $"""
+                <p>The Service is operated by <strong>{LegalConstants.ContactName}</strong>, operator of BookPromoter AI.</p>
+                <p>For privacy questions or requests, contact us at <a href="mailto:{LegalConstants.ContactEmail}">{LegalConstants.ContactEmail}</a>.</p>
                 """)}
 
             {Section("2. Information we collect",
@@ -265,13 +265,13 @@ static class LegalPage
                 """)}
 
             {Section("8. Security",
-                """
+                $"""
                 <p>We use reasonable technical and organizational measures to protect your information, including encrypted passwords, HTTPS, and secure session handling. No method of transmission or storage is 100% secure, and we cannot guarantee absolute security.</p>
-                <p>Please use a strong password and notify us immediately at <a href="mailto:bothamelanief@gmail.com">bothamelanief@gmail.com</a> if you believe your account has been compromised.</p>
+                <p>Please use a strong password and notify us immediately at <a href="mailto:{LegalConstants.ContactEmail}">{LegalConstants.ContactEmail}</a> if you believe your account has been compromised.</p>
                 """)}
 
             {Section("9. Your rights and choices",
-                """
+                $"""
                 <p>Depending on where you live, you may have rights to:</p>
                 <ul>
                     <li>Access the personal information we hold about you</li>
@@ -281,7 +281,7 @@ static class LegalPage
                     <li>Withdraw consent where processing is based on consent</li>
                     <li>Receive a copy of your data in a portable format</li>
                 </ul>
-                <p>To exercise these rights, email <a href="mailto:bothamelanief@gmail.com">bothamelanief@gmail.com</a>. We may need to verify your identity before fulfilling a request.</p>
+                <p>To exercise these rights, email <a href="mailto:{LegalConstants.ContactEmail}">{LegalConstants.ContactEmail}</a>. We may need to verify your identity before fulfilling a request.</p>
                 <p>If you are in the European Economic Area or United Kingdom, you may also have the right to lodge a complaint with your local data protection authority.</p>
                 """)}
 
@@ -308,10 +308,10 @@ static class LegalPage
                 """)}
 
             {Section("14. Contact us",
-                """
+                $"""
                 <p>Questions about this Privacy Policy or our data practices:</p>
-                <p><strong>Melanie Botha</strong><br>
-                Email: <a href="mailto:bothamelanief@gmail.com">bothamelanief@gmail.com</a><br>
+                <p><strong>{LegalConstants.ContactName}</strong><br>
+                Email: <a href="mailto:{LegalConstants.ContactEmail}">{LegalConstants.ContactEmail}</a><br>
                 Website: <a href="https://bookpromoterai.us">bookpromoterai.us</a></p>
                 """)}
 
@@ -337,7 +337,7 @@ static class LegalPage
             <div class="legal-accept-summary panel">
                 <h2>Summary</h2>
                 <ul>
-                    <li>BookPromoter AI is owned by Melanie Botha and protected by copyright.</li>
+                    <li>BookPromoter AI is owned by the {LegalConstants.ContactName} and protected by copyright.</li>
                     <li>We provide marketing tools only — <strong>we do not guarantee book sales, revenue, followers, or any specific results</strong>.</li>
                     <li>You are responsible for your own posts, emails, and compliance with social platforms and laws.</li>
                     <li>The service is provided &ldquo;as is&rdquo; with limited liability as described in the full Terms.</li>

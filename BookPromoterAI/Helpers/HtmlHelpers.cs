@@ -100,7 +100,7 @@ static class H
                 <a href="/privacy">Privacy Policy</a>
                 <a href="/start">Sign in</a>
                 <a href="/trial">Free access code</a>
-                <span>&copy; {DateTime.UtcNow.Year} Melanie Botha</span>
+                <span>&copy; {DateTime.UtcNow.Year} {LegalConstants.ContactName}</span>
             </footer>
             {csrfScript}
         </body>
@@ -177,7 +177,7 @@ static class H
                 <span>v{AppVersion.Display}</span>
                 <a href="/terms">Terms &amp; Conditions</a>
                 <a href="/privacy">Privacy Policy</a>
-                <span>&copy; {DateTime.UtcNow.Year} Melanie Botha</span>
+                <span>&copy; {DateTime.UtcNow.Year} {LegalConstants.ContactName}</span>
             </footer>
             {csrfScript}
         </body>
