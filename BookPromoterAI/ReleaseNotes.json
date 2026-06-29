@@ -1,4 +1,12 @@
 {
+  "1.9.9": {
+    "title": "BookPromoter AI v1.9.9 — What's new",
+    "updated": [
+      "Fixed Railway deploy healthcheck failure on database startup migration"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.9.8": {
     "title": "BookPromoter AI v1.9.8 — What's new",
     "updated": [],

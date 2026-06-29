@@ -29,8 +29,8 @@ static class DatabaseInitializer
                 "8.0.0");
         }
 
-        RepairMissingColumns(db);
         RepairMissingTables(db);
+        RepairMissingColumns(db);
         RepairPlanDefaults(db);
     }
 
@@ -77,6 +77,7 @@ static class DatabaseInitializer
                 CREATE TABLE IF NOT EXISTS "MailingListSettings" (
                     "Id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
                     "UserId" INTEGER NOT NULL,
+                    "ListKind" TEXT NOT NULL DEFAULT 'Author',
                     "EmailsPerWeek" INTEGER NOT NULL DEFAULT 0,
                     "AutoSendEnabled" INTEGER NOT NULL DEFAULT 0,
                     "RequiresApproval" INTEGER NOT NULL DEFAULT 1,
@@ -91,8 +92,17 @@ static class DatabaseInitializer
                     FOREIGN KEY ("UserId") REFERENCES "Users" ("Id") ON DELETE CASCADE
                 );
                 """);
-            db.Database.ExecuteSqlRaw("""CREATE UNIQUE INDEX IF NOT EXISTS "IX_MailingListSettings_UserId" ON "MailingListSettings" ("UserId");""");
         }
+
+        RepairMailingListSettingsIndex(db);
+    }
+
+    static void RepairMailingListSettingsIndex(AppDbContext db)
+    {
+        if (!TableExists(db, "MailingListSettings")) return;
+        db.Database.ExecuteSqlRaw("""DROP INDEX IF EXISTS "IX_MailingListSettings_UserId";""");
+        db.Database.ExecuteSqlRaw(
+            """CREATE UNIQUE INDEX IF NOT EXISTS "IX_MailingListSettings_UserId_ListKind" ON "MailingListSettings" ("UserId", "ListKind");""");
     }
 
     static bool TableExists(AppDbContext db, string table)
@@ -195,6 +205,7 @@ static class DatabaseInitializer
 
     static void AddColumnIfMissing(AppDbContext db, string table, string column, string alterSql)
     {
+        if (!TableExists(db, table)) return;
         if (ColumnExists(db, table, column)) return;
         db.Database.ExecuteSqlRaw(alterSql);
     }
