@@ -3,14 +3,9 @@ namespace BookPromoterAI;
 class PostingSchedulerServiceDb : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly SocialPostingService _postingService;
     private static readonly TimeSpan CheckInterval = TimeSpan.FromMinutes(5);
 
-    public PostingSchedulerServiceDb(IServiceScopeFactory scopeFactory, SocialPostingService postingService)
-    {
-        _scopeFactory = scopeFactory;
-        _postingService = postingService;
-    }
+    public PostingSchedulerServiceDb(IServiceScopeFactory scopeFactory) => _scopeFactory = scopeFactory;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -20,7 +15,8 @@ class PostingSchedulerServiceDb : BackgroundService
             {
                 using var scope = _scopeFactory.CreateScope();
                 var store = scope.ServiceProvider.GetRequiredService<AppStoreDb>();
-                await store.RunDuePostsAsync(_postingService);
+                var postingService = scope.ServiceProvider.GetRequiredService<SocialPostingService>();
+                await store.RunDuePostsAsync(postingService);
             }
             catch { /* log and continue */ }
 

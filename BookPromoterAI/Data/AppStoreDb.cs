@@ -279,52 +279,96 @@ class AppStoreDb
     }
 
     // ── Social Accounts ────────────────────────────────────────────────
-    public List<SocialAccount> SocialAccounts
+    public List<SocialAccount> SocialAccounts => AuthorSocialAccounts;
+
+    public List<SocialAccount> AuthorSocialAccounts
     {
         get
         {
             var uid = CurrentUserId();
             if (uid == 0) return [];
             using var db = Db();
-            return db.SocialAccounts.Where(a => a.UserId == uid).AsNoTracking().ToList().Select(ToModel).ToList();
+            return db.SocialAccounts
+                .Where(a => a.UserId == uid && (a.AccountKind == SocialAccountKinds.Author || a.AccountKind == ""))
+                .AsNoTracking().ToList().Select(ToModel).ToList();
         }
     }
 
-    public SocialAccount AddSocialAccount(SocialAccount account)
+    public SocialAccount AddSocialAccount(SocialAccount account, string? accountKind = null)
     {
         var uid = CurrentUserId();
+        var kind = accountKind ?? account.AccountKind;
+        if (string.IsNullOrWhiteSpace(kind)) kind = SocialAccountKinds.Author;
+        if (SocialAccountKinds.IsBrand(kind) && !IsOwner)
+            throw new InvalidOperationException("Only the owner can add BookPromoter AI brand accounts.");
+
         using var db = Db();
-        var dbAcc = new DbSocialAccount { UserId = uid, Platform = account.Platform, DisplayName = account.DisplayName, Handle = account.Handle, IsConnected = account.IsConnected, ConnectedViaOAuth = account.ConnectedViaOAuth, AccessToken = account.SimulatedAccessToken };
+        var dbAcc = new DbSocialAccount
+        {
+            UserId = uid,
+            Platform = account.Platform,
+            DisplayName = account.DisplayName,
+            Handle = account.Handle,
+            IsConnected = account.IsConnected,
+            ConnectedViaOAuth = account.ConnectedViaOAuth,
+            AccountKind = kind,
+            AccessToken = account.AccessToken ?? account.SimulatedAccessToken,
+            RefreshToken = account.RefreshToken,
+            ExternalAccountId = account.ExternalAccountId
+        };
         db.SocialAccounts.Add(dbAcc);
         db.SaveChanges();
         account.Id = dbAcc.Id;
+        account.AccountKind = kind;
         return account;
     }
 
-    public void UpdateSocialAccount(SocialAccount account)
+    public void UpdateSocialAccount(SocialAccount account, string? accountKind = null)
     {
         var uid = CurrentUserId();
+        var kind = accountKind ?? account.AccountKind;
         using var db = Db();
         var existing = db.SocialAccounts.FirstOrDefault(a => a.Id == account.Id && a.UserId == uid);
         if (existing is null) return;
-        existing.Platform = account.Platform; existing.DisplayName = account.DisplayName; existing.Handle = account.Handle;
+        if (SocialAccountKinds.IsBrand(existing.AccountKind) && !IsOwner) return;
+        if (!string.IsNullOrWhiteSpace(kind)) existing.AccountKind = kind;
+        existing.Platform = account.Platform;
+        existing.DisplayName = account.DisplayName;
+        existing.Handle = account.Handle;
         db.SaveChanges();
     }
 
-    public SocialAccount? FindSocialAccount(int id)
+    public SocialAccount? FindSocialAccount(int id, string? accountKind = null)
     {
         var uid = CurrentUserId();
         using var db = Db();
-        var a = db.SocialAccounts.FirstOrDefault(x => x.Id == id && x.UserId == uid);
+        var query = db.SocialAccounts.Where(x => x.Id == id && x.UserId == uid);
+        if (!string.IsNullOrWhiteSpace(accountKind))
+            query = query.Where(x => x.AccountKind == accountKind);
+        var a = query.FirstOrDefault();
         return a is null ? null : ToModel(a);
     }
 
-    public void RemoveSocialAccount(int id)
+    public void RemoveSocialAccount(int id, string? accountKind = null)
     {
         var uid = CurrentUserId();
         using var db = Db();
-        var acc = db.SocialAccounts.FirstOrDefault(a => a.Id == id && a.UserId == uid);
-        if (acc is not null) { db.SocialAccounts.Remove(acc); db.SaveChanges(); }
+        var query = db.SocialAccounts.Where(a => a.Id == id && a.UserId == uid);
+        if (!string.IsNullOrWhiteSpace(accountKind))
+            query = query.Where(a => a.AccountKind == accountKind);
+        var acc = query.FirstOrDefault();
+        if (acc is null) return;
+        if (SocialAccountKinds.IsBrand(acc.AccountKind) && !IsOwner) return;
+        db.SocialAccounts.Remove(acc);
+        db.SaveChanges();
+    }
+
+    public string? CheckSocialAccountLimit(string accountKind = SocialAccountKinds.Author)
+    {
+        if (SocialAccountKinds.IsBrand(accountKind)) return null;
+        var plan = CurrentPlan;
+        if (plan?.SocialAccountLimit is int l && AuthorSocialAccounts.Count >= l) return $"You've reached the {l}-account limit on the {plan.Name} plan.";
+        return null;
     }
 
     // ── Schedules ──────────────────────────────────────────────────────
@@ -1788,13 +1832,6 @@ class AppStoreDb
         return null;
     }
 
-    public string? CheckSocialAccountLimit()
-    {
-        var plan = CurrentPlan;
-        if (plan?.SocialAccountLimit is int l && SocialAccounts.Count >= l) return $"You've reached the {l}-account limit on the {plan.Name} plan.";
-        return null;
-    }
-
     public List<string> GetAutoPostBlockers(string platform)
     {
         var schedule = Schedules.FirstOrDefault(s => s.Platform.Equals(platform, StringComparison.OrdinalIgnoreCase));
@@ -1835,11 +1872,21 @@ class AppStoreDb
             if (schedule.PostsSentThisWeek >= schedule.PostsPerWeek) continue;
             var hoursBetween = (24.0 * 7) / schedule.PostsPerWeek;
             if (schedule.LastPostedAt is DateTime last && (now - last).TotalHours < hoursBetween) continue;
-            var account = await db.SocialAccounts.FirstOrDefaultAsync(a => a.UserId == schedule.UserId && a.Platform == schedule.Platform);
+            var account = await db.SocialAccounts.FirstOrDefaultAsync(a =>
+                a.UserId == schedule.UserId
+                && a.Platform == schedule.Platform
+                && (a.AccountKind == SocialAccountKinds.Author || a.AccountKind == ""));
             if (account is null) continue;
             var candidate = await db.GeneratedAds.Where(a => a.UserId == schedule.UserId && a.Platform == schedule.Platform && a.PostStatus == "Pending" && (!schedule.RequiresApproval || a.ApprovedForPosting)).OrderBy(a => a.GeneratedAt).FirstOrDefaultAsync();
             if (candidate is null) continue;
-            var result = await postingService.PostAsync(ToModel(account), candidate.PostText);
+            var outcome = await postingService.PostAsync(ToModel(account), candidate.PostText);
+            var result = outcome.Result;
+            if (!string.IsNullOrWhiteSpace(outcome.AccessToken))
+            {
+                account.AccessToken = outcome.AccessToken;
+                if (!string.IsNullOrWhiteSpace(outcome.RefreshToken))
+                    account.RefreshToken = outcome.RefreshToken;
+            }
             candidate.PostStatus = result.Success ? "Posted" : "Failed"; candidate.PostedAt = result.Success ? now : null; candidate.PostError = result.Success ? null : result.Message;
             db.PostingLog.Add(new DbPostingLogEntry { UserId = schedule.UserId, GeneratedAdId = candidate.Id, Platform = schedule.Platform, BookTitle = candidate.BookTitle, Success = result.Success, Message = result.Message, AttemptedAt = now });
             if (result.Success) { schedule.LastPostedAt = now; schedule.PostsSentThisWeek++; count++; }
@@ -1894,7 +1941,7 @@ class AppStoreDb
             var owner = db.Users.AsNoTracking().FirstOrDefault(u => u.Email == OwnerAccount.NormalizedEmail);
             if (owner is null) return [];
             return db.SocialAccounts.AsNoTracking()
-                .Where(a => a.UserId == owner.Id && a.IsConnected)
+                .Where(a => a.UserId == owner.Id && a.IsConnected && a.AccountKind == SocialAccountKinds.Brand)
                 .Select(ToModel)
                 .ToList();
         }
@@ -1930,14 +1977,14 @@ class AppStoreDb
         if (owner is null) return (0, 0, "Owner account not found.");
 
         var accounts = await db.SocialAccounts
-            .Where(a => a.UserId == owner.Id && a.IsConnected)
+            .Where(a => a.UserId == owner.Id && a.IsConnected && a.AccountKind == SocialAccountKinds.Brand)
             .ToListAsync();
 
         if (!string.IsNullOrWhiteSpace(platformFilter))
             accounts = accounts.Where(a => a.Platform.Equals(platformFilter, StringComparison.OrdinalIgnoreCase)).ToList();
 
         if (accounts.Count == 0)
-            return (0, 0, "Connect social accounts under My Account first, then try again.");
+            return (0, 0, "Connect BookPromoter AI brand accounts under Owner → Owner Social Media Accounts, then try again.");
 
         var promoPosts = AppPromoGenerator.GeneratePromoPosts(appBaseUrl);
         var posted = 0;
@@ -1951,7 +1998,8 @@ class AppStoreDb
                 ?? "";
             if (string.IsNullOrWhiteSpace(postText)) continue;
 
-            var result = await postingService.PostAsync(ToModel(account), postText);
+            var outcome = await postingService.PostAsync(ToModel(account), postText);
+            var result = outcome.Result;
             db.PostingLog.Add(new DbPostingLogEntry
             {
                 UserId = owner.Id,
@@ -1966,7 +2014,7 @@ class AppStoreDb
 
         await db.SaveChangesAsync();
         var message = failed == 0
-            ? $"Posted to {posted} connected account(s). (Simulated until real OAuth is configured.)"
+            ? $"Posted to {posted} connected account(s). Bluesky posts live when connected with an app password."
             : $"Posted to {posted} account(s). {failed} failed.";
         return (posted, failed, message);
     }
@@ -2027,12 +2075,19 @@ class AppStoreDb
             var owner = db.Users.FirstOrDefault(u => u.Email == OwnerAccount.NormalizedEmail);
             if (owner is not null)
             {
-                var accounts = await db.SocialAccounts.Where(a => a.UserId == owner.Id && a.IsConnected).ToListAsync();
+                var accounts = await db.SocialAccounts.Where(a => a.UserId == owner.Id && a.IsConnected && a.AccountKind == SocialAccountKinds.Brand).ToListAsync();
                 foreach (var account in accounts)
                 {
                     var text = socialPosts.GetValueOrDefault(account.Platform)
                         ?? AppPromoGenerator.GenerateUpdatePost(account.Platform, ToProductUpdate(update), appBaseUrl);
-                    var result = await postingService.PostAsync(ToModel(account), text);
+                    var outcome = await postingService.PostAsync(ToModel(account), text);
+                    var result = outcome.Result;
+                    if (!string.IsNullOrWhiteSpace(outcome.AccessToken))
+                    {
+                        account.AccessToken = outcome.AccessToken;
+                        if (!string.IsNullOrWhiteSpace(outcome.RefreshToken))
+                            account.RefreshToken = outcome.RefreshToken;
+                    }
                     db.PostingLog.Add(new DbPostingLogEntry
                     {
                         UserId = owner.Id,
@@ -2108,7 +2163,20 @@ class AppStoreDb
     // ── Model converters ───────────────────────────────────────────────
     static Book ToModel(DbBook b) => new() { Id = b.Id, Title = b.Title, AuthorName = b.AuthorName, Genre = b.Genre, Description = b.Description, CoverImageUrl = b.CoverImageUrl, CoverSourceUrl = b.CoverSourceUrl, TrackingCode = b.TrackingCode, MonthlyClicks = b.MonthlyClicks, PostVariantSeed = b.PostVariantSeed, ClientId = b.ClientId, Links = b.Links.Select(l => new BookLink { StoreName = l.StoreName, Url = l.Url }).ToList(), ClickHistory = ParseClickHistory(b.ClickHistoryJson), PlatformClickHistory = ParsePlatformClickHistory(b.PlatformClickHistoryJson) };
     static DbBook ToDb(Book b, int uid) => new() { UserId = uid, Title = b.Title, AuthorName = b.AuthorName, Genre = b.Genre, Description = b.Description, CoverImageUrl = b.CoverImageUrl, CoverSourceUrl = b.CoverSourceUrl, TrackingCode = b.TrackingCode, MonthlyClicks = b.MonthlyClicks, PostVariantSeed = b.PostVariantSeed, ClientId = b.ClientId, ClickHistoryJson = JsonSerializer.Serialize(b.ClickHistory), PlatformClickHistoryJson = JsonSerializer.Serialize(b.PlatformClickHistory), Links = b.Links.Select(l => new DbBookLink { StoreName = l.StoreName, Url = l.Url }).ToList() };
-    static SocialAccount ToModel(DbSocialAccount a) => new() { Id = a.Id, Platform = a.Platform, DisplayName = a.DisplayName, Handle = a.Handle, IsConnected = a.IsConnected, ConnectedViaOAuth = a.ConnectedViaOAuth, SimulatedAccessToken = a.AccessToken };
+    static SocialAccount ToModel(DbSocialAccount a) => new()
+    {
+        Id = a.Id,
+        Platform = a.Platform,
+        DisplayName = a.DisplayName,
+        Handle = a.Handle,
+        IsConnected = a.IsConnected,
+        ConnectedViaOAuth = a.ConnectedViaOAuth,
+        AccountKind = a.AccountKind,
+        AccessToken = a.AccessToken,
+        RefreshToken = a.RefreshToken,
+        ExternalAccountId = a.ExternalAccountId,
+        SimulatedAccessToken = a.AccessToken
+    };
     static SocialSchedule ToModel(DbSocialSchedule s) => new() { Platform = s.Platform, PostsPerWeek = s.PostsPerWeek, RequiresApproval = s.RequiresApproval, AutoPostEnabled = s.AutoPostEnabled, LastPostedAt = s.LastPostedAt, PostsSentThisWeek = s.PostsSentThisWeek, WeekTrackerStart = s.WeekTrackerStart };
     static GeneratedAd ToModel(DbGeneratedAd a) => new() { Id = a.Id, BookId = a.BookId, BookTitle = a.BookTitle, CoverImageUrl = a.CoverImageUrl, Platform = a.Platform, PostText = a.PostText, GeneratedAt = a.GeneratedAt, WeekNumber = a.WeekNumber, WeekYear = a.WeekYear, WeekLabel = a.WeekLabel, PostStatus = a.PostStatus, PostedAt = a.PostedAt, PostError = a.PostError, ApprovedForPosting = a.ApprovedForPosting };
     static PostingLogEntry ToModel(DbPostingLogEntry l) => new() { Id = l.Id, GeneratedAdId = l.GeneratedAdId, Platform = l.Platform, BookTitle = l.BookTitle, Success = l.Success, Message = l.Message, AttemptedAt = l.AttemptedAt };

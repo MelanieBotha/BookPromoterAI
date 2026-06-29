@@ -117,6 +117,10 @@ static class DatabaseInitializer
         AddColumnIfMissing(db, "MailingListSubscribers", "UnsubscribeToken", """ALTER TABLE "MailingListSubscribers" ADD COLUMN "UnsubscribeToken" TEXT NOT NULL DEFAULT ''""");
         AddColumnIfMissing(db, "Books", "PlatformClickHistory", """ALTER TABLE "Books" ADD COLUMN "PlatformClickHistory" TEXT NOT NULL DEFAULT '{{}}'""");
         db.Database.ExecuteSqlRaw("""UPDATE "Books" SET "PlatformClickHistory" = '{{}}' WHERE "PlatformClickHistory" IS NULL OR "PlatformClickHistory" = ''""");
+        AddColumnIfMissing(db, "SocialAccounts", "RefreshToken", """ALTER TABLE "SocialAccounts" ADD COLUMN "RefreshToken" TEXT NULL""");
+        AddColumnIfMissing(db, "SocialAccounts", "ExternalAccountId", """ALTER TABLE "SocialAccounts" ADD COLUMN "ExternalAccountId" TEXT NULL""");
+        AddColumnIfMissing(db, "SocialAccounts", "AccountKind", """ALTER TABLE "SocialAccounts" ADD COLUMN "AccountKind" TEXT NOT NULL DEFAULT 'Author'""");
+        db.Database.ExecuteSqlRaw("""UPDATE "SocialAccounts" SET "AccountKind" = 'Author' WHERE "AccountKind" IS NULL OR "AccountKind" = ''""");
     }
 
     static bool LegacySchemaExists(AppDbContext db)

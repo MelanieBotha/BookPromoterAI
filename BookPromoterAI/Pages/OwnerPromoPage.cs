@@ -20,15 +20,15 @@ static class OwnerPromoPage
         var promoPosts = AppPromoGenerator.GeneratePromoPosts(appBaseUrl);
         var socialAccounts = store.OwnerSocialAccounts;
         var accountNote = socialAccounts.Count > 0
-            ? $"""<p class="notice success">{socialAccounts.Count} social account(s) connected for app promotions: {H.Encode(string.Join(", ", socialAccounts.Select(a => a.Platform)))}.</p>"""
-            : """<p class="notice error">No social accounts connected yet. Use the connect buttons below to link platforms for auto-posting app promotions.</p>""";
+            ? $"""<p class="notice success">{socialAccounts.Count} BookPromoter AI brand account(s) connected: {H.Encode(string.Join(", ", socialAccounts.Select(a => a.Platform)))}.</p>"""
+            : """<p class="notice error">No brand accounts connected yet. Connect platforms below for BookPromoter AI promotions (separate from author book accounts on My Account).</p>""";
 
         var connectedRows = new StringBuilder();
         foreach (var account in socialAccounts)
         {
-            var status = account.ConnectedViaOAuth
-                ? "OAuth (simulated)"
-                : "Manual";
+            var status = account.IsLiveConnection
+                ? "Live posting"
+                : account.ConnectedViaOAuth ? "Simulated" : "Manual";
             connectedRows.Append($"""
                 <div class="promo-row plan-row">
                     <span>{H.Encode(account.Platform)}</span>
@@ -117,9 +117,9 @@ static class OwnerPromoPage
 
         return $"""
             <details class="owner-collapsible" id="owner-section-owner-social"{open("owner-social")}>
-                <summary class="owner-collapsible-heading">Owner Social Media Accounts</summary>
+                <summary class="owner-collapsible-heading">BookPromoter AI Brand Social Accounts</summary>
                 <div class="panel owner-settings">
-                    <p class="muted">Connect your social accounts here to auto-post BookPromoter AI promotions. These are separate from customer book-promotion accounts — they use your owner login.</p>
+                    <p class="muted">Connect social accounts for <strong>BookPromoter AI marketing only</strong> (app promos, release updates). These are separate from <strong>author accounts</strong> on My Account, which authors use to promote their books.</p>
                     {accountNote}
                     <h3>Connected accounts</h3>
                     <div class="promo-table">
@@ -130,8 +130,8 @@ static class OwnerPromoPage
                         </div>
                         {connectedRows}
                     </div>
-                    <h3 style="margin-top:20px">Connect a platform</h3>
-                    <p class="muted small-text">Click to start login (simulated until real OAuth API keys are configured).</p>
+                    <h3 style="margin-top:20px">Connect a brand platform</h3>
+                    <p class="muted small-text">Bluesky supports live posting with an app password. Other platforms are simulated until OAuth is configured.</p>
                     <div class="connect-buttons">
                         {SocialConnectHelper.ConnectButtons(returnPath)}
                     </div>
@@ -148,7 +148,7 @@ static class OwnerPromoPage
                             <input name="displayName" placeholder="BookPromoter AI" required>
                         </label>
                         <label>Handle
-                            <input name="handle" placeholder="bookpromoterai" required>
+                            <input name="handle" placeholder="{BrandConstants.OfficialBlueskyHandle}" required>
                         </label>
                         <button class="button" type="submit">Add account</button>
                     </form>

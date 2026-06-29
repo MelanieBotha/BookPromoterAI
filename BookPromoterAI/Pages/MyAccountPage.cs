@@ -32,11 +32,13 @@ static class MyAccountPage
         var accountRows = new StringBuilder();
         var removeAccountForms = new StringBuilder();
 
-        foreach (var account in store.SocialAccounts)
+        foreach (var account in store.AuthorSocialAccounts)
         {
-            var connectionStatus = account.ConnectedViaOAuth
-                ? """<small class="status available">Connected via OAuth (simulated)</small>"""
-                : """<small class="status used">Manually added</small>""";
+            var connectionStatus = account.IsLiveConnection
+                ? """<small class="status available">Live posting enabled</small>"""
+                : account.ConnectedViaOAuth
+                    ? """<small class="status used">Connected (simulated — not posting to network yet)</small>"""
+                    : """<small class="status used">Manually added</small>""";
 
             var schedule = store.Schedules.FirstOrDefault(s => s.Platform.Equals(account.Platform, StringComparison.OrdinalIgnoreCase));
             var postsPerWeek = schedule?.PostsPerWeek ?? 0;
@@ -79,8 +81,8 @@ static class MyAccountPage
                 """);
         }
 
-        if (store.SocialAccounts.Count == 0)
-            accountRows.Append("""<p class="muted">No social accounts connected yet. Connect one using the buttons below.</p>""");
+        if (store.AuthorSocialAccounts.Count == 0)
+            accountRows.Append("""<p class="muted">No author social accounts connected yet. Connect platforms you use to promote <strong>your books</strong>.</p>""");
 
         var limitNotice = "";
         var limitMessage = store.CheckSocialAccountLimit();
@@ -96,16 +98,21 @@ static class MyAccountPage
         // ── OAuth connect buttons ─────────────────────────────────────
         var connectButtons = SocialConnectHelper.ConnectButtons("/my-account");
 
+        var ownerBrandNote = store.IsOwner
+            ? $"""<p class="notice">BookPromoter AI brand accounts (e.g. @{BrandConstants.OfficialBlueskyHandle}) are managed separately on <a href="/owner-promos?section=owner-social">Owner → BookPromoter AI Brand Social Accounts</a>.</p>"""
+            : "";
+
         var socialSection = $"""
             <section class="panel">
-                <h2>Connected Accounts &amp; Posting Schedule</h2>
-                <p class="muted">Connect or add each platform once. Set how many times a week it should post, whether posts need your approval first, and whether to auto-post automatically at the scheduled time &mdash; all in one place.</p>
-                <p class="muted small-text">Check "Auto-post", set <strong>posts/week</strong> above 0, then click <strong>Save Posting Schedule</strong>. If "Approval required" is checked, approve posts in the Ad Library first. Auto-posting runs immediately on save and every few minutes after that. Until real OAuth is connected, posts are simulated (status updates in the Ad Library and Posting Activity Log below — not on the social network itself).</p>
+                <h2>Author Social Accounts &amp; Posting Schedule</h2>
+                <p class="muted">Connect platforms where you promote <strong>your books</strong>. Set posts/week, approval, and auto-post for each author account.</p>
+                {ownerBrandNote}
+                <p class="muted small-text">Check "Auto-post", set <strong>posts/week</strong> above 0, then click <strong>Save Posting Schedule</strong>. If "Approval required" is checked, approve posts in the Ad Library first. Auto-posting runs immediately on save and every few minutes after that. <strong>Bluesky</strong> posts live when connected with an app password; other platforms remain simulated until OAuth is configured.</p>
                 {limitText}
                 {limitNotice}
                 <form method="post" action="/schedule" class="schedule-list">
                     {accountRows}
-                    {(store.SocialAccounts.Count > 0 ? """<button class="button" type="submit">Save Posting Schedule</button>""" : "")}
+                    {(store.AuthorSocialAccounts.Count > 0 ? """<button class="button" type="submit">Save Posting Schedule</button>""" : "")}
                 </form>
                 <div class="connect-buttons">
                     {connectButtons}
@@ -144,7 +151,7 @@ static class MyAccountPage
         // ── Add / Edit social account form ────────────────────────────
         // Uses the full platform list (same one previously on the
         // Schedule page) grouped by category, plus a custom option.
-        var alreadyAdded = store.SocialAccounts.Select(a => a.Platform).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var alreadyAdded = store.AuthorSocialAccounts.Select(a => a.Platform).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var currentPlatform = editingAccount?.Platform ?? "";
 
         var optionsByGroup = SchedulePage.AllPlatforms

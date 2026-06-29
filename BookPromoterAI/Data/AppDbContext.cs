@@ -166,7 +166,10 @@ class DbSocialAccount
     public string Handle { get; set; } = "";
     public bool IsConnected { get; set; }
     public bool ConnectedViaOAuth { get; set; }
-    public string? AccessToken { get; set; } // real OAuth token goes here
+    public string AccountKind { get; set; } = SocialAccountKinds.Author;
+    public string? AccessToken { get; set; }
+    public string? RefreshToken { get; set; }
+    public string? ExternalAccountId { get; set; } // Bluesky DID, etc.
     public DbUser? User { get; set; }
 }
 

@@ -1,4 +1,14 @@
 {
+  "1.9.0": {
+    "title": "BookPromoter AI v1.9.0 — What's new",
+    "updated": [
+      "Owner brand social accounts are separate from author book-promotion accounts on My Account"
+    ],
+    "new": [
+      "Live Bluesky auto-posting: connect with an app password in My Account or Owner brand social"
+    ],
+    "added": []
+  },
   "1.8.12": {
     "title": "BookPromoter AI v1.8.12 — What's new",
     "updated": [

@@ -57,7 +57,16 @@ class SocialAccount
     public string Handle { get; set; } = "";
     public bool IsConnected { get; set; }
     public bool ConnectedViaOAuth { get; set; }
+    public string AccountKind { get; set; } = SocialAccountKinds.Author;
+    public string? AccessToken { get; set; }
+    public string? RefreshToken { get; set; }
+    public string? ExternalAccountId { get; set; }
     public string? SimulatedAccessToken { get; set; }
+
+    public bool IsLiveConnection =>
+        IsConnected
+        && !string.IsNullOrWhiteSpace(AccessToken)
+        && !AccessToken.StartsWith("SIMULATED-", StringComparison.Ordinal);
 }
 
 class PromoCode

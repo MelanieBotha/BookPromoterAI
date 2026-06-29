@@ -38,6 +38,12 @@ static class SocialConnectHelper
     public static bool IsAllowedReturnUrl(string? url) =>
         url == OwnerReturnPath || url == "/my-account";
 
+    public static string ResolveAccountKind(string? returnUrl) =>
+        returnUrl == OwnerReturnPath ? SocialAccountKinds.Brand : SocialAccountKinds.Author;
+
+    public static bool IsBrandContext(string? returnUrl) =>
+        returnUrl == OwnerReturnPath;
+
     public static string ConnectButtons(string returnUrl)
     {
         var buttons = new StringBuilder();
@@ -69,8 +75,12 @@ static class SocialConnectHelper
         return $"""<option value="{H.Encode(value)}"{sel}>{H.Encode(value)}</option>""";
     }
 
-    public static string OAuthAuthorizePage(string platformName, string returnUrl)
+    public static string OAuthAuthorizePage(string platformName, string returnUrl, string notice = "")
     {
+        var brandContext = IsBrandContext(returnUrl);
+        if (PostLimits.IsBluesky(platformName))
+            return BlueskyConnectPage(returnUrl, notice, brandContext);
+
         if (IsPlatformDisabled(platformName))
         {
             return $"""
@@ -89,11 +99,15 @@ static class SocialConnectHelper
         };
         var brand = brands.TryGetValue(platformName, out var b) ? b : ("#0f766e", platformName.Length > 0 ? platformName[0].ToString() : "?");
         var cancelHref = returnUrl;
+        var contextNote = brandContext
+            ? """<p class="muted">BookPromoter AI brand account — for app promotions only, separate from author book accounts.</p>"""
+            : """<p class="muted">Author account — for promoting your books via the Ad Library.</p>""";
         return $"""
             <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>Connect your {H.Encode(platformName)} account.</h1></div></section>
             <section class="panel oauth-panel">
                 <div class="oauth-platform-badge" style="background:{brand.Item1}">{H.Encode(brand.Item2)}</div>
                 <h2>Authorize BookPromoter AI</h2>
+                {contextNote}
                 <p class="muted">In a live deployment, this redirects you to {H.Encode(platformName)}'s login screen. Real API credentials are not yet configured — enter details below to simulate a connection.</p>
                 <form method="post" action="/social-accounts/oauth-callback/{Uri.EscapeDataString(platformName)}" class="form">
                     <input type="hidden" name="return" value="{H.Encode(returnUrl)}">
@@ -102,6 +116,37 @@ static class SocialConnectHelper
                     <div class="form-actions">
                         <button class="button" type="submit" style="background:{brand.Item1}">Simulate &amp; Connect</button>
                         <a class="button secondary" href="{H.Encode(cancelHref)}">Cancel</a>
+                    </div>
+                </form>
+            </section>
+            """;
+    }
+
+    static string BlueskyConnectPage(string returnUrl, string notice, bool brandContext)
+    {
+        var heading = brandContext
+            ? "Connect BookPromoter AI on Bluesky"
+            : "Connect your Bluesky account";
+        var intro = brandContext
+            ? "This account is for <strong>BookPromoter AI promotions only</strong> (app updates, launch posts). It is separate from author accounts you use to promote your books."
+            : "Connect your author Bluesky account to auto-post book promotions from the Ad Library.";
+        var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<div class="notice error">{H.Encode(notice)}</div>""";
+        return $"""
+            <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>{heading}</h1></div></section>
+            <section class="panel oauth-panel">
+                <div class="oauth-platform-badge" style="background:#0085FF">B</div>
+                <h2>Live Bluesky posting</h2>
+                <p class="muted">{intro}</p>
+                <p class="muted">Create an <strong>App Password</strong> in Bluesky: Settings → Privacy &amp; Security → App Passwords. Name it <em>BookPromoter AI</em>, then paste it below. Your main password is never stored.</p>
+                {noticeHtml}
+                <form method="post" action="/social-accounts/oauth-callback/{Uri.EscapeDataString("Bluesky")}" class="form">
+                    <input type="hidden" name="return" value="{H.Encode(returnUrl)}">
+                    <label>Bluesky handle <input name="handle" placeholder="{H.Encode(BrandConstants.OfficialBlueskyHandle)}" required autocomplete="username"></label>
+                    <label>App password <input name="appPassword" type="password" placeholder="xxxx-xxxx-xxxx-xxxx" required autocomplete="off"></label>
+                    <label>Display name <input name="displayName" placeholder="BookPromoter AI"></label>
+                    <div class="form-actions">
+                        <button class="button" type="submit" style="background:#0085FF">Connect &amp; enable live posting</button>
+                        <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
                     </div>
                 </form>
             </section>

@@ -105,6 +105,7 @@ static class H
                 <a href="/privacy">Privacy Policy</a>
                 <a href="/start">Sign in</a>
                 <a href="/trial">Free access code</a>
+                <a href="{BrandConstants.OfficialBlueskyUrl}" target="_blank" rel="noopener">@{BrandConstants.OfficialBlueskyHandle}</a>
                 <span>&copy; {DateTime.UtcNow.Year} {LegalConstants.ContactName}</span>
             </footer>
             {csrfScript}
@@ -188,6 +189,7 @@ static class H
                 <span>v{AppVersion.Display}</span>
                 <a href="/terms">Terms &amp; Conditions</a>
                 <a href="/privacy">Privacy Policy</a>
+                <a href="{BrandConstants.OfficialBlueskyUrl}" target="_blank" rel="noopener">@{BrandConstants.OfficialBlueskyHandle}</a>
                 <span>&copy; {DateTime.UtcNow.Year} {LegalConstants.ContactName}</span>
             </footer>
             {csrfScript}

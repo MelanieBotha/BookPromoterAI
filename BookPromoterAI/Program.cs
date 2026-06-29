@@ -66,9 +66,11 @@ builder.Services.AddScoped<AppStoreDb>();
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<StripeBillingService>();
 
+builder.Services.AddBluesky();
+builder.Services.AddScoped<SocialPostingService>();
+
 var generator = new PostGenerator();
 var mailingListEmailGenerator = new MailingListEmailGenerator();
-builder.Services.AddSingleton(new SocialPostingService());
 builder.Services.AddHostedService<PostingSchedulerServiceDb>();
 
 // Database setup runs before the web server starts listening so Railway's
