@@ -16,7 +16,12 @@ class PostingSchedulerServiceDb : BackgroundService
                 using var scope = _scopeFactory.CreateScope();
                 var store = scope.ServiceProvider.GetRequiredService<AppStoreDb>();
                 var postingService = scope.ServiceProvider.GetRequiredService<SocialPostingService>();
+                var settings = scope.ServiceProvider.GetRequiredService<AppSettings>();
+                var baseUrl = settings.PublicBaseUrl.TrimEnd('/');
+                if (string.IsNullOrWhiteSpace(baseUrl))
+                    baseUrl = "https://bookpromoterai.us";
                 await store.RunDuePostsAsync(postingService);
+                await store.RunDueOwnerPromosAsync(postingService, baseUrl);
             }
             catch { /* log and continue */ }
 

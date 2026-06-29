@@ -121,6 +121,8 @@ static class DatabaseInitializer
         AddColumnIfMissing(db, "SocialAccounts", "ExternalAccountId", """ALTER TABLE "SocialAccounts" ADD COLUMN "ExternalAccountId" TEXT NULL""");
         AddColumnIfMissing(db, "SocialAccounts", "AccountKind", """ALTER TABLE "SocialAccounts" ADD COLUMN "AccountKind" TEXT NOT NULL DEFAULT 'Author'""");
         db.Database.ExecuteSqlRaw("""UPDATE "SocialAccounts" SET "AccountKind" = 'Author' WHERE "AccountKind" IS NULL OR "AccountKind" = ''""");
+        AddColumnIfMissing(db, "SocialSchedules", "ScheduleKind", """ALTER TABLE "SocialSchedules" ADD COLUMN "ScheduleKind" TEXT NOT NULL DEFAULT 'Author'""");
+        db.Database.ExecuteSqlRaw("""UPDATE "SocialSchedules" SET "ScheduleKind" = 'Author' WHERE "ScheduleKind" IS NULL OR "ScheduleKind" = ''""");
     }
 
     static bool LegacySchemaExists(AppDbContext db)

@@ -379,7 +379,23 @@ class AppStoreDb
             var uid = CurrentUserId();
             if (uid == 0) return [];
             using var db = Db();
-            return db.SocialSchedules.Where(s => s.UserId == uid).AsNoTracking().ToList().Select(ToModel).ToList();
+            return db.SocialSchedules
+                .Where(s => s.UserId == uid && (s.ScheduleKind == SocialScheduleKinds.Author || s.ScheduleKind == ""))
+                .AsNoTracking().ToList().Select(ToModel).ToList();
+        }
+    }
+
+    public List<SocialSchedule> OwnerBrandSchedules
+    {
+        get
+        {
+            if (!IsOwner) return [];
+            var uid = CurrentUserId();
+            if (uid == 0) return [];
+            using var db = Db();
+            return db.SocialSchedules
+                .Where(s => s.UserId == uid && s.ScheduleKind == SocialScheduleKinds.Brand)
+                .AsNoTracking().ToList().Select(ToModel).ToList();
         }
     }
 
@@ -387,8 +403,18 @@ class AppStoreDb
     {
         var uid = CurrentUserId();
         using var db = Db();
-        if (db.SocialSchedules.Any(s => s.UserId == uid && s.Platform == schedule.Platform)) return;
-        db.SocialSchedules.Add(new DbSocialSchedule { UserId = uid, Platform = schedule.Platform, PostsPerWeek = schedule.PostsPerWeek, RequiresApproval = schedule.RequiresApproval, AutoPostEnabled = schedule.AutoPostEnabled });
+        if (db.SocialSchedules.Any(s => s.UserId == uid && s.Platform == schedule.Platform
+            && (s.ScheduleKind == SocialScheduleKinds.Author || s.ScheduleKind == "")))
+            return;
+        db.SocialSchedules.Add(new DbSocialSchedule
+        {
+            UserId = uid,
+            Platform = schedule.Platform,
+            PostsPerWeek = schedule.PostsPerWeek,
+            RequiresApproval = schedule.RequiresApproval,
+            AutoPostEnabled = schedule.AutoPostEnabled,
+            ScheduleKind = SocialScheduleKinds.Author
+        });
         db.SaveChanges();
     }
 
@@ -398,9 +424,57 @@ class AppStoreDb
         using var db = Db();
         foreach (var s in schedules)
         {
-            var existing = db.SocialSchedules.FirstOrDefault(x => x.UserId == uid && x.Platform == s.Platform);
-            if (existing is null) { db.SocialSchedules.Add(new DbSocialSchedule { UserId = uid, Platform = s.Platform, PostsPerWeek = s.PostsPerWeek, RequiresApproval = s.RequiresApproval, AutoPostEnabled = s.AutoPostEnabled }); }
-            else { existing.PostsPerWeek = s.PostsPerWeek; existing.RequiresApproval = s.RequiresApproval; existing.AutoPostEnabled = s.AutoPostEnabled; }
+            var existing = db.SocialSchedules.FirstOrDefault(x => x.UserId == uid && x.Platform == s.Platform
+                && (x.ScheduleKind == SocialScheduleKinds.Author || x.ScheduleKind == ""));
+            if (existing is null)
+            {
+                db.SocialSchedules.Add(new DbSocialSchedule
+                {
+                    UserId = uid,
+                    Platform = s.Platform,
+                    PostsPerWeek = s.PostsPerWeek,
+                    RequiresApproval = s.RequiresApproval,
+                    AutoPostEnabled = s.AutoPostEnabled,
+                    ScheduleKind = SocialScheduleKinds.Author
+                });
+            }
+            else
+            {
+                existing.PostsPerWeek = s.PostsPerWeek;
+                existing.RequiresApproval = s.RequiresApproval;
+                existing.AutoPostEnabled = s.AutoPostEnabled;
+            }
+        }
+        db.SaveChanges();
+    }
+
+    public void SaveBrandSchedules(List<SocialSchedule> schedules)
+    {
+        if (!IsOwner) return;
+        var uid = CurrentUserId();
+        using var db = Db();
+        foreach (var s in schedules)
+        {
+            if (string.IsNullOrWhiteSpace(s.Platform)) continue;
+            var existing = db.SocialSchedules.FirstOrDefault(x => x.UserId == uid && x.Platform == s.Platform
+                && x.ScheduleKind == SocialScheduleKinds.Brand);
+            if (existing is null)
+            {
+                db.SocialSchedules.Add(new DbSocialSchedule
+                {
+                    UserId = uid,
+                    Platform = s.Platform,
+                    PostsPerWeek = Math.Clamp(s.PostsPerWeek, 0, 14),
+                    RequiresApproval = false,
+                    AutoPostEnabled = s.AutoPostEnabled,
+                    ScheduleKind = SocialScheduleKinds.Brand
+                });
+            }
+            else
+            {
+                existing.PostsPerWeek = Math.Clamp(s.PostsPerWeek, 0, 14);
+                existing.AutoPostEnabled = s.AutoPostEnabled;
+            }
         }
         db.SaveChanges();
     }
@@ -409,7 +483,8 @@ class AppStoreDb
     {
         var uid = CurrentUserId();
         using var db = Db();
-        var s = db.SocialSchedules.FirstOrDefault(x => x.UserId == uid && x.Platform.ToLower() == platform.ToLower());
+        var s = db.SocialSchedules.FirstOrDefault(x => x.UserId == uid && x.Platform.ToLower() == platform.ToLower()
+            && (x.ScheduleKind == SocialScheduleKinds.Author || x.ScheduleKind == ""));
         if (s is not null) { db.SocialSchedules.Remove(s); db.SaveChanges(); }
     }
 
@@ -1865,7 +1940,8 @@ class AppStoreDb
         var currentWeek = System.Globalization.ISOWeek.GetWeekOfYear(now);
         using var db = Db();
 
-        var schedulesQuery = db.SocialSchedules.Where(s => s.AutoPostEnabled && s.PostsPerWeek > 0);
+        var schedulesQuery = db.SocialSchedules.Where(s => s.AutoPostEnabled && s.PostsPerWeek > 0
+            && (s.ScheduleKind == SocialScheduleKinds.Author || s.ScheduleKind == ""));
         if (userId is int uid)
             schedulesQuery = schedulesQuery.Where(s => s.UserId == uid);
         var schedules = await schedulesQuery.ToListAsync();
@@ -1901,6 +1977,90 @@ class AppStoreDb
         return count;
     }
 
+    /// <summary>Auto-post BookPromoter AI app promos to owner brand social accounts.</summary>
+    public async Task<int> RunDueOwnerPromosAsync(SocialPostingService postingService, string appBaseUrl)
+    {
+        using var db = Db();
+        var owner = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Email == OwnerAccount.NormalizedEmail);
+        if (owner is null) return 0;
+
+        var baseUrl = appBaseUrl.TrimEnd('/');
+        if (string.IsNullOrWhiteSpace(baseUrl))
+            baseUrl = _settings.PublicBaseUrl.TrimEnd('/');
+        if (string.IsNullOrWhiteSpace(baseUrl))
+            baseUrl = "https://bookpromoterai.us";
+
+        var count = 0;
+        var now = DateTime.UtcNow;
+        var currentWeek = System.Globalization.ISOWeek.GetWeekOfYear(now);
+        var promoPosts = AppPromoGenerator.GeneratePromoPosts(baseUrl);
+
+        var schedules = await db.SocialSchedules
+            .Where(s => s.UserId == owner.Id
+                && s.ScheduleKind == SocialScheduleKinds.Brand
+                && s.AutoPostEnabled
+                && s.PostsPerWeek > 0)
+            .ToListAsync();
+
+        foreach (var schedule in schedules)
+        {
+            if (schedule.WeekTrackerStart != currentWeek)
+            {
+                schedule.WeekTrackerStart = currentWeek;
+                schedule.PostsSentThisWeek = 0;
+            }
+            if (schedule.PostsSentThisWeek >= schedule.PostsPerWeek) continue;
+
+            var hoursBetween = (24.0 * 7) / schedule.PostsPerWeek;
+            if (schedule.LastPostedAt is DateTime last && (now - last).TotalHours < hoursBetween) continue;
+
+            var account = (await db.SocialAccounts.Where(a =>
+                a.UserId == owner.Id
+                && a.IsConnected
+                && a.AccountKind == SocialAccountKinds.Brand)
+                .ToListAsync())
+                .FirstOrDefault(a => a.Platform.Equals(schedule.Platform, StringComparison.OrdinalIgnoreCase));
+            if (account is null) continue;
+
+            var postText = promoPosts.GetValueOrDefault(schedule.Platform)
+                ?? promoPosts.Values.FirstOrDefault()
+                ?? "";
+            if (string.IsNullOrWhiteSpace(postText)) continue;
+
+            var outcome = await postingService.PostAsync(
+                ToModel(account),
+                postText,
+                brandMedia: BuildBrandPostMedia(baseUrl));
+            var result = outcome.Result;
+            if (!string.IsNullOrWhiteSpace(outcome.AccessToken))
+            {
+                account.AccessToken = outcome.AccessToken;
+                if (!string.IsNullOrWhiteSpace(outcome.RefreshToken))
+                    account.RefreshToken = outcome.RefreshToken;
+            }
+
+            var posted = result.PostedToFeed;
+            db.PostingLog.Add(new DbPostingLogEntry
+            {
+                UserId = owner.Id,
+                Platform = schedule.Platform,
+                BookTitle = "BookPromoter AI",
+                Success = posted,
+                Message = posted ? "Auto-posted owner app promo." : result.Message,
+                AttemptedAt = now
+            });
+            if (posted)
+            {
+                schedule.LastPostedAt = now;
+                schedule.PostsSentThisWeek++;
+                count++;
+            }
+        }
+
+        await db.SaveChangesAsync();
+        return count;
+    }
+
     /// <summary>Post a single Ad Library ad immediately, bypassing schedule spacing.</summary>
     public async Task<(bool Success, string Message)> PostAdNowAsync(int adId, SocialPostingService postingService)
     {
@@ -1914,7 +2074,8 @@ class AppStoreDb
         if (ad.PostStatus == "Posted") return (false, "This post was already published. Click Regenerate to create a fresh version you can post again.");
 
         var schedule = await db.SocialSchedules.FirstOrDefaultAsync(s =>
-            s.UserId == uid && s.Platform == ad.Platform);
+            s.UserId == uid && s.Platform == ad.Platform
+            && (s.ScheduleKind == SocialScheduleKinds.Author || s.ScheduleKind == ""));
         if (schedule?.RequiresApproval == true && !ad.ApprovedForPosting)
             return (false, "Approve this post first, then use Post now.");
 
@@ -2325,7 +2486,17 @@ class AppStoreDb
         ExternalAccountId = a.ExternalAccountId,
         SimulatedAccessToken = a.AccessToken
     };
-    static SocialSchedule ToModel(DbSocialSchedule s) => new() { Platform = s.Platform, PostsPerWeek = s.PostsPerWeek, RequiresApproval = s.RequiresApproval, AutoPostEnabled = s.AutoPostEnabled, LastPostedAt = s.LastPostedAt, PostsSentThisWeek = s.PostsSentThisWeek, WeekTrackerStart = s.WeekTrackerStart };
+    static SocialSchedule ToModel(DbSocialSchedule s) => new()
+    {
+        Platform = s.Platform,
+        PostsPerWeek = s.PostsPerWeek,
+        RequiresApproval = s.RequiresApproval,
+        AutoPostEnabled = s.AutoPostEnabled,
+        ScheduleKind = s.ScheduleKind,
+        LastPostedAt = s.LastPostedAt,
+        PostsSentThisWeek = s.PostsSentThisWeek,
+        WeekTrackerStart = s.WeekTrackerStart
+    };
     static GeneratedAd ToModel(DbGeneratedAd a) => new() { Id = a.Id, BookId = a.BookId, BookTitle = a.BookTitle, CoverImageUrl = a.CoverImageUrl, Platform = a.Platform, PostText = a.PostText, GeneratedAt = a.GeneratedAt, WeekNumber = a.WeekNumber, WeekYear = a.WeekYear, WeekLabel = a.WeekLabel, PostStatus = a.PostStatus, PostedAt = a.PostedAt, PostError = a.PostError, ApprovedForPosting = a.ApprovedForPosting };
     static PostingLogEntry ToModel(DbPostingLogEntry l) => new() { Id = l.Id, GeneratedAdId = l.GeneratedAdId, Platform = l.Platform, BookTitle = l.BookTitle, Success = l.Success, Message = l.Message, AttemptedAt = l.AttemptedAt };
 

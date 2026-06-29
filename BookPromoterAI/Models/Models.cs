@@ -44,6 +44,7 @@ class SocialSchedule
     // many posts have gone out so far this week, so the scheduler knows
     // when the next post is due without needing exact per-day slots.
     public bool AutoPostEnabled { get; set; }
+    public string ScheduleKind { get; set; } = SocialScheduleKinds.Author;
     public DateTime? LastPostedAt { get; set; }
     public int PostsSentThisWeek { get; set; }
     public int WeekTrackerStart { get; set; } // ISO week number tracker resets PostsSentThisWeek

@@ -181,6 +181,7 @@ class DbSocialSchedule
     public int PostsPerWeek { get; set; }
     public bool RequiresApproval { get; set; }
     public bool AutoPostEnabled { get; set; }
+    public string ScheduleKind { get; set; } = SocialScheduleKinds.Author;
     public DateTime? LastPostedAt { get; set; }
     public int PostsSentThisWeek { get; set; }
     public int WeekTrackerStart { get; set; }

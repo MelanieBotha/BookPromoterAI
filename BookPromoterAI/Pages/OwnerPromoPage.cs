@@ -49,6 +49,48 @@ static class OwnerPromoPage
         if (socialAccounts.Count == 0)
             connectedRows.Append("""<p class="muted">Connect a platform below to enable Post buttons in the promotion section.</p>""");
 
+        var brandScheduleRows = new StringBuilder();
+        foreach (var account in socialAccounts)
+        {
+            var schedule = store.OwnerBrandSchedules.FirstOrDefault(s =>
+                s.Platform.Equals(account.Platform, StringComparison.OrdinalIgnoreCase));
+            var postsPerWeek = schedule?.PostsPerWeek ?? 1;
+            var autoPostChecked = (schedule?.AutoPostEnabled ?? false) ? "checked" : "";
+            var autoHint = schedule?.AutoPostEnabled == true
+                ? AppStoreDb.FormatNextAutoPostHint(schedule) is string hint
+                    ? $"""<p class="muted small-text">{H.Encode(hint)}</p>"""
+                    : ""
+                : "";
+            brandScheduleRows.Append($"""
+                <article class="book-row account-schedule-row">
+                    <div>
+                        <strong>{H.Encode(account.Platform)}</strong>
+                        <p class="muted small-text">Auto-post BookPromoter AI promos with logo on Bluesky.</p>
+                        {autoHint}
+                    </div>
+                    <input type="hidden" name="platform" value="{H.Encode(account.Platform)}">
+                    <label>Posts/week
+                        <input name="postsPerWeek" type="number" min="0" max="14" value="{postsPerWeek}">
+                    </label>
+                    <label class="checkbox">
+                        <input name="autoPostEnabled" value="{H.Encode(account.Platform)}" type="checkbox" {autoPostChecked}>
+                        Auto-post
+                    </label>
+                </article>
+                """);
+        }
+
+        var brandScheduleSection = socialAccounts.Count > 0
+            ? $"""
+                <h3 style="margin-top:24px">Brand auto-post schedule</h3>
+                <p class="muted small-text">Promotes BookPromoter AI on a schedule (checks every 5 minutes). Set <strong>posts/week</strong> above 0 and check <strong>Auto-post</strong>. Bluesky posts include the logo.</p>
+                <form method="post" action="/owner/brand-schedule" class="schedule-list">
+                    {brandScheduleRows}
+                    <button class="button" type="submit">Save brand schedule</button>
+                </form>
+                """
+            : "";
+
         var alreadyAdded = socialAccounts.Select(a => a.Platform).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var platformOptions = new StringBuilder();
         platformOptions.Append("""<option value="">Choose a platform...</option>""");
@@ -152,13 +194,14 @@ static class OwnerPromoPage
                         </label>
                         <button class="button" type="submit">Add account</button>
                     </form>
+                    {brandScheduleSection}
                 </div>
             </details>
 
             <details class="owner-collapsible" id="owner-section-promote-app"{open("promote-app")}>
                 <summary class="owner-collapsible-heading">Promote BookPromoter AI (Social &amp; Email)</summary>
                 <div class="panel owner-settings">
-                    <p class="muted">Generate ready-to-share posts that promote BookPromoter AI. Copy to your social accounts, post to connected accounts, or email all {store.RegisteredUserCount} registered user(s).</p>
+                    <p class="muted">Generate ready-to-share posts that promote BookPromoter AI. Copy, post manually, enable <strong>Auto-post</strong> under Brand Social Accounts, or email all {store.RegisteredUserCount} registered user(s).</p>
                     {accountNote}
                     {sendGridNote}
                     <div class="promo-table">

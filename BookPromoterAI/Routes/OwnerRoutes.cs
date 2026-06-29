@@ -110,6 +110,38 @@ static class OwnerRoutes
             return RenderOwner(http, store, settings, releaseNotes, $"""<div class="notice {cls}">{H.Encode(message)}</div>""");
         });
 
+        app.MapPost("/owner/brand-schedule", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings, SocialPostingService posting, ReleaseNotesCatalog releaseNotes) =>
+        {
+            if (OwnerGuard(store) is { } guard) return guard;
+            var form = await request.ReadFormAsync();
+            var platforms = form["platform"].ToList();
+            var postsPerWeek = form["postsPerWeek"].ToList();
+            var autoPostPlatforms = form["autoPostEnabled"].ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var schedules = new List<SocialSchedule>();
+            for (var i = 0; i < platforms.Count; i++)
+            {
+                var platform = platforms[i] ?? "";
+                if (string.IsNullOrWhiteSpace(platform)) continue;
+                var parsed = int.TryParse(postsPerWeek.ElementAtOrDefault(i), out var count) ? count : 0;
+                schedules.Add(new SocialSchedule
+                {
+                    Platform = platform,
+                    PostsPerWeek = Math.Clamp(parsed, 0, 14),
+                    AutoPostEnabled = autoPostPlatforms.Contains(platform),
+                    ScheduleKind = SocialScheduleKinds.Brand
+                });
+            }
+
+            store.SaveBrandSchedules(schedules);
+            var baseUrl = PublicUrl.Base(http.Request, settings);
+            var posted = await store.RunDueOwnerPromosAsync(posting, baseUrl);
+            var notice = posted > 0
+                ? $"""<div class="notice success">Brand schedule saved. {posted} app promo(s) auto-posted now.</div>"""
+                : """<div class="notice success">Brand auto-post schedule saved. Promos will go out on schedule when due (every 5 minutes).</div>""";
+            return RenderOwner(http, store, settings, releaseNotes, notice, "owner-social");
+        });
+
         app.MapPost("/owner/product-update/publish", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings, SocialPostingService posting, ReleaseNotesCatalog releaseNotes) =>
         {
             if (OwnerGuard(store) is { } guard) return guard;
