@@ -86,6 +86,7 @@ static class MailingListRoutes
             var form = await request.ReadFormAsync();
             var fromName = store.LoggedInEmail ?? settings.SendGridSenderName;
             var baseUrl = PublicUrl.Base(request, settings);
+            var bookId = int.TryParse(form["bookId"].ToString(), out var id) ? id : (int?)null;
             var (sent, failed, message) = await store.SendMailingListCampaignAsync(
                 form["subject"].ToString(),
                 form["body"].ToString(),
@@ -93,7 +94,8 @@ static class MailingListRoutes
                 settings.SendGridSenderEmail,
                 settings.SendGridSenderName,
                 fromName,
-                baseUrl);
+                baseUrl,
+                bookId);
 
             var cls = sent > 0 ? "success" : "error";
             var devNote = !settings.IsSendGridConfigured && sent > 0

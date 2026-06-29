@@ -96,6 +96,16 @@ static class EmailTemplate
     public static string Paragraph(string text) =>
         $"""<p style="margin:0 0 16px;">{text}</p>""";
 
+    public static string BookCoverImage(string coverUrl, string title, string? linkUrl = null)
+    {
+        if (string.IsNullOrWhiteSpace(coverUrl)) return "";
+        var alt = string.IsNullOrWhiteSpace(title) ? "Book cover" : $"{title} cover";
+        var img = $"""<img src="{HtmlEncode(coverUrl)}" alt="{HtmlEncode(alt)}" width="280" style="display:block;max-width:280px;width:100%;height:auto;border:0;border-radius:8px;">""";
+        if (!string.IsNullOrWhiteSpace(linkUrl))
+            return $"""<p style="margin:0 0 20px;text-align:center;"><a href="{HtmlEncode(linkUrl)}" style="text-decoration:none;">{img}</a></p>""";
+        return $"""<p style="margin:0 0 20px;text-align:center;">{img}</p>""";
+    }
+
     public static string ResolveBaseUrl(string? appBaseUrl) =>
         string.IsNullOrWhiteSpace(appBaseUrl) ? DefaultBaseUrl : appBaseUrl.TrimEnd('/');
 

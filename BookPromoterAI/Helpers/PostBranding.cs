@@ -124,6 +124,19 @@ static class PostBranding
         return $"{appBaseUrl.TrimEnd('/')}/{imageUrl.TrimStart('/')}";
     }
 
+    /// <summary>Public cover + landing URLs for author mailing list HTML emails.</summary>
+    public static (string CoverUrl, string LinkUrl) MailingListCoverUrls(Book book, string appBaseUrl)
+    {
+        var linkUrl = PurchaseUrlForPost(book, appBaseUrl);
+        if (string.IsNullOrWhiteSpace(book.CoverImageUrl))
+            return ("", linkUrl);
+
+        var coverUrl = !string.IsNullOrWhiteSpace(book.TrackingCode)
+            ? EnsureHttps(BookCoverShareUrl(appBaseUrl, book.TrackingCode))
+            : EnsureHttps(AbsoluteImageUrl(appBaseUrl, book.CoverImageUrl));
+        return (coverUrl, linkUrl);
+    }
+
     public static string Footer(string platform, string appBaseUrl)
     {
         var startUrl = $"{appBaseUrl.TrimEnd('/')}/start";

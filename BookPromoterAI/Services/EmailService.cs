@@ -223,12 +223,16 @@ static class EmailService
         string senderEmail,
         string senderName,
         string? appBaseUrl = null,
-        string? unsubscribeUrl = null)
+        string? unsubscribeUrl = null,
+        string? coverImageUrl = null,
+        string? coverLinkUrl = null,
+        string? coverTitle = null)
     {
         var greeting = string.IsNullOrWhiteSpace(toName)
             ? ""
             : EmailTemplate.Paragraph($"Hi {HtmlEncode(toName.Trim())},");
-        var htmlBody = greeting + FormatPlainTextAsHtml(body) + UnsubscribeHtml(unsubscribeUrl);
+        var coverHtml = EmailTemplate.BookCoverImage(coverImageUrl ?? "", coverTitle ?? "", coverLinkUrl);
+        var htmlBody = greeting + coverHtml + FormatPlainTextAsHtml(body) + UnsubscribeHtml(unsubscribeUrl);
         var plainBody = body.Trim() + UnsubscribePlain(unsubscribeUrl);
         var footer = string.IsNullOrWhiteSpace(unsubscribeUrl)
             ? "You received this because you subscribed to this author's mailing list via BookPromoter AI."

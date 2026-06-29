@@ -768,7 +768,8 @@ class AppStoreDb
             var fromName = MailingListKinds.IsBrand(listKind) ? "BookPromoter AI" : user.Email;
             var (sent, _, _) = await SendMailingListCampaignForUserAsync(
                 db, settings.UserId, settings.PendingSubject, settings.PendingBody,
-                apiKey, senderEmail, senderName, fromName, appBaseUrl, listKind);
+                apiKey, senderEmail, senderName, fromName, appBaseUrl, listKind,
+                MailingListKinds.IsAuthor(listKind) ? settings.PendingBookId : null);
 
             if (sent > 0)
             {
@@ -875,7 +876,8 @@ class AppStoreDb
         string senderName,
         string fromDisplayName,
         string? appBaseUrl,
-        string listKind = MailingListKinds.Author)
+        string listKind = MailingListKinds.Author,
+        int? bookId = null)
     {
         if (string.IsNullOrWhiteSpace(subject)) return (0, 0, "Enter an email subject.");
         if (string.IsNullOrWhiteSpace(body)) return (0, 0, "Enter a message to send.");
@@ -884,6 +886,20 @@ class AppStoreDb
             .Where(s => s.UserId == userId && s.ListKind == listKind)
             .ToListAsync();
         if (subscribers.Count == 0) return (0, 0, "Your mailing list is empty.");
+
+        string? coverImageUrl = null;
+        string? coverLinkUrl = null;
+        string? coverTitle = null;
+        if (bookId is int bid && MailingListKinds.IsAuthor(listKind) && !string.IsNullOrWhiteSpace(appBaseUrl))
+        {
+            var dbBook = await db.Books.AsNoTracking().FirstOrDefaultAsync(b => b.Id == bid && b.UserId == userId);
+            if (dbBook is not null && !string.IsNullOrWhiteSpace(dbBook.CoverImageUrl))
+            {
+                var book = ToModel(dbBook);
+                (coverImageUrl, coverLinkUrl) = PostBranding.MailingListCoverUrls(book, appBaseUrl);
+                coverTitle = book.Title;
+            }
+        }
 
         var sent = 0;
         var failed = 0;
@@ -894,7 +910,8 @@ class AppStoreDb
                 : $"{appBaseUrl.TrimEnd('/')}/readers/unsubscribe/{Uri.EscapeDataString(sub.UnsubscribeToken)}";
             var ok = await EmailService.SendMailingListEmail(
                 sub.Email, sub.Name, subject, body, fromDisplayName,
-                apiKey, senderEmail, senderName, appBaseUrl, unsubUrl);
+                apiKey, senderEmail, senderName, appBaseUrl, unsubUrl,
+                coverImageUrl, coverLinkUrl, coverTitle);
             if (ok) sent++; else failed++;
         }
 
@@ -1294,7 +1311,7 @@ class AppStoreDb
     }
 
     public async Task<(int Sent, int Failed, string Message)> SendMailingListCampaignAsync(
-        string subject, string body, string apiKey, string senderEmail, string senderName, string fromDisplayName, string? appBaseUrl = null)
+        string subject, string body, string apiKey, string senderEmail, string senderName, string fromDisplayName, string? appBaseUrl = null, int? bookId = null)
     {
         var uid = CurrentUserId();
         if (uid == 0) return (0, 0, "Not logged in.");
@@ -1302,8 +1319,13 @@ class AppStoreDb
         if (string.IsNullOrWhiteSpace(body)) return (0, 0, "Enter a message to send.");
 
         using var db = Db();
+        if (bookId is null or <= 0)
+        {
+            var draftSettings = EnsureMailingListSettingsRow(db, uid, MailingListKinds.Author);
+            bookId = draftSettings.PendingBookId;
+        }
         var (sent, failed, message) = await SendMailingListCampaignForUserAsync(
-            db, uid, subject, body, apiKey, senderEmail, senderName, fromDisplayName, appBaseUrl, MailingListKinds.Author);
+            db, uid, subject, body, apiKey, senderEmail, senderName, fromDisplayName, appBaseUrl, MailingListKinds.Author, bookId);
         if (sent > 0)
         {
             var settings = EnsureMailingListSettingsRow(db, uid, MailingListKinds.Author);
