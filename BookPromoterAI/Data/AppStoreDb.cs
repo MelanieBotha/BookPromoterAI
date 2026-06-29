@@ -1336,16 +1336,17 @@ class AppStoreDb
             : null;
     }
 
-    public (bool Success, string Message) AddMailingListSubscriber(string email, string name, string source = "Manual")
+    public (bool Success, string Message, string? UnsubscribeToken, int AuthorUserId) AddMailingListSubscriber(string email, string name, string source = "Manual")
     {
         var uid = CurrentUserId();
-        if (uid == 0) return (false, "Not logged in.");
+        if (uid == 0) return (false, "Not logged in.", null, 0);
         var cleanEmail = email.Trim().ToLowerInvariant();
-        if (string.IsNullOrWhiteSpace(cleanEmail) || !cleanEmail.Contains('@')) return (false, "Enter a valid email address.");
+        if (string.IsNullOrWhiteSpace(cleanEmail) || !cleanEmail.Contains('@')) return (false, "Enter a valid email address.", null, 0);
         using var db = Db();
         if (db.MailingListSubscribers.Any(s =>
             s.UserId == uid && s.Email == cleanEmail && s.ListKind == MailingListKinds.Author))
-            return (false, "That email is already on your mailing list.");
+            return (false, "That email is already on your mailing list.", null, 0);
+        var token = NewUnsubscribeToken();
         db.MailingListSubscribers.Add(new DbMailingListSubscriber
         {
             UserId = uid,
@@ -1353,11 +1354,42 @@ class AppStoreDb
             Name = name.Trim(),
             SubscribedAt = DateTime.UtcNow,
             Source = source,
-            UnsubscribeToken = NewUnsubscribeToken(),
+            UnsubscribeToken = token,
             ListKind = MailingListKinds.Author
         });
         db.SaveChanges();
-        return (true, $"Added {cleanEmail} to your mailing list.");
+        return (true, $"Added {cleanEmail} to your mailing list.", token, uid);
+    }
+
+    public async Task SendSubscriberWelcomeEmailAsync(
+        int authorUserId,
+        string subscriberEmail,
+        string subscriberName,
+        string unsubscribeToken,
+        string appBaseUrl)
+    {
+        using var db = Db();
+        var author = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == authorUserId);
+        if (author is null) return;
+
+        var authorName = await db.Books.AsNoTracking()
+            .Where(b => b.UserId == authorUserId && b.AuthorName != "")
+            .Select(b => b.AuthorName)
+            .FirstOrDefaultAsync();
+        if (string.IsNullOrWhiteSpace(authorName))
+            authorName = author.Email;
+
+        var unsubUrl = GetUnsubscribeUrl(appBaseUrl, unsubscribeToken);
+        await EmailService.SendMailingListWelcomeEmail(
+            subscriberEmail,
+            subscriberName,
+            authorName,
+            author.Email,
+            _settings.SendGridApiKey,
+            _settings.SendGridSenderEmail,
+            _settings.SendGridSenderName,
+            appBaseUrl,
+            unsubUrl);
     }
 
     public void RemoveMailingListSubscriber(int id)
@@ -1435,15 +1467,16 @@ class AppStoreDb
 
     static string NewUnsubscribeToken() => Guid.NewGuid().ToString("N");
 
-    public (bool Success, string Message, string? AuthorLabel) SubscribeToMailingListByUserCode(string userCode, string email, string name)
+    public (bool Success, string Message, string? AuthorEmail, string? UnsubscribeToken, int AuthorUserId) SubscribeToMailingListByUserCode(string userCode, string email, string name)
     {
         var cleanEmail = email.Trim().ToLowerInvariant();
-        if (string.IsNullOrWhiteSpace(cleanEmail) || !cleanEmail.Contains('@')) return (false, "Enter a valid email address.", null);
+        if (string.IsNullOrWhiteSpace(cleanEmail) || !cleanEmail.Contains('@')) return (false, "Enter a valid email address.", null, null, 0);
         using var db = Db();
         var user = db.Users.FirstOrDefault(u => u.UserCode == userCode.Trim());
-        if (user is null) return (false, "This signup link is not valid.", null);
+        if (user is null) return (false, "This signup link is not valid.", null, null, 0);
         if (db.MailingListSubscribers.Any(s => s.UserId == user.Id && s.Email == cleanEmail && s.ListKind == MailingListKinds.Author))
-            return (false, "You're already subscribed to this mailing list.", user.Email);
+            return (false, "You're already subscribed to this mailing list.", user.Email, null, user.Id);
+        var token = NewUnsubscribeToken();
         db.MailingListSubscribers.Add(new DbMailingListSubscriber
         {
             UserId = user.Id,
@@ -1451,11 +1484,11 @@ class AppStoreDb
             Name = name.Trim(),
             SubscribedAt = DateTime.UtcNow,
             Source = "Signup",
-            UnsubscribeToken = NewUnsubscribeToken(),
+            UnsubscribeToken = token,
             ListKind = MailingListKinds.Author
         });
         db.SaveChanges();
-        return (true, "You're subscribed! Watch your inbox for updates.", user.Email);
+        return (true, "You're subscribed! Check your inbox for a welcome email.", user.Email, token, user.Id);
     }
 
     public string? GetAuthorEmailByUserCode(string userCode)

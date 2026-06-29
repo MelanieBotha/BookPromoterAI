@@ -242,6 +242,44 @@ static class EmailService
             footerNote: footer);
     }
 
+    public static async Task<bool> SendMailingListWelcomeEmail(
+        string toEmail,
+        string toName,
+        string authorName,
+        string fromDisplayName,
+        string apiKey,
+        string senderEmail,
+        string senderName,
+        string? appBaseUrl = null,
+        string? unsubscribeUrl = null)
+    {
+        var greetingName = string.IsNullOrWhiteSpace(toName) ? "there" : toName.Trim();
+        var subject = $"Welcome to {authorName}'s reader list";
+        var plainBody = $"""
+            Hi {greetingName},
+
+            Thank you for joining my reader mailing list!
+
+            You'll hear from me about new releases, featured books, and updates for readers. I'm glad you're here.
+
+            — {authorName}
+            """ + UnsubscribePlain(unsubscribeUrl);
+
+        var htmlBody = EmailTemplate.Paragraph($"Hi {HtmlEncode(greetingName)},")
+            + EmailTemplate.Paragraph("Thank you for joining my reader mailing list!")
+            + EmailTemplate.Paragraph("You'll hear from me about <strong>new releases</strong>, <strong>featured books</strong>, and updates for readers. I'm glad you're here.")
+            + EmailTemplate.Paragraph($"— {HtmlEncode(authorName)}")
+            + UnsubscribeHtml(unsubscribeUrl);
+
+        var footer = string.IsNullOrWhiteSpace(unsubscribeUrl)
+            ? "You received this because you subscribed to this author's mailing list via BookPromoter AI."
+            : "You received this because you subscribed to this author's mailing list via BookPromoter AI. Use the unsubscribe link below to stop receiving emails.";
+
+        return await SendSingleEmail(
+            apiKey, senderEmail, fromDisplayName, toEmail, toName, subject, plainBody, htmlBody, appBaseUrl,
+            "Welcome to the list", footerNote: footer);
+    }
+
     public static async Task<(int Sent, int Failed)> SendProductUpdateEmailAsync(
         IEnumerable<(string Email, string UnsubscribeToken)> recipients,
         ProductUpdate update,
