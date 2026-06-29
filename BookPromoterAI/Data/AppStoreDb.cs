@@ -216,6 +216,7 @@ class AppStoreDb
         existing.PostVariantSeed = book.PostVariantSeed;
         existing.MonthlyClicks = book.MonthlyClicks;
         existing.ClickHistoryJson = JsonSerializer.Serialize(book.ClickHistory);
+        existing.PlatformClickHistoryJson = JsonSerializer.Serialize(book.PlatformClickHistory);
         MatchBookToClient(book);
         existing.ClientId = book.ClientId;
         db.BookLinks.RemoveRange(existing.Links);
@@ -252,7 +253,7 @@ class AppStoreDb
         return b is null ? null : ToModel(b);
     }
 
-    public Book? RecordClick(string trackingCode)
+    public Book? RecordClick(string trackingCode, string? platformSource = null)
     {
         using var db = Db();
         var b = db.Books.Include(x => x.Links).FirstOrDefault(x => x.TrackingCode == trackingCode);
@@ -262,6 +263,17 @@ class AppStoreDb
         var hist = JsonSerializer.Deserialize<Dictionary<string, int>>(b.ClickHistoryJson) ?? [];
         hist[key] = hist.TryGetValue(key, out var prev) ? prev + 1 : 1;
         b.ClickHistoryJson = JsonSerializer.Serialize(hist);
+
+        var platform = PlatformClickSource.Normalize(platformSource);
+        var platformHist = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, int>>>(b.PlatformClickHistoryJson) ?? [];
+        if (!platformHist.TryGetValue(key, out var monthPlatforms))
+        {
+            monthPlatforms = [];
+            platformHist[key] = monthPlatforms;
+        }
+        monthPlatforms[platform] = monthPlatforms.TryGetValue(platform, out var platformPrev) ? platformPrev + 1 : 1;
+        b.PlatformClickHistoryJson = JsonSerializer.Serialize(platformHist);
+
         db.SaveChanges();
         return ToModel(b);
     }
@@ -465,7 +477,7 @@ class AppStoreDb
 
                 dbBook.PostVariantSeed++;
                 var refreshedModel = ToModel(dbBook);
-                var purchaseUrl = PostBranding.PurchaseUrlForPost(refreshedModel, baseUrl);
+                var purchaseUrl = PostBranding.PurchaseUrlForPost(refreshedModel, baseUrl, schedule.Platform);
                 var text = generator.Generate(refreshedModel, schedule.Platform, purchaseUrl, dbBook.PostVariantSeed, baseUrl);
                 var created = new DbGeneratedAd
                 {
@@ -496,7 +508,7 @@ class AppStoreDb
     {
         book.PostVariantSeed++;
         var model = ToModel(book);
-        var purchaseUrl = PostBranding.PurchaseUrlForPost(model, baseUrl);
+        var purchaseUrl = PostBranding.PurchaseUrlForPost(model, baseUrl, ad.Platform);
         ad.PostText = generator.Generate(model, ad.Platform, purchaseUrl, book.PostVariantSeed, baseUrl);
         ad.CoverImageUrl = book.CoverImageUrl;
         ad.BookTitle = book.Title;
@@ -1916,8 +1928,8 @@ class AppStoreDb
     }
 
     // ── Model converters ───────────────────────────────────────────────
-    static Book ToModel(DbBook b) => new() { Id = b.Id, Title = b.Title, AuthorName = b.AuthorName, Genre = b.Genre, Description = b.Description, CoverImageUrl = b.CoverImageUrl, CoverSourceUrl = b.CoverSourceUrl, TrackingCode = b.TrackingCode, MonthlyClicks = b.MonthlyClicks, PostVariantSeed = b.PostVariantSeed, ClientId = b.ClientId, Links = b.Links.Select(l => new BookLink { StoreName = l.StoreName, Url = l.Url }).ToList(), ClickHistory = JsonSerializer.Deserialize<Dictionary<string, int>>(b.ClickHistoryJson) ?? [] };
-    static DbBook ToDb(Book b, int uid) => new() { UserId = uid, Title = b.Title, AuthorName = b.AuthorName, Genre = b.Genre, Description = b.Description, CoverImageUrl = b.CoverImageUrl, CoverSourceUrl = b.CoverSourceUrl, TrackingCode = b.TrackingCode, MonthlyClicks = b.MonthlyClicks, PostVariantSeed = b.PostVariantSeed, ClientId = b.ClientId, ClickHistoryJson = JsonSerializer.Serialize(b.ClickHistory), Links = b.Links.Select(l => new DbBookLink { StoreName = l.StoreName, Url = l.Url }).ToList() };
+    static Book ToModel(DbBook b) => new() { Id = b.Id, Title = b.Title, AuthorName = b.AuthorName, Genre = b.Genre, Description = b.Description, CoverImageUrl = b.CoverImageUrl, CoverSourceUrl = b.CoverSourceUrl, TrackingCode = b.TrackingCode, MonthlyClicks = b.MonthlyClicks, PostVariantSeed = b.PostVariantSeed, ClientId = b.ClientId, Links = b.Links.Select(l => new BookLink { StoreName = l.StoreName, Url = l.Url }).ToList(), ClickHistory = JsonSerializer.Deserialize<Dictionary<string, int>>(b.ClickHistoryJson) ?? [], PlatformClickHistory = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, int>>>(b.PlatformClickHistoryJson) ?? [] };
+    static DbBook ToDb(Book b, int uid) => new() { UserId = uid, Title = b.Title, AuthorName = b.AuthorName, Genre = b.Genre, Description = b.Description, CoverImageUrl = b.CoverImageUrl, CoverSourceUrl = b.CoverSourceUrl, TrackingCode = b.TrackingCode, MonthlyClicks = b.MonthlyClicks, PostVariantSeed = b.PostVariantSeed, ClientId = b.ClientId, ClickHistoryJson = JsonSerializer.Serialize(b.ClickHistory), PlatformClickHistoryJson = JsonSerializer.Serialize(b.PlatformClickHistory), Links = b.Links.Select(l => new DbBookLink { StoreName = l.StoreName, Url = l.Url }).ToList() };
     static SocialAccount ToModel(DbSocialAccount a) => new() { Id = a.Id, Platform = a.Platform, DisplayName = a.DisplayName, Handle = a.Handle, IsConnected = a.IsConnected, ConnectedViaOAuth = a.ConnectedViaOAuth, SimulatedAccessToken = a.AccessToken };
     static SocialSchedule ToModel(DbSocialSchedule s) => new() { Platform = s.Platform, PostsPerWeek = s.PostsPerWeek, RequiresApproval = s.RequiresApproval, AutoPostEnabled = s.AutoPostEnabled, LastPostedAt = s.LastPostedAt, PostsSentThisWeek = s.PostsSentThisWeek, WeekTrackerStart = s.WeekTrackerStart };
     static GeneratedAd ToModel(DbGeneratedAd a) => new() { Id = a.Id, BookId = a.BookId, BookTitle = a.BookTitle, CoverImageUrl = a.CoverImageUrl, Platform = a.Platform, PostText = a.PostText, GeneratedAt = a.GeneratedAt, WeekNumber = a.WeekNumber, WeekYear = a.WeekYear, WeekLabel = a.WeekLabel, PostStatus = a.PostStatus, PostedAt = a.PostedAt, PostError = a.PostError, ApprovedForPosting = a.ApprovedForPosting };

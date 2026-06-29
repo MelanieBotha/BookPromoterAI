@@ -50,6 +50,10 @@ class AppDbContext : DbContext
             .Property(b => b.ClickHistoryJson)
             .HasColumnName("ClickHistory");
 
+        model.Entity<DbBook>()
+            .Property(b => b.PlatformClickHistoryJson)
+            .HasColumnName("PlatformClickHistory");
+
         model.Entity<DbSubscriptionPlan>()
             .Property(p => p.FeaturesJson)
             .HasColumnName("Features");
@@ -138,6 +142,7 @@ class DbBook
     public int PostVariantSeed { get; set; }
     public int? ClientId { get; set; }
     public string ClickHistoryJson { get; set; } = "{}"; // JSON: {"2025-01": 42, ...}
+    public string PlatformClickHistoryJson { get; set; } = "{}"; // JSON: {"2025-01": {"Facebook": 3, "X": 2}, ...}
 
     public DbUser? User { get; set; }
     public List<DbBookLink> Links { get; set; } = [];

@@ -19,18 +19,18 @@ static class AnalyticsPage
     {
         var months = RecentMonths();
         var books = store.Books;
-        var totalClicks = books.Sum(b => b.MonthlyClicks);
+        var totalClicksThisMonth = ClickAnalytics.TotalClicksThisMonth(books);
         var totalPosts = store.GeneratedAds.Count;
         var totalScheduled = store.Schedules.Sum(s => s.PostsPerWeek);
-        var topBook = books.OrderByDescending(b => b.MonthlyClicks).FirstOrDefault();
-        var lowestBook = books.Where(b => b.MonthlyClicks > 0).OrderBy(b => b.MonthlyClicks).FirstOrDefault();
+        var topBook = ClickAnalytics.TopBookThisMonth(books);
+        var lowestBook = ClickAnalytics.LowestBookThisMonth(books);
         var hasAdvanced = store.HasAdvancedAnalytics;
 
         // ── Summary stat cards (all tiers) ───────────────────────────
         var summaryCards = $"""
             <div class="analytics-summary-grid">
                 <div class="analytics-card">
-                    <span class="analytics-num">{totalClicks}</span>
+                    <span class="analytics-num">{totalClicksThisMonth}</span>
                     <span class="analytics-label">Total Clicks This Month</span>
                 </div>
                 <div class="analytics-card">
@@ -54,20 +54,22 @@ static class AnalyticsPage
                 <div class="analytics-performer-card top">
                     <p class="analytics-performer-label">Top Performing Book</p>
                     <p class="analytics-performer-book">{H.Encode(topBook.Title)}</p>
-                    <p class="analytics-performer-stat">{topBook.MonthlyClicks} clicks this month</p>
+                    <p class="analytics-performer-stat">{ClickAnalytics.ClicksThisMonth(topBook)} clicks this month</p>
                 </div>
                 """
-            : """<div class="analytics-performer-card top"><p class="muted">No books yet.</p></div>""";
+            : """<div class="analytics-performer-card top"><p class="muted">No click data this month yet.</p></div>""";
 
-        var lowestBox = lowestBook is not null
+        var lowestBox = lowestBook is not null && books.Count(b => ClickAnalytics.ClicksThisMonth(b) > 0) > 1
             ? $"""
                 <div class="analytics-performer-card lowest">
                     <p class="analytics-performer-label">Lowest Performing Book</p>
                     <p class="analytics-performer-book">{H.Encode(lowestBook.Title)}</p>
-                    <p class="analytics-performer-stat">{lowestBook.MonthlyClicks} clicks this month</p>
+                    <p class="analytics-performer-stat">{ClickAnalytics.ClicksThisMonth(lowestBook)} clicks this month</p>
                 </div>
                 """
-            : """<div class="analytics-performer-card lowest"><p class="muted">No click data yet.</p></div>""";
+            : lowestBook is not null && books.Count(b => ClickAnalytics.ClicksThisMonth(b) > 0) == 1
+                ? """<div class="analytics-performer-card lowest"><p class="muted">Only one book has clicks this month.</p></div>"""
+                : """<div class="analytics-performer-card lowest"><p class="muted">No click data this month yet.</p></div>""";
 
         // ── Bar chart — clicks per book per month (all tiers, basic) ──
         var barChart = BuildBarChart(books, months);
@@ -78,7 +80,7 @@ static class AnalyticsPage
                 <div class="notice error">
                     You're on the <strong>{H.Encode(store.CurrentPlan?.Name ?? store.AccessType)}</strong> plan.
                     Upgrade to <strong>Publisher</strong> or <strong>Agency</strong> to unlock full analytics —
-                    monthly tables per author, platform estimates, and posting activity.
+                    monthly tables per author, clicks per platform, and posting activity.
                     <a href="/billing">Upgrade now</a>
                 </div>
                 """
@@ -216,16 +218,15 @@ static class AnalyticsPage
                 </section>
                 """);
 
-            // Platform estimates per author
+            // Platform clicks per author
             var totalScheduled = store.Schedules.Sum(s => s.PostsPerWeek);
             if (totalScheduled > 0)
             {
-                var authorClicks = authorBooks.Sum(b => b.MonthlyClicks);
                 result.Append($"""
                     <section class="panel">
-                        <h2>Estimated Clicks Per Platform &mdash; {H.Encode(authorName)}</h2>
-                        <p class="muted small-text">Estimated by distributing total clicks proportionally across platforms based on your posting schedule.</p>
-                        {BuildPlatformTable(store, authorClicks, months)}
+                        <h2>Clicks Per Platform &mdash; {H.Encode(authorName)}</h2>
+                        <p class="muted small-text">Actual link clicks tracked when readers open your book link from each platform. Regenerate posts in the Ad Library so each platform link includes tracking.</p>
+                        {BuildPlatformTable(store, authorBooks, months)}
                     </section>
                     """);
             }
@@ -257,7 +258,7 @@ static class AnalyticsPage
         return $"""
             <section class="panel analytics-locked-preview">
                 <h2>Full Analytics &mdash; Publisher &amp; Agency Plans</h2>
-                <p class="muted">Upgrade to unlock monthly tables per author, estimated clicks per platform, posting activity summary, and more.</p>
+                <p class="muted">Upgrade to unlock monthly tables per author, clicks per platform, posting activity summary, and more.</p>
                 <div class="analytics-preview-blur">
                     <div class="analytics-table-placeholder">
                         <table class="analytics-month-table">
@@ -322,27 +323,43 @@ static class AnalyticsPage
             """;
     }
 
-    // ── Estimated platform clicks table ───────────────────────────────
-    static string BuildPlatformTable(AppStoreDb store, int totalClicks, List<(string Key, string Label)> months)
+    // ── Platform clicks table (actual tracked clicks) ─────────────────
+    static string BuildPlatformTable(AppStoreDb store, List<Book> books, List<(string Key, string Label)> months)
     {
-        var totalWeekly = store.Schedules.Sum(s => s.PostsPerWeek);
-        if (totalWeekly == 0) return """<p class="muted">Add platforms to your schedule to see estimates.</p>""";
+        var platforms = CollectPlatforms(store, books);
+        if (platforms.Count == 0)
+            return """<p class="muted">Add platforms to your schedule and generate posts to see clicks per platform.</p>""";
 
         var header = new StringBuilder("<tr><th>Platform</th>");
         foreach (var (_, label) in months)
             header.Append($"<th>{H.Encode(label[..3])}</th>");
-        header.Append("<th>Est. Total</th></tr>");
+        header.Append("<th>Total</th></tr>");
 
         var rows = new StringBuilder();
-        foreach (var schedule in store.Schedules.Where(s => s.PostsPerWeek > 0).OrderByDescending(s => s.PostsPerWeek))
+        var monthTotals = months.ToDictionary(m => m.Key, _ => 0);
+
+        foreach (var platform in platforms)
         {
-            var share = (double)schedule.PostsPerWeek / totalWeekly;
-            var estimated = (int)(totalClicks * share);
-            rows.Append($"<tr><td>{H.Encode(schedule.Platform)}</td>");
-            foreach (var _ in months)
-                rows.Append($"<td class=\"muted-cell\">{(int)(estimated / 6)}</td>");
-            rows.Append($"<td><strong>{estimated}</strong></td></tr>");
+            rows.Append($"<tr><td>{H.Encode(platform)}</td>");
+            var rowTotal = 0;
+            foreach (var (key, _) in months)
+            {
+                var clicks = PlatformClicksForMonth(books, key, platform);
+                rowTotal += clicks;
+                monthTotals[key] += clicks;
+                rows.Append($"<td>{(clicks > 0 ? clicks.ToString() : "")}</td>");
+            }
+            rows.Append($"<td><strong>{rowTotal}</strong></td></tr>");
         }
+
+        rows.Append("<tr class=\"totals-row\"><td><strong>Total</strong></td>");
+        var grandTotal = 0;
+        foreach (var (key, _) in months)
+        {
+            grandTotal += monthTotals[key];
+            rows.Append($"<td><strong>{(monthTotals[key] > 0 ? monthTotals[key].ToString() : "")}</strong></td>");
+        }
+        rows.Append($"<td><strong>{grandTotal}</strong></td></tr>");
 
         return $"""
             <div class="analytics-table-scroll">
@@ -352,6 +369,42 @@ static class AnalyticsPage
                 </table>
             </div>
             """;
+    }
+
+    static List<string> CollectPlatforms(AppStoreDb store, List<Book> books)
+    {
+        var platforms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var schedule in store.Schedules.Where(s => s.PostsPerWeek > 0))
+            platforms.Add(schedule.Platform);
+
+        foreach (var book in books)
+        {
+            foreach (var month in book.PlatformClickHistory.Values)
+            {
+                foreach (var platform in month.Keys)
+                    platforms.Add(platform);
+            }
+        }
+
+        return platforms
+            .OrderBy(p => p.Equals("Direct", StringComparison.OrdinalIgnoreCase) ? 1 : 0)
+            .ThenBy(p => p, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    static int PlatformClicksForMonth(List<Book> books, string monthKey, string platform)
+    {
+        var total = 0;
+        foreach (var book in books)
+        {
+            if (!book.PlatformClickHistory.TryGetValue(monthKey, out var monthPlatforms)) continue;
+            foreach (var (name, clicks) in monthPlatforms)
+            {
+                if (name.Equals(platform, StringComparison.OrdinalIgnoreCase))
+                    total += clicks;
+            }
+        }
+        return total;
     }
 
     static List<(string Name, List<Book> Books)> GroupBooksByAuthor(AppStoreDb store, List<Book> books)

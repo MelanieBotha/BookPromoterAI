@@ -17,11 +17,9 @@ class PostGenerator
         var descriptionHook = ExtractDescriptionHook(book.Description, variantSeed);
         var genreHook = PickHook(book.Genre, variantSeed);
         var useDescriptionFirst = descriptionHook is not null && variantSeed % 2 == 0;
-        var hook = useDescriptionFirst
-            ? $"{descriptionHook} {genreHook} \"{book.Title}\""
-            : descriptionHook is not null
-                ? $"{genreHook} \"{book.Title}\" - {descriptionHook}"
-                : $"{genreHook} Try \"{book.Title}\".";
+        var hook = PostLimits.IsX(platform)
+            ? BuildShortHook(book, variantSeed)
+            : BuildHook(book, variantSeed, descriptionHook, genreHook, useDescriptionFirst);
 
         var link = purchaseUrl.Trim();
         var hasLink = !string.IsNullOrWhiteSpace(link);
@@ -44,6 +42,20 @@ class PostGenerator
         };
 
         return PostLimits.Enforce(body, platform);
+    }
+
+    static string BuildHook(Book book, int variantSeed, string? descriptionHook, string genreHook, bool useDescriptionFirst) =>
+        useDescriptionFirst
+            ? $"{descriptionHook} {genreHook} \"{book.Title}\""
+            : descriptionHook is not null
+                ? $"{genreHook} \"{book.Title}\" - {descriptionHook}"
+                : $"{genreHook} Try \"{book.Title}\".";
+
+    static string BuildShortHook(Book book, int variantSeed)
+    {
+        var genreHook = PickHook(book.Genre, variantSeed);
+        var title = book.Title.Length > 50 ? book.Title[..47].TrimEnd() + "…" : book.Title;
+        return $"{genreHook} \"{title}\"";
     }
 
     private static string? ExtractDescriptionHook(string description, int variantSeed)

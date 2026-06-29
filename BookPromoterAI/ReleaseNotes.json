@@ -1,4 +1,30 @@
 {
+  "1.8.6": {
+    "title": "BookPromoter AI v1.8.6 — What's new",
+    "updated": [
+      "Analytics and dashboard click totals now use the same monthly click history as the tables and charts"
+    ],
+    "new": [],
+    "added": []
+  },
+  "1.8.5": {
+    "title": "BookPromoter AI v1.8.5 — What's new",
+    "updated": [
+      "Analytics: Clicks Per Platform shows actual tracked clicks per site, not schedule estimates",
+      "Generated post links include platform tracking (?from=facebook, ?from=x, etc.)"
+    ],
+    "new": [],
+    "added": []
+  },
+  "1.8.4": {
+    "title": "BookPromoter AI v1.8.4 — What's new",
+    "updated": [
+      "Twitter/X link previews: stable /book/.../cover image URL, stronger card meta tags, and X posts keep the book link when trimmed to 280 characters",
+      "Shorter X post captions so the book link is less likely to be cut off"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.8.3": {
     "title": "BookPromoter AI v1.8.3 — What's new",
     "updated": [

@@ -23,6 +23,9 @@ class Book
     // Monthly click history keyed by "yyyy-MM" for trend charts.
     // Updated by RecordClick in AppStore alongside MonthlyClicks.
     public Dictionary<string, int> ClickHistory { get; set; } = [];
+
+    // Monthly clicks by platform (Facebook, X, etc.) keyed by "yyyy-MM".
+    public Dictionary<string, Dictionary<string, int>> PlatformClickHistory { get; set; } = [];
 }
 
 class BookLink

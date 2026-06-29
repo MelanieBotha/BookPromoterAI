@@ -1,0 +1,45 @@
+namespace BookPromoterAI;
+
+static class PlatformClickSource
+{
+    public static string? SlugForPlatform(string? platform)
+    {
+        if (string.IsNullOrWhiteSpace(platform)) return null;
+        var name = platform.Trim();
+        if (name.Equals("General", StringComparison.OrdinalIgnoreCase)) return null;
+
+        if (PostLimits.IsX(name)) return "x";
+        if (PostLimits.IsBluesky(name)) return "bluesky";
+
+        return name.ToLowerInvariant() switch
+        {
+            "facebook" => "facebook",
+            "instagram" => "instagram",
+            "linkedin" => "linkedin",
+            "inkitt" => "inkitt",
+            "pinterest" => "pinterest",
+            "tiktok" => "tiktok",
+            _ => new string(name.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant()
+        };
+    }
+
+    public static string Normalize(string? slugOrName)
+    {
+        if (string.IsNullOrWhiteSpace(slugOrName)) return "Direct";
+
+        var value = slugOrName.Trim().ToLowerInvariant();
+        return value switch
+        {
+            "facebook" or "fb" => "Facebook",
+            "x" or "twitter" => "X",
+            "instagram" or "ig" => "Instagram",
+            "linkedin" => "LinkedIn",
+            "bluesky" => "Bluesky",
+            "inkitt" => "Inkitt",
+            "pinterest" => "Pinterest",
+            "tiktok" => "TikTok",
+            "direct" => "Direct",
+            _ => char.ToUpper(slugOrName.Trim()[0]) + slugOrName.Trim()[1..].ToLowerInvariant()
+        };
+    }
+}

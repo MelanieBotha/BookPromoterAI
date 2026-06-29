@@ -7,6 +7,7 @@ static class SocialCrawler
         "facebookexternalhit",
         "Facebot",
         "Twitterbot",
+        "Twitterbot/1.0",
         "LinkedInBot",
         "Slackbot",
         "WhatsApp",

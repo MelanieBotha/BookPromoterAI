@@ -40,7 +40,37 @@ static class PostLimits
     {
         var max = GetMaxGraphemes(platform);
         if (max is null || GraphemeLength(text) <= max) return text;
+
+        if (IsX(platform) || IsBluesky(platform))
+            return EnforcePreservingTrailingUrl(text, max.Value);
+
         return TruncateToGraphemes(text, max.Value);
+    }
+
+    /// <summary>Keeps the last-line URL intact so X/Bluesky link previews still work after trimming.</summary>
+    static string EnforcePreservingTrailingUrl(string text, int maxGraphemes)
+    {
+        var trimmed = text.TrimEnd();
+        var lastBreak = trimmed.LastIndexOf('\n');
+        if (lastBreak < 0) return TruncateToGraphemes(trimmed, maxGraphemes);
+
+        var body = trimmed[..lastBreak].TrimEnd();
+        var lastLine = trimmed[(lastBreak + 1)..].Trim();
+        if (!lastLine.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+            !lastLine.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            return TruncateToGraphemes(trimmed, maxGraphemes);
+
+        var separator = "\n\n";
+        var reserved = GraphemeLength(lastLine) + GraphemeLength(separator);
+        var bodyBudget = maxGraphemes - reserved;
+        if (bodyBudget < 1)
+            return GraphemeLength(lastLine) <= maxGraphemes ? lastLine : TruncateToGraphemes(lastLine, maxGraphemes, "");
+
+        var shortenedBody = GraphemeLength(body) <= bodyBudget
+            ? body
+            : TruncateToGraphemes(body, bodyBudget, "…");
+
+        return $"{shortenedBody}{separator}{lastLine}";
     }
 
     public static bool IsWithinLimit(string text, string platform)

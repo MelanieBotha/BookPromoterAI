@@ -33,10 +33,11 @@ static class BookRoutes
             book.Links = FileHelpers.ParseLinks(form);
             store.AddBook(book);
             var baseUrl = PublicUrl.Base(request, settings);
-            var purchaseUrl = PostBranding.PurchaseUrlForPost(book, baseUrl);
             var schedule = store.Schedules.FirstOrDefault(s => s.PostsPerWeek > 0);
-            var text = generator.Generate(book, schedule?.Platform ?? "General", purchaseUrl, book.PostVariantSeed, baseUrl);
-            store.RecordGeneratedAd(book, schedule?.Platform ?? "General", text);
+            var platform = schedule?.Platform ?? "General";
+            var purchaseUrl = PostBranding.PurchaseUrlForPost(book, baseUrl, platform);
+            var text = generator.Generate(book, platform, purchaseUrl, book.PostVariantSeed, baseUrl);
+            store.RecordGeneratedAd(book, platform, text);
             return Results.Redirect("/books");
         });
 
@@ -71,10 +72,11 @@ static class BookRoutes
                 book.PostVariantSeed++;
                 store.UpdateBook(book);
                 var baseUrl = PublicUrl.Base(request, settings);
-                var purchaseUrl = PostBranding.PurchaseUrlForPost(book, baseUrl);
                 var schedule = store.Schedules.FirstOrDefault(s => s.PostsPerWeek > 0);
-                var text = generator.Generate(book, schedule?.Platform ?? "General", purchaseUrl, book.PostVariantSeed, baseUrl);
-                store.RecordGeneratedAd(book, schedule?.Platform ?? "General", text);
+                var platform = schedule?.Platform ?? "General";
+                var purchaseUrl = PostBranding.PurchaseUrlForPost(book, baseUrl, platform);
+                var text = generator.Generate(book, platform, purchaseUrl, book.PostVariantSeed, baseUrl);
+                store.RecordGeneratedAd(book, platform, text);
             }
             return Results.Redirect("/dashboard");
         });
@@ -83,25 +85,48 @@ static class BookRoutes
         {
             var appBaseUrl = PublicUrl.Base(http.Request, settings);
             var pageUrl = PostBranding.BookShareUrl(appBaseUrl, trackingCode);
+            var imageSize = ResolveCoverImageSize(store, uploadsDir, trackingCode);
 
             if (SocialCrawler.IsCrawler(request.Headers.UserAgent.ToString()))
             {
                 var book = store.FindBookByTrackingCode(trackingCode);
                 if (book is null) return Results.NotFound("Book not found.");
                 return Results.Content(
-                    PostBranding.RenderCrawlerPreviewHtml(book, pageUrl, appBaseUrl),
+                    PostBranding.RenderCrawlerPreviewHtml(book, pageUrl, appBaseUrl, imageSize),
                     "text/html");
             }
 
-            var clicked = store.RecordClick(trackingCode);
+            var clicked = store.RecordClick(trackingCode, request.Query["from"].ToString());
             if (clicked is null) return Results.NotFound("Book not found.");
             var description = string.IsNullOrWhiteSpace(clicked.Description)
                 ? $"Discover {clicked.Title} by {clicked.AuthorName}"
                 : H.LimitWords(clicked.Description, 40);
-            var ogMeta = PostBranding.BuildBookShareMeta(clicked, pageUrl, appBaseUrl);
+            var ogMeta = PostBranding.BuildBookShareMeta(clicked, pageUrl, appBaseUrl, imageSize);
             return Results.Content(
                 H.RenderMarketingPage(http, clicked.Title, PublicBookPage.Render(clicked, appBaseUrl, appBaseUrl), store, ogMeta, description),
                 "text/html");
+        });
+
+        app.MapGet("/book/{trackingCode}/cover", (string trackingCode, AppStoreDb store) =>
+        {
+            var book = store.FindBookByTrackingCode(trackingCode);
+            if (book is null || string.IsNullOrWhiteSpace(book.CoverImageUrl))
+                return Results.NotFound("Cover not found.");
+
+            if (book.CoverImageUrl.StartsWith("/uploads/", StringComparison.OrdinalIgnoreCase))
+            {
+                var path = Path.Combine(uploadsDir, Path.GetFileName(book.CoverImageUrl));
+                if (!File.Exists(path)) return Results.NotFound("Cover not found.");
+                var info = CoverImageInfo.TryGetLocal(uploadsDir, book.CoverImageUrl);
+                var contentType = info?.ContentType ?? "image/jpeg";
+                return Results.File(path, contentType);
+            }
+
+            if (book.CoverImageUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                book.CoverImageUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                return Results.Redirect(book.CoverImageUrl);
+
+            return Results.NotFound("Cover not found.");
         });
 
         app.MapGet("/go/{trackingCode}", (string trackingCode, AppStoreDb store) =>
@@ -113,5 +138,14 @@ static class BookRoutes
                 ? Results.NotFound("No valid purchase link.")
                 : Results.Redirect(destination);
         });
+    }
+
+    static (int Width, int Height)? ResolveCoverImageSize(AppStoreDb store, string uploadsDir, string trackingCode)
+    {
+        var book = store.FindBookByTrackingCode(trackingCode);
+        if (book is null) return null;
+        var info = CoverImageInfo.TryGetLocal(uploadsDir, book.CoverImageUrl);
+        if (info is null || info.Value.Width <= 0 || info.Value.Height <= 0) return null;
+        return (info.Value.Width, info.Value.Height);
     }
 }

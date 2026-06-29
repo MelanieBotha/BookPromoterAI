@@ -19,7 +19,7 @@ static class DashboardPage
             {
                 bookStats.Append($"""
                     <div>
-                        <span>{book.MonthlyClicks}</span>
+                        <span>{ClickAnalytics.ClicksThisMonth(book)}</span>
                         <small>{H.Encode(book.Title)}</small>
                         <p class="stat-sub">clicks this month</p>
                     </div>
@@ -27,8 +27,8 @@ static class DashboardPage
             }
         }
 
-        var totalClicks = store.Books.Sum(b => b.MonthlyClicks);
-        var topBook = store.Books.OrderByDescending(b => b.MonthlyClicks).FirstOrDefault()?.Title ?? "None yet";
+        var totalClicksThisMonth = ClickAnalytics.TotalClicksThisMonth(store.Books);
+        var topBookTitle = ClickAnalytics.TopBookThisMonth(store.Books)?.Title ?? "None yet";
 
         var bookCards = new StringBuilder();
         if (store.Books.Count == 0)
@@ -112,8 +112,8 @@ static class DashboardPage
             <section class="stats">
                 <div><span>{store.Books.Count}</span><small>Books</small></div>
                 <div><span>{totalPostsPerWeek}</span><small>Posts per week</small></div>
-                <div><span>{totalClicks}</span><small>Total monthly clicks</small></div>
-                <div><span>{H.Encode(topBook)}</span><small>Top book</small></div>
+                <div><span>{totalClicksThisMonth}</span><small>Total clicks this month</small></div>
+                <div><span>{H.Encode(topBookTitle)}</span><small>Top book this month</small></div>
             </section>
 
             <section class="panel">
@@ -131,9 +131,9 @@ static class DashboardPage
     static string BookCard(AppStoreDb store, PostGenerator generator, HttpRequest request, AppSettings settings, Book book)
     {
         var baseUrl = PublicUrl.Base(request, settings);
-        var purchaseUrl = PostBranding.PurchaseUrlForPost(book, baseUrl);
         var schedule = store.Schedules.FirstOrDefault(s => s.PostsPerWeek > 0);
         var platform = schedule?.Platform ?? "General";
+        var purchaseUrl = PostBranding.PurchaseUrlForPost(book, baseUrl, platform);
         var text = generator.Generate(book, platform, purchaseUrl, book.PostVariantSeed, baseUrl);
         var cover = string.IsNullOrWhiteSpace(book.CoverImageUrl)
             ? """<div class="cover-placeholder large">No cover</div>"""
@@ -145,7 +145,7 @@ static class DashboardPage
                 <div class="post-card-header">
                     <div>
                         <strong>{H.Encode(book.Title)}</strong>
-                        <small>{book.MonthlyClicks} clicks this month</small>
+                        <small>{ClickAnalytics.ClicksThisMonth(book)} clicks this month</small>
                     </div>
                 </div>
                 <p class="platform-tag">{H.Encode(platform)}</p>
