@@ -281,7 +281,7 @@ static class OwnerPage
             <details class="owner-collapsible" id="owner-section-access-codes"{open("access-codes")}>
                 <summary class="owner-collapsible-heading">Access Codes (30-Day Access)</summary>
                 <div class="panel owner-settings">
-                    <p class="muted">Available and redeemed 30-day access codes. Delete removes the code and revokes access if it was redeemed.</p>
+                    <p class="muted">Available and active 30-day trial codes only. Users who upgrade to a paid or lifetime plan are removed from this list automatically.</p>
                     <div class="promo-table promo-table-actions">
                         <div class="promo-header">
                             <strong>Code</strong>
@@ -417,7 +417,7 @@ static class OwnerPage
             <details class="owner-collapsible" id="owner-section-{sectionId}"{SectionOpen(sectionId, activeSection)}>
                 <summary class="owner-collapsible-heading">{H.Encode(plan.Name)} Tier (${plan.MonthlyFee:0.00}/mo)</summary>
                 <div class="panel owner-settings">
-                    <p class="muted">Active subscribers on the {H.Encode(plan.Name)} plan (up to {PromoConstants.MaxVisiblePromoCodes}). Limits: {H.Encode(plan.BookLimitText)} books / {H.Encode(plan.SocialAccountLimitText)} accounts.</p>
+                    <p class="muted">Active subscribers on the {H.Encode(plan.Name)} plan (up to {PromoConstants.MaxVisiblePromoCodes}). Free trials and lifetime members are listed in their own sections above. Limits: {H.Encode(plan.BookLimitText)} books / {H.Encode(plan.SocialAccountLimitText)} accounts.</p>
                     <div class="promo-table">
                         <div class="promo-header">
                             <strong>Email</strong>

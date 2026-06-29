@@ -836,16 +836,13 @@ class AppStoreDb
             .ToList()
             .Select(ToModel)
             .ToList();
-        var redeemedQuery = db.PromoCodes.AsNoTracking().Where(p => !p.IsLifetimeFree && p.IsRedeemed);
-        var redeemedTotal = redeemedQuery.Count();
-        var redeemed = redeemedQuery
-            .OrderByDescending(p => p.RedeemedAt)
-            .ThenByDescending(p => p.Id)
+
+        var redeemed = FilterRedeemedAccessCodes(db);
+        var redeemedTotal = redeemed.Count;
+        var visible = redeemed
             .Take(PromoConstants.MaxVisiblePromoCodes)
-            .ToList()
-            .Select(ToModel)
             .ToList();
-        return (available, redeemed, redeemedTotal);
+        return (available, visible, redeemedTotal);
     }
 
     public (List<PromoCode> Available, List<PromoCode> Redeemed, int RedeemedTotal) GetLifetimeCodesForDisplay()
@@ -857,30 +854,37 @@ class AppStoreDb
             .ToList()
             .Select(ToModel)
             .ToList();
-        var redeemedQuery = db.PromoCodes.AsNoTracking().Where(p => p.IsLifetimeFree && p.IsRedeemed);
-        var redeemedTotal = redeemedQuery.Count();
-        var redeemed = redeemedQuery
-            .OrderByDescending(p => p.RedeemedAt)
-            .ThenByDescending(p => p.Id)
+
+        var redeemed = FilterRedeemedLifetimeCodes(db);
+        var redeemedTotal = redeemed.Count;
+        var visible = redeemed
             .Take(PromoConstants.MaxVisiblePromoCodes)
-            .ToList()
-            .Select(ToModel)
             .ToList();
-        return (available, redeemed, redeemedTotal);
+        return (available, visible, redeemedTotal);
     }
 
     public (List<OwnerPlanMember> Visible, int TotalCount) GetPlanMembersForDisplay(string planId)
     {
         var ownerEmail = OwnerAccount.NormalizedEmail;
         using var db = Db();
-        var query = db.Users.AsNoTracking()
+        var paidUserIds = db.Subscriptions.AsNoTracking()
+            .Where(s => s.PromoCodeUsed.StartsWith("Paid ("))
+            .Select(s => s.UserId)
+            .Distinct()
+            .ToHashSet();
+
+        var members = db.Users.AsNoTracking()
             .Where(u => u.CurrentPlanId == planId
                 && u.HasCustomerAccess
                 && u.Email != ownerEmail
-                && u.AccessType != "Owner");
-        var total = query.Count();
-        var visible = query
+                && u.AccessType != "Owner")
             .OrderByDescending(u => u.Id)
+            .ToList()
+            .Where(u => IsPaidPlanMember(u, paidUserIds))
+            .ToList();
+
+        var total = members.Count;
+        var visible = members
             .Take(PromoConstants.MaxVisiblePromoCodes)
             .Select(u => new OwnerPlanMember
             {
@@ -892,6 +896,82 @@ class AppStoreDb
             })
             .ToList();
         return (visible, total);
+    }
+
+    static List<PromoCode> FilterRedeemedAccessCodes(AppDbContext db)
+    {
+        var promos = db.PromoCodes.AsNoTracking()
+            .Where(p => !p.IsLifetimeFree && p.IsRedeemed)
+            .OrderByDescending(p => p.RedeemedAt)
+            .ThenByDescending(p => p.Id)
+            .ToList();
+
+        var results = new List<PromoCode>();
+        foreach (var promo in promos)
+        {
+            var user = FindPromoRedeemer(db, promo);
+            if (user is not null && IsActiveFreeTrialUser(user))
+                results.Add(ToModel(promo));
+        }
+        return results;
+    }
+
+    static List<PromoCode> FilterRedeemedLifetimeCodes(AppDbContext db)
+    {
+        var promos = db.PromoCodes.AsNoTracking()
+            .Where(p => p.IsLifetimeFree && p.IsRedeemed)
+            .OrderByDescending(p => p.RedeemedAt)
+            .ThenByDescending(p => p.Id)
+            .ToList();
+
+        var results = new List<PromoCode>();
+        foreach (var promo in promos)
+        {
+            var user = FindPromoRedeemer(db, promo);
+            if (user is not null && IsActiveLifetimeUser(user))
+                results.Add(ToModel(promo));
+        }
+        return results;
+    }
+
+    static DbUser? FindPromoRedeemer(AppDbContext db, DbPromoCode promo)
+    {
+        var email = promo.RedeemedByEmail?.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(email))
+            email = promo.IntendedRecipientEmail?.Trim().ToLowerInvariant();
+        return string.IsNullOrWhiteSpace(email)
+            ? null
+            : db.Users.AsNoTracking().FirstOrDefault(u => u.Email == email);
+    }
+
+    static bool IsActiveFreeTrialUser(DbUser user) =>
+        user.HasCustomerAccess && user.AccessType == "Free Trial";
+
+    static bool IsActiveLifetimeUser(DbUser user) =>
+        user.HasCustomerAccess && user.AccessType == "Lifetime Free (Publisher)";
+
+    static bool IsPaidPlanMember(DbUser user, HashSet<int> paidUserIds)
+    {
+        if (user.AccessType is "Free Trial" or "Lifetime Free (Publisher)" or "No Access Selected")
+            return false;
+
+        if (!string.IsNullOrWhiteSpace(user.StripeSubscriptionId) || !string.IsNullOrWhiteSpace(user.PayPalSubscriptionId))
+            return user.AccessType.EndsWith(" Subscription", StringComparison.Ordinal);
+
+        return paidUserIds.Contains(user.Id) && user.AccessType.EndsWith(" Subscription", StringComparison.Ordinal);
+    }
+
+    static void FinalizeTrialGraduation(DbUser user, AppDbContext db)
+    {
+        var trialPromos = db.PromoCodes
+            .Where(p => !p.IsLifetimeFree && p.IsRedeemed && p.RedeemedByEmail == user.Email)
+            .ToList();
+        db.PromoCodes.RemoveRange(trialPromos);
+
+        var trialSubs = db.Subscriptions
+            .Where(s => s.UserId == user.Id && !s.PromoCodeUsed.StartsWith("Paid ("))
+            .ToList();
+        db.Subscriptions.RemoveRange(trialSubs);
     }
 
     static string DescribePlanMemberBilling(DbUser u)
@@ -1336,9 +1416,15 @@ class AppStoreDb
 
         if (hasSubscription && promo.IsLifetimeFree)
         {
-            var latest = db.Subscriptions.Where(s => s.UserId == user.Id).OrderByDescending(s => s.TrialStartedAt).First();
-            latest.TrialEndsAt = DateTime.MaxValue;
-            latest.PromoCodeUsed = promo.Code;
+            FinalizeTrialGraduation(user, db);
+            db.Subscriptions.Add(new DbSubscription
+            {
+                UserId = user.Id,
+                Email = cleanEmail,
+                TrialStartedAt = DateTime.UtcNow,
+                TrialEndsAt = DateTime.MaxValue,
+                PromoCodeUsed = promo.Code
+            });
         }
         else
         {
@@ -1389,6 +1475,7 @@ class AppStoreDb
         if (paymentError is not null) return new(false, paymentError);
 
         ApplyPaymentInput(user, payment);
+        FinalizeTrialGraduation(user, db);
         db.Subscriptions.Add(new DbSubscription { UserId = user.Id, Email = cleanEmail, TrialStartedAt = DateTime.UtcNow, TrialEndsAt = DateTime.UtcNow.AddMonths(1), PromoCodeUsed = $"Paid ({plan.Name})" });
         user.HasCustomerAccess = true; user.AccessType = $"{plan.Name} Subscription"; user.CurrentPlanId = plan.Id; user.IsCancelled = false; user.SubscriptionEndsAt = DateTime.UtcNow.AddMonths(1);
         db.SaveChanges();
@@ -1439,6 +1526,8 @@ class AppStoreDb
         if (plan is null) return false;
         var user = db.Users.Find(userId);
         if (user is null) return false;
+
+        FinalizeTrialGraduation(user, db);
 
         user.HasCustomerAccess = true;
         user.AccessType = $"{plan.Name} Subscription";
