@@ -2002,6 +2002,16 @@ class AppStoreDb
         return new BookPostMedia(cover, trackingCode, ad.BookTitle, baseUrl);
     }
 
+    BrandPostMedia BuildBrandPostMedia(string appBaseUrl)
+    {
+        var baseUrl = appBaseUrl.TrimEnd('/');
+        if (string.IsNullOrWhiteSpace(baseUrl))
+            baseUrl = _settings.PublicBaseUrl.TrimEnd('/');
+        if (string.IsNullOrWhiteSpace(baseUrl))
+            baseUrl = "https://bookpromoterai.us";
+        return new BrandPostMedia(baseUrl);
+    }
+
     public static string? FormatNextAutoPostHint(SocialSchedule? schedule)
     {
         if (schedule is null || !schedule.AutoPostEnabled || schedule.PostsPerWeek <= 0)
@@ -2124,8 +2134,17 @@ class AppStoreDb
                 ?? "";
             if (string.IsNullOrWhiteSpace(postText)) continue;
 
-            var outcome = await postingService.PostAsync(ToModel(account), postText);
+            var outcome = await postingService.PostAsync(
+                ToModel(account),
+                postText,
+                brandMedia: BuildBrandPostMedia(appBaseUrl));
             var result = outcome.Result;
+            if (!string.IsNullOrWhiteSpace(outcome.AccessToken))
+            {
+                account.AccessToken = outcome.AccessToken;
+                if (!string.IsNullOrWhiteSpace(outcome.RefreshToken))
+                    account.RefreshToken = outcome.RefreshToken;
+            }
             db.PostingLog.Add(new DbPostingLogEntry
             {
                 UserId = owner.Id,
@@ -2206,7 +2225,10 @@ class AppStoreDb
                 {
                     var text = socialPosts.GetValueOrDefault(account.Platform)
                         ?? AppPromoGenerator.GenerateUpdatePost(account.Platform, ToProductUpdate(update), appBaseUrl);
-                    var outcome = await postingService.PostAsync(ToModel(account), text);
+                    var outcome = await postingService.PostAsync(
+                        ToModel(account),
+                        text,
+                        brandMedia: BuildBrandPostMedia(appBaseUrl));
                     var result = outcome.Result;
                     if (!string.IsNullOrWhiteSpace(outcome.AccessToken))
                     {

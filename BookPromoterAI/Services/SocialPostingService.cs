@@ -25,10 +25,11 @@ class SocialPostingService
         SocialAccount account,
         string postText,
         BookPostMedia? media = null,
+        BrandPostMedia? brandMedia = null,
         CancellationToken cancellationToken = default)
     {
         if (PostLimits.IsBluesky(account.Platform) && account.IsLiveConnection)
-            return await PostToBlueskyLive(account, postText, media, cancellationToken);
+            return await PostToBlueskyLive(account, postText, media, brandMedia, cancellationToken);
 
         var result = account.Platform.ToLowerInvariant() switch
         {
@@ -48,6 +49,7 @@ class SocialPostingService
         SocialAccount account,
         string postText,
         BookPostMedia? media,
+        BrandPostMedia? brandMedia,
         CancellationToken cancellationToken)
     {
         if (!PostLimits.IsWithinLimit(postText, "Bluesky"))
@@ -65,9 +67,7 @@ class SocialPostingService
         BlueskyImageAttachment? image = null;
         if (media is not null)
         {
-            var baseUrl = string.IsNullOrWhiteSpace(media.AppBaseUrl)
-                ? "https://bookpromoterai.us"
-                : media.AppBaseUrl.TrimEnd('/');
+            var baseUrl = ResolveBaseUrl(media.AppBaseUrl);
             image = await BookCoverLoader.TryLoadAsync(
                 _http,
                 _uploads.Path,
@@ -75,6 +75,13 @@ class SocialPostingService
                 media.BookTitle,
                 media.CoverImageUrl,
                 media.TrackingCode,
+                cancellationToken);
+        }
+        else if (brandMedia is not null)
+        {
+            image = await BrandLogoLoader.TryLoadAsync(
+                _http,
+                ResolveBaseUrl(brandMedia.AppBaseUrl),
                 cancellationToken);
         }
 
@@ -91,6 +98,12 @@ class SocialPostingService
             AccessToken = updated?.AccessJwt,
             RefreshToken = updated?.RefreshJwt
         };
+    }
+
+    static string ResolveBaseUrl(string? appBaseUrl)
+    {
+        var baseUrl = appBaseUrl?.TrimEnd('/');
+        return string.IsNullOrWhiteSpace(baseUrl) ? "https://bookpromoterai.us" : baseUrl;
     }
 
     async Task<PostingResult> PostToFacebook(SocialAccount account, string postText)
