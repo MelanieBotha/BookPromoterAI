@@ -162,7 +162,10 @@ static class MyAccountPage
             foreach (var (value, _) in group)
             {
                 var sel = value.Equals(currentPlatform, StringComparison.OrdinalIgnoreCase) ? "selected" : "";
-                options.Append($"""<option value="{H.Encode(value)}" {sel}>{H.Encode(value)}</option>""");
+                if (SocialConnectHelper.IsPlatformDisabled(value))
+                    options.Append(SocialConnectHelper.RenderPlatformOption(value));
+                else
+                    options.Append($"""<option value="{H.Encode(value)}" {sel}>{H.Encode(value)}</option>""");
             }
             options.Append("</optgroup>");
         }

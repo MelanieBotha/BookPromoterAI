@@ -392,6 +392,7 @@ h2{font-size:22px}
 .post-card-cover .book-cover.large,.post-card-cover .cover-placeholder.large{width:100%;height:180px}
 .post-card-header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
 .connect-buttons{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}
+.button.platform-disabled,.platform-disabled{display:inline-block;opacity:0.45;cursor:not-allowed;filter:grayscale(1);background:#888!important}
 .post-card-header div{display:flex;flex-direction:column;gap:2px}
 .copy-source{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;left:-9999px}
 .post-card-actions{display:flex;gap:8px;margin-top:8px}

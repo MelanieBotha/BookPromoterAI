@@ -109,7 +109,7 @@ static class SchedulePage
         {
             dropdownOptions.Append($"""<optgroup label="{H.Encode(group.Key)}">""");
             foreach (var (value, _) in group)
-                dropdownOptions.Append($"""<option value="{H.Encode(value)}">{H.Encode(value)}</option>""");
+                dropdownOptions.Append(SocialConnectHelper.RenderPlatformOption(value));
             dropdownOptions.Append("</optgroup>");
         }
         dropdownOptions.Append("""<option value="__custom__">Other (type your own)...</option>""");

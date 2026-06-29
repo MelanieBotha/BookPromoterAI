@@ -22,6 +22,8 @@ static class SocialAccountRoutes
             var platform = form["platform"].ToString();
             var customPlatform = form["customPlatform"].ToString().Trim();
             var finalPlatform = platform == "__custom__" && !string.IsNullOrWhiteSpace(customPlatform) ? customPlatform : platform;
+            if (SocialConnectHelper.IsPlatformDisabled(finalPlatform))
+                return Results.Redirect(SocialConnectHelper.ResolveReturnUrl(request, form["return"].ToString()));
             store.AddSocialAccount(new SocialAccount { Platform = finalPlatform, DisplayName = form["displayName"].ToString(), Handle = form["handle"].ToString(), IsConnected = true });
             store.AddSchedule(new SocialSchedule { Platform = finalPlatform, PostsPerWeek = 1, RequiresApproval = true });
             return Results.Redirect(SocialConnectHelper.ResolveReturnUrl(request, form["return"].ToString()));
@@ -36,6 +38,8 @@ static class SocialAccountRoutes
             var platform = form["platform"].ToString();
             var customPlatform = form["customPlatform"].ToString().Trim();
             var finalPlatform = platform == "__custom__" && !string.IsNullOrWhiteSpace(customPlatform) ? customPlatform : platform;
+            if (SocialConnectHelper.IsPlatformDisabled(finalPlatform))
+                return Results.Redirect(SocialConnectHelper.ResolveReturnUrl(request, form["return"].ToString()));
             account.Platform = finalPlatform;
             account.DisplayName = form["displayName"].ToString();
             account.Handle = form["handle"].ToString();
@@ -57,6 +61,8 @@ static class SocialAccountRoutes
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
             if (store.CheckSocialAccountLimit() is not null) return Results.Redirect(SocialConnectHelper.ResolveReturnUrl(request));
             var platformName = Uri.UnescapeDataString(platform);
+            if (SocialConnectHelper.IsPlatformDisabled(platformName))
+                return Results.Redirect(SocialConnectHelper.ResolveReturnUrl(request));
             var returnUrl = SocialConnectHelper.ResolveReturnUrl(request);
             return Results.Content(
                 H.RenderPage(http, $"Connect {platformName}", SocialConnectHelper.OAuthAuthorizePage(platformName, returnUrl), store),
@@ -69,6 +75,8 @@ static class SocialAccountRoutes
             if (store.CheckSocialAccountLimit() is not null) return Results.Redirect(SocialConnectHelper.ResolveReturnUrl(request));
             var platformName = Uri.UnescapeDataString(platform);
             var form = await request.ReadFormAsync();
+            if (SocialConnectHelper.IsPlatformDisabled(platformName))
+                return Results.Redirect(SocialConnectHelper.ResolveReturnUrl(request, form["return"].ToString()));
             var simulatedToken = $"SIMULATED-{platformName.ToUpperInvariant()}-{Guid.NewGuid():N}";
             store.AddSocialAccount(new SocialAccount
             {
