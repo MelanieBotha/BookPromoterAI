@@ -373,10 +373,7 @@ class AppStoreDb
     {
         var uid = CurrentUserId();
         var now = DateTime.UtcNow;
-        var weekNum = System.Globalization.ISOWeek.GetWeekOfYear(now);
-        var weekYear = System.Globalization.ISOWeek.GetYear(now);
-        var weekStart = System.Globalization.ISOWeek.ToDateTime(weekYear, weekNum, DayOfWeek.Monday);
-        var weekLabel = $"Week {weekNum} \u2013 {weekStart:MMM d} to {weekStart.AddDays(6):MMM d}";
+        var (weekNum, weekYear, weekLabel) = AdWeek.For(now);
         using var db = Db();
         var ad = new DbGeneratedAd { UserId = uid, BookId = book.Id, BookTitle = book.Title, CoverImageUrl = book.CoverImageUrl, Platform = platform, PostText = postText, GeneratedAt = now, WeekNumber = weekNum, WeekYear = weekYear, WeekLabel = weekLabel };
         db.GeneratedAds.Add(ad);
@@ -400,16 +397,7 @@ class AppStoreDb
         if (ad is null) return null;
         var book = db.Books.Include(b => b.Links).FirstOrDefault(b => b.Id == ad.BookId && b.UserId == uid);
         if (book is null) return null;
-
-        book.PostVariantSeed++;
-        var model = ToModel(book);
-        var purchaseUrl = PostBranding.PurchaseUrlForPost(model, baseUrl);
-        var text = generator.Generate(model, ad.Platform, purchaseUrl, book.PostVariantSeed, baseUrl);
-        ad.PostText = text;
-        ad.CoverImageUrl = book.CoverImageUrl;
-        ad.BookTitle = book.Title;
-        ad.GeneratedAt = DateTime.UtcNow;
-        ad.ApprovedForPosting = false;
+        RefreshGeneratedAdEntity(ad, book, generator, baseUrl);
         db.SaveChanges();
         return adId;
     }
@@ -435,40 +423,85 @@ class AppStoreDb
 
     public List<GeneratedAd> GenerateWeeklyPosts(PostGenerator generator, string baseUrl)
     {
-        var newAds = new List<GeneratedAd>();
+        var touched = new List<GeneratedAd>();
         var books = Books;
-        var schedules = Schedules;
-        if (books.Count == 0 || schedules.Count == 0) return newAds;
+        var activeSchedules = Schedules.Where(s => s.PostsPerWeek > 0).ToList();
+        if (books.Count == 0 || activeSchedules.Count == 0) return touched;
 
         var now = DateTime.UtcNow;
-        var currentWeek = System.Globalization.ISOWeek.GetWeekOfYear(now);
-        var currentYear = System.Globalization.ISOWeek.GetYear(now);
-
+        var (currentWeek, currentYear, weekLabel) = AdWeek.For(now);
         var uid = CurrentUserId();
+
         using var db = Db();
-        var postsThisWeekByPlatform = db.GeneratedAds
+        var booksById = db.Books.Include(b => b.Links).Where(b => b.UserId == uid).ToDictionary(b => b.Id);
+        var weekAds = db.GeneratedAds
             .Where(a => a.UserId == uid && a.WeekNumber == currentWeek && a.WeekYear == currentYear)
+            .ToList();
+
+        foreach (var ad in weekAds)
+        {
+            if (ad.ApprovedForPosting || ad.PostStatus == "Posted") continue;
+            if (!booksById.TryGetValue(ad.BookId, out var book)) continue;
+            RefreshGeneratedAdEntity(ad, book, generator, baseUrl);
+            ad.WeekLabel = weekLabel;
+            touched.Add(ToModel(ad));
+        }
+
+        var postsThisWeekByPlatform = weekAds
             .GroupBy(a => a.Platform)
             .ToDictionary(g => g.Key, g => g.Count());
 
         var bookIndex = 0;
-        foreach (var schedule in schedules.Where(s => s.PostsPerWeek > 0))
+        foreach (var schedule in activeSchedules)
         {
             var existingCount = postsThisWeekByPlatform.GetValueOrDefault(schedule.Platform, 0);
             var needed = schedule.PostsPerWeek - existingCount;
             if (needed <= 0) continue;
+
             for (var i = 0; i < needed; i++)
             {
-                var book = books[bookIndex % books.Count];
-                book.PostVariantSeed++;
-                UpdateBook(book);
-                var purchaseUrl = PostBranding.PurchaseUrlForPost(book, baseUrl);
-                var text = generator.Generate(book, schedule.Platform, purchaseUrl, book.PostVariantSeed, baseUrl);
-                newAds.Add(RecordGeneratedAd(book, schedule.Platform, text));
+                var bookModel = books[bookIndex % books.Count];
+                if (!booksById.TryGetValue(bookModel.Id, out var dbBook)) { bookIndex++; continue; }
+
+                dbBook.PostVariantSeed++;
+                var refreshedModel = ToModel(dbBook);
+                var purchaseUrl = PostBranding.PurchaseUrlForPost(refreshedModel, baseUrl);
+                var text = generator.Generate(refreshedModel, schedule.Platform, purchaseUrl, dbBook.PostVariantSeed, baseUrl);
+                var created = new DbGeneratedAd
+                {
+                    UserId = uid,
+                    BookId = dbBook.Id,
+                    BookTitle = dbBook.Title,
+                    CoverImageUrl = dbBook.CoverImageUrl,
+                    Platform = schedule.Platform,
+                    PostText = text,
+                    GeneratedAt = now,
+                    WeekNumber = currentWeek,
+                    WeekYear = currentYear,
+                    WeekLabel = weekLabel
+                };
+                db.GeneratedAds.Add(created);
+                weekAds.Add(created);
+                postsThisWeekByPlatform[schedule.Platform] = postsThisWeekByPlatform.GetValueOrDefault(schedule.Platform, 0) + 1;
+                touched.Add(ToModel(created));
                 bookIndex++;
             }
         }
-        return newAds;
+
+        db.SaveChanges();
+        return touched;
+    }
+
+    static void RefreshGeneratedAdEntity(DbGeneratedAd ad, DbBook book, PostGenerator generator, string baseUrl)
+    {
+        book.PostVariantSeed++;
+        var model = ToModel(book);
+        var purchaseUrl = PostBranding.PurchaseUrlForPost(model, baseUrl);
+        ad.PostText = generator.Generate(model, ad.Platform, purchaseUrl, book.PostVariantSeed, baseUrl);
+        ad.CoverImageUrl = book.CoverImageUrl;
+        ad.BookTitle = book.Title;
+        ad.GeneratedAt = DateTime.UtcNow;
+        ad.ApprovedForPosting = false;
     }
 
     // ── Posting Log ────────────────────────────────────────────────────

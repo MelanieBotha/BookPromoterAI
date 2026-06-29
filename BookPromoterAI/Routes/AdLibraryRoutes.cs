@@ -10,7 +10,7 @@ static class AdLibraryRoutes
             var search = request.Query["search"].ToString();
             var focus = request.Query["focus"].ToString();
             var notice = request.Query["generated"] == "1"
-                ? """<div class="notice success">This week's posts have been generated.</div>"""
+                ? """<div class="notice success">This week's unapproved posts have been refreshed with the latest captions and book links. Approved posts were left unchanged.</div>"""
                 : request.Query["regenerated"] == "1"
                     ? """<div class="notice success">Post regenerated.</div>"""
                     : request.Query["approved"] == "1"

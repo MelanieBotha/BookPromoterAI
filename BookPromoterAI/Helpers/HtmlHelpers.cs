@@ -395,6 +395,13 @@ h2{font-size:22px}
 @media(max-width:700px){.public-book-hero{grid-template-columns:1fr}}
 .post-card-cover{margin-bottom:10px}
 .post-card-cover .book-cover.large,.post-card-cover .cover-placeholder.large{width:100%;height:180px}
+.ad-week-collapsible{margin-bottom:12px;border-radius:8px;overflow:hidden;border:1px solid var(--line);background:var(--panel)}
+.ad-week-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;background:var(--soft);font-size:15px;font-weight:700;cursor:pointer;list-style:none;user-select:none}
+.ad-week-heading::-webkit-details-marker{display:none}
+.ad-week-heading::after{content:"▼";font-size:11px;color:var(--muted);transition:transform 0.2s;flex:0 0 auto}
+details[open].ad-week-collapsible .ad-week-heading::after{transform:rotate(180deg)}
+.ad-week-count{font-size:13px;font-weight:600;color:var(--muted)}
+.ad-week-body{padding:14px 18px 18px}
 .post-card-header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
 .connect-buttons{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}
 .button.platform-disabled,.platform-disabled{display:inline-block;opacity:0.45;cursor:not-allowed;filter:grayscale(1);background:#888!important}

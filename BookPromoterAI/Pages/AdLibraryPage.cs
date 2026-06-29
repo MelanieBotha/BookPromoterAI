@@ -15,10 +15,11 @@ static class AdLibraryPage
                 a.PostText.Contains(search, StringComparison.OrdinalIgnoreCase));
         }
 
+        var allAds = filtered.ToList();
         var now = DateTime.UtcNow;
-        var monthAds = filtered.Where(a => a.GeneratedAt.Year == now.Year && a.GeneratedAt.Month == now.Month).ToList();
+        var (currentWeek, currentYear, currentWeekLabel) = AdWeek.For(now);
 
-        var byWeek = monthAds
+        var byWeek = allAds
             .GroupBy(a => (a.WeekYear, a.WeekNumber, a.WeekLabel))
             .OrderByDescending(g => g.Key.WeekYear)
             .ThenByDescending(g => g.Key.WeekNumber)
@@ -31,8 +32,8 @@ static class AdLibraryPage
                 <section class="panel">
                     <p class="muted">
                         {(string.IsNullOrWhiteSpace(search)
-                            ? "No posts generated this month yet. Click \"Generate This Week's Posts\" to create your first batch."
-                            : $"No posts matched \"{H.Encode(search)}\" this month.")}
+                            ? "No posts yet. Click \"Generate This Week's Posts\" to create your first batch."
+                            : $"No posts matched \"{H.Encode(search)}\".")}
                     </p>
                 </section>
                 """);
@@ -43,75 +44,30 @@ static class AdLibraryPage
             var cards = new StringBuilder();
             foreach (var ad in week.OrderByDescending(a => a.GeneratedAt))
             {
-                var book = store.Books.FirstOrDefault(b => b.Id == ad.BookId);
-                var coverPath = !string.IsNullOrWhiteSpace(book?.CoverImageUrl) ? book!.CoverImageUrl : ad.CoverImageUrl;
-                var coverSrc = PostBranding.AbsoluteImageUrl(appBaseUrl, coverPath);
-                var cover = string.IsNullOrWhiteSpace(coverPath)
-                    ? """<div class="cover-placeholder large">No cover</div>"""
-                    : $"""<img class="book-cover large" src="{H.Encode(coverSrc)}" alt="{H.Encode(ad.BookTitle)} cover">""";
-
-                var searchField = string.IsNullOrWhiteSpace(search) ? "" : $"""<input type="hidden" name="search" value="{H.Encode(search)}">""";
-                var regenButton = book is not null
-                    ? $"""<form method="post" action="/ad-library/regenerate/{ad.Id}">{searchField}<button class="button secondary small" type="submit">Regenerate</button></form>"""
-                    : """<p class="muted small-text">Book removed.</p>""";
-
-                // Post text is stored in a hidden textarea (preserves exact
-                // text/line breaks) and copied to the clipboard via JS.
-                var copyId = $"post-text-{ad.Id}";
-
-                // Status badge reflects auto-posting state: Pending (awaiting
-                // schedule or approval), Posted (sent), Failed (API error).
-                var statusClass = ad.PostStatus switch
-                {
-                    "Posted" => "available",
-                    "Failed" => "used",
-                    _ => "used"
-                };
-                var statusBadge = $"""<span class="status {statusClass}">{H.Encode(ad.PostStatus)}</span>""";
-
-                var schedule = store.Schedules.FirstOrDefault(s => s.Platform.Equals(ad.Platform, StringComparison.OrdinalIgnoreCase));
-                var needsApproval = (schedule?.RequiresApproval ?? false) && ad.PostStatus == "Pending";
-                var approveButton = needsApproval
-                    ? ad.ApprovedForPosting
-                        ? """<span class="status available small-text">Approved</span>"""
-                        : $"""<form method="post" action="/ad-library/approve/{ad.Id}">{searchField}<button class="button small" type="submit">Approve for Auto-Post</button></form>"""
-                    : "";
-
-                var charCount = PostLimits.CharacterCountLabel(ad.Platform, ad.PostText);
-                var focusClass = focus == $"ad-{ad.Id}" ? " post-card-focused" : "";
-                cards.Append($"""
-                    <article class="post-card{focusClass}" id="ad-{ad.Id}">
-                        <div class="post-card-cover">{cover}</div>
-                        <div class="post-card-header">
-                            <div>
-                                <strong>{H.Encode(ad.BookTitle)}</strong>
-                                <small>{ad.GeneratedAt:ddd MMM d, HH:mm} UTC</small>
-                            </div>
-                            {statusBadge}
-                        </div>
-                        <p class="platform-tag">{H.Encode(ad.Platform)}{charCount}</p>
-                        <p>{H.Encode(ad.PostText)}</p>
-                        <textarea id="{copyId}" class="copy-source" readonly>{H.Encode(ad.PostText)}</textarea>
-                        <div class="post-card-actions">
-                            <button class="button secondary small copy-button" type="button" onclick="copyPostText('{copyId}', this)">Copy post</button>
-                            {regenButton}
-                            {approveButton}
-                        </div>
-                    </article>
-                    """);
+                cards.Append(RenderPostCard(store, ad, appBaseUrl, search, focus));
             }
 
+            var isCurrentWeek = week.Key.WeekYear == currentYear && week.Key.WeekNumber == currentWeek;
+            var weekLabel = string.IsNullOrWhiteSpace(week.Key.WeekLabel)
+                ? $"Week {week.Key.WeekNumber}, {week.Key.WeekYear}"
+                : week.Key.WeekLabel;
+            var openAttr = isCurrentWeek ? " open" : "";
+
             weekSections.Append($"""
-                <section class="panel">
-                    <h2>{H.Encode(week.Key.WeekLabel)}</h2>
-                    <p class="muted small-text">{week.Count()} post(s) generated</p>
-                    <div class="post-grid">{cards}</div>
-                </section>
+                <details class="ad-week-collapsible"{openAttr}>
+                    <summary class="ad-week-heading">
+                        <span>{H.Encode(weekLabel)}{(isCurrentWeek ? " <span class=\"status available small-text\">This week</span>" : "")}</span>
+                        <span class="ad-week-count">{week.Count()} post(s)</span>
+                    </summary>
+                    <div class="ad-week-body">
+                        <div class="post-grid">{cards}</div>
+                    </div>
+                </details>
                 """);
         }
 
-        var monthLabel = now.ToString("MMMM yyyy");
-        var totalThisMonth = monthAds.Count;
+        var totalAds = allAds.Count;
+        var thisWeekCount = allAds.Count(a => a.WeekYear == currentYear && a.WeekNumber == currentWeek);
         var scheduledPerWeek = store.Schedules.Sum(s => s.PostsPerWeek);
 
         var script = """
@@ -160,10 +116,11 @@ static class AdLibraryPage
                 var hash = window.location.hash;
                 if (!hash) return;
                 var el = document.querySelector(hash);
-                if (el) {
-                    el.scrollIntoView({ block: 'center', behavior: 'instant' });
-                    el.classList.add('post-card-focused');
-                }
+                if (!el) return;
+                var week = el.closest('details.ad-week-collapsible');
+                if (week) week.open = true;
+                el.scrollIntoView({ block: 'center', behavior: 'instant' });
+                el.classList.add('post-card-focused');
             })();
             </script>
             """;
@@ -172,9 +129,9 @@ static class AdLibraryPage
             <section class="hero">
                 <div>
                     <p class="eyebrow">Ad Library</p>
-                    <h1>AI-generated posts for {H.Encode(monthLabel)}.</h1>
-                    <p class="muted">{totalThisMonth} post(s) this month &middot; Schedule: {scheduledPerWeek} posts/week across {store.Schedules.Count(s => s.PostsPerWeek > 0)} platform(s)</p>
-                    <p class="muted small-text"><strong>Copy post</strong> copies the caption only. Your book link is on the <strong>last line</strong> — Facebook uses the last URL in a post for the preview image. Keep only that one link so Facebook shows your book cover (not the app logo). Clicks count when readers open the link.</p>
+                    <h1>AI-generated posts by week.</h1>
+                    <p class="muted">{totalAds} post(s) total &middot; {thisWeekCount} this week ({H.Encode(currentWeekLabel)}) &middot; Schedule: {scheduledPerWeek} posts/week across {store.Schedules.Count(s => s.PostsPerWeek > 0)} platform(s)</p>
+                    <p class="muted small-text"><strong>Copy post</strong> copies the caption only. Your book link is on the <strong>last line</strong> — Facebook and X use the last URL for the preview image. Keep only that one link so readers see your book cover. <strong>Generate This Week's Posts</strong> refreshes unapproved posts for the current week; approved or already-posted ads are left unchanged.</p>
                 </div>
                 <form method="post" action="/ad-library/generate-week">
                     <button class="button" type="submit">Generate This Week's Posts</button>
@@ -194,6 +151,62 @@ static class AdLibraryPage
             {weekSections}
 
             {script}
+            """;
+    }
+
+    static string RenderPostCard(AppStoreDb store, GeneratedAd ad, string appBaseUrl, string search, string focus)
+    {
+        var book = store.Books.FirstOrDefault(b => b.Id == ad.BookId);
+        var coverPath = !string.IsNullOrWhiteSpace(book?.CoverImageUrl) ? book!.CoverImageUrl : ad.CoverImageUrl;
+        var coverSrc = PostBranding.AbsoluteImageUrl(appBaseUrl, coverPath);
+        var cover = string.IsNullOrWhiteSpace(coverPath)
+            ? """<div class="cover-placeholder large">No cover</div>"""
+            : $"""<img class="book-cover large" src="{H.Encode(coverSrc)}" alt="{H.Encode(ad.BookTitle)} cover">""";
+
+        var searchField = string.IsNullOrWhiteSpace(search) ? "" : $"""<input type="hidden" name="search" value="{H.Encode(search)}">""";
+        var regenButton = book is not null
+            ? $"""<form method="post" action="/ad-library/regenerate/{ad.Id}">{searchField}<button class="button secondary small" type="submit">Regenerate</button></form>"""
+            : """<p class="muted small-text">Book removed.</p>""";
+
+        var copyId = $"post-text-{ad.Id}";
+        var statusClass = ad.PostStatus switch
+        {
+            "Posted" => "available",
+            "Failed" => "used",
+            _ => "used"
+        };
+        var statusBadge = $"""<span class="status {statusClass}">{H.Encode(ad.PostStatus)}</span>""";
+
+        var schedule = store.Schedules.FirstOrDefault(s => s.Platform.Equals(ad.Platform, StringComparison.OrdinalIgnoreCase));
+        var needsApproval = (schedule?.RequiresApproval ?? false) && ad.PostStatus == "Pending";
+        var approveButton = needsApproval
+            ? ad.ApprovedForPosting
+                ? """<span class="status available small-text">Approved</span>"""
+                : $"""<form method="post" action="/ad-library/approve/{ad.Id}">{searchField}<button class="button small" type="submit">Approve for Auto-Post</button></form>"""
+            : "";
+
+        var charCount = PostLimits.CharacterCountLabel(ad.Platform, ad.PostText);
+        var focusClass = focus == $"ad-{ad.Id}" ? " post-card-focused" : "";
+
+        return $"""
+            <article class="post-card{focusClass}" id="ad-{ad.Id}">
+                <div class="post-card-cover">{cover}</div>
+                <div class="post-card-header">
+                    <div>
+                        <strong>{H.Encode(ad.BookTitle)}</strong>
+                        <small>{ad.GeneratedAt:ddd MMM d, HH:mm} UTC</small>
+                    </div>
+                    {statusBadge}
+                </div>
+                <p class="platform-tag">{H.Encode(ad.Platform)}{charCount}</p>
+                <p>{H.Encode(ad.PostText)}</p>
+                <textarea id="{copyId}" class="copy-source" readonly>{H.Encode(ad.PostText)}</textarea>
+                <div class="post-card-actions">
+                    <button class="button secondary small copy-button" type="button" onclick="copyPostText('{copyId}', this)">Copy post</button>
+                    {regenButton}
+                    {approveButton}
+                </div>
+            </article>
             """;
     }
 }

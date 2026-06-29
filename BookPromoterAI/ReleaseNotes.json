@@ -1,4 +1,21 @@
 {
+  "1.8.3": {
+    "title": "BookPromoter AI v1.8.3 — What's new",
+    "updated": [
+      "Generate This Week's Posts skips approved and already-posted ads — only unapproved posts are refreshed"
+    ],
+    "new": [],
+    "added": []
+  },
+  "1.8.2": {
+    "title": "BookPromoter AI v1.8.2 — What's new",
+    "updated": [
+      "Generate This Week's Posts now refreshes unapproved current-week ads with latest captions and /book/ links",
+      "Ad Library groups posts into collapsible week dropdowns with date ranges"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.8.1": {
     "title": "BookPromoter AI v1.8.1 — What's new",
     "updated": [

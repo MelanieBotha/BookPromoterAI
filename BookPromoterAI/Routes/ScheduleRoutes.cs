@@ -77,7 +77,7 @@ static class ScheduleRoutes
     {
         var lines = new List<string> { "Posting schedule saved." };
         if (generatedCount > 0)
-            lines.Add($"{generatedCount} new post(s) generated — check the Ad Library.");
+            lines.Add($"{generatedCount} post(s) updated for this week — check the Ad Library.");
         if (postedCount > 0)
             lines.Add($"{postedCount} post(s) auto-posted now (simulated until real OAuth is connected — see Posting Activity Log below).");
         else
