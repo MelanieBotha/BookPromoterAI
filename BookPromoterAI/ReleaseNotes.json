@@ -1,4 +1,12 @@
 {
+  "1.8.8": {
+    "title": "BookPromoter AI v1.8.8 — What's new",
+    "updated": [
+      "Railway deploy: dedicated /health endpoint and safer database migration on startup"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.8.7": {
     "title": "BookPromoter AI v1.8.7 — What's new",
     "updated": [

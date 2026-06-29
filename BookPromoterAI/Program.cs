@@ -73,6 +73,8 @@ builder.Services.AddHostedService<PostingSchedulerServiceDb>();
 
 var app = builder.Build();
 
+app.MapGet("/health", () => Results.Text("ok"));
+
 using (var scope = app.Services.CreateScope())
 {
     var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();

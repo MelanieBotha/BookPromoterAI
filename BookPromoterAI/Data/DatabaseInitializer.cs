@@ -16,10 +16,28 @@ static class DatabaseInitializer
                 "8.0.0");
         }
 
-        db.Database.Migrate();
+        try
+        {
+            db.Database.Migrate();
+        }
+        catch (Exception ex) when (IsDuplicateColumnError(ex))
+        {
+            // Column already added by RepairMissingColumns on a prior deploy — continue with repairs.
+        }
+
         RepairMissingColumns(db);
         RepairMissingTables(db);
         RepairPlanDefaults(db);
+    }
+
+    static bool IsDuplicateColumnError(Exception ex)
+    {
+        for (var current = ex; current is not null; current = current.InnerException)
+        {
+            if (current.Message.Contains("duplicate column", StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     static void RepairMissingTables(AppDbContext db)
