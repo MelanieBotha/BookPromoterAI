@@ -29,9 +29,22 @@ static class DatabaseInitializer
                 "8.0.0");
         }
 
-        RepairMissingTables(db);
-        RepairMissingColumns(db);
+        LogRepairStep("RepairMissingTables", () => RepairMissingTables(db));
+        LogRepairStep("RepairMissingColumns", () => RepairMissingColumns(db));
         RepairPlanDefaults(db);
+    }
+
+    static void LogRepairStep(string step, Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[DatabaseInitializer] {step} failed: {ex}");
+            throw;
+        }
     }
 
     static bool IsDuplicateColumnError(Exception ex)
@@ -93,13 +106,22 @@ static class DatabaseInitializer
                 );
                 """);
         }
-
-        RepairMailingListSettingsIndex(db);
     }
 
     static void RepairMailingListSettingsIndex(AppDbContext db)
     {
         if (!TableExists(db, "MailingListSettings")) return;
+        AddColumnIfMissing(db, "MailingListSettings", "ListKind",
+            """ALTER TABLE "MailingListSettings" ADD COLUMN "ListKind" TEXT NOT NULL DEFAULT 'Author'""");
+        if (!ColumnExists(db, "MailingListSettings", "ListKind")) return;
+
+        db.Database.ExecuteSqlRaw("""UPDATE "MailingListSettings" SET "ListKind" = 'Author' WHERE "ListKind" IS NULL OR "ListKind" = ''""");
+        db.Database.ExecuteSqlRaw("""
+            DELETE FROM "MailingListSettings"
+            WHERE "Id" NOT IN (
+                SELECT MIN("Id") FROM "MailingListSettings" GROUP BY "UserId", "ListKind"
+            );
+            """);
         db.Database.ExecuteSqlRaw("""DROP INDEX IF EXISTS "IX_MailingListSettings_UserId";""");
         db.Database.ExecuteSqlRaw(
             """CREATE UNIQUE INDEX IF NOT EXISTS "IX_MailingListSettings_UserId_ListKind" ON "MailingListSettings" ("UserId", "ListKind");""");
@@ -160,14 +182,19 @@ static class DatabaseInitializer
         AddColumnIfMissing(db, "MailingListSubscribers", "ListKind", """ALTER TABLE "MailingListSubscribers" ADD COLUMN "ListKind" TEXT NOT NULL DEFAULT 'Author'""");
         AddColumnIfMissing(db, "MailingListCampaigns", "ListKind", """ALTER TABLE "MailingListCampaigns" ADD COLUMN "ListKind" TEXT NOT NULL DEFAULT 'Author'""");
         AddColumnIfMissing(db, "MailingListSettings", "ListKind", """ALTER TABLE "MailingListSettings" ADD COLUMN "ListKind" TEXT NOT NULL DEFAULT 'Author'""");
-        db.Database.ExecuteSqlRaw("""UPDATE "MailingListSubscribers" SET "ListKind" = 'Author' WHERE "ListKind" IS NULL OR "ListKind" = ''""");
-        db.Database.ExecuteSqlRaw("""UPDATE "MailingListCampaigns" SET "ListKind" = 'Author' WHERE "ListKind" IS NULL OR "ListKind" = ''""");
-        db.Database.ExecuteSqlRaw("""UPDATE "MailingListSettings" SET "ListKind" = 'Author' WHERE "ListKind" IS NULL OR "ListKind" = ''""");
+        if (TableExists(db, "MailingListSubscribers") && ColumnExists(db, "MailingListSubscribers", "ListKind"))
+            db.Database.ExecuteSqlRaw("""UPDATE "MailingListSubscribers" SET "ListKind" = 'Author' WHERE "ListKind" IS NULL OR "ListKind" = ''""");
+        if (TableExists(db, "MailingListCampaigns") && ColumnExists(db, "MailingListCampaigns", "ListKind"))
+            db.Database.ExecuteSqlRaw("""UPDATE "MailingListCampaigns" SET "ListKind" = 'Author' WHERE "ListKind" IS NULL OR "ListKind" = ''""");
+        if (TableExists(db, "MailingListSettings") && ColumnExists(db, "MailingListSettings", "ListKind"))
+            db.Database.ExecuteSqlRaw("""UPDATE "MailingListSettings" SET "ListKind" = 'Author' WHERE "ListKind" IS NULL OR "ListKind" = ''""");
         MigrateOwnerBrandMailingListSubscribers(db);
+        RepairMailingListSettingsIndex(db);
     }
 
     static void MigrateOwnerBrandMailingListSubscribers(AppDbContext db)
     {
+        if (!TableExists(db, "MailingListSubscribers") || !ColumnExists(db, "MailingListSubscribers", "ListKind")) return;
         var owner = db.Users.AsNoTracking().FirstOrDefault(u => u.Email == OwnerAccount.NormalizedEmail);
         if (owner is null) return;
         db.Database.ExecuteSqlRaw(

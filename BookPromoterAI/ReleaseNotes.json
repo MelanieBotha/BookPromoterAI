@@ -1,4 +1,12 @@
 {
+  "1.9.10": {
+    "title": "BookPromoter AI v1.9.10 — What's new",
+    "updated": [
+      "Harden mailing list DB repairs for Railway deploys (index order, guarded updates, healthcheck timeout)"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.9.9": {
     "title": "BookPromoter AI v1.9.9 — What's new",
     "updated": [
