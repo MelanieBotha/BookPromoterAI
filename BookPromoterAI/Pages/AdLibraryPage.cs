@@ -1,5 +1,4 @@
 using System.Text;
-using System.Text.Json;
 namespace BookPromoterAI;
 
 static class AdLibraryPage
@@ -17,7 +16,6 @@ static class AdLibraryPage
         }
 
         var now = DateTime.UtcNow;
-        var appUrl = appBaseUrl.TrimEnd('/');
         var monthAds = filtered.Where(a => a.GeneratedAt.Year == now.Year && a.GeneratedAt.Month == now.Month).ToList();
 
         var byWeek = monthAds
@@ -81,7 +79,6 @@ static class AdLibraryPage
 
                 var charCount = PostLimits.CharacterCountLabel(ad.Platform, ad.PostText);
                 var focusClass = focus == $"ad-{ad.Id}" ? " post-card-focused" : "";
-                var coverUrl = PostBranding.AbsoluteImageUrl(appBaseUrl, coverPath);
                 cards.Append($"""
                     <article class="post-card{focusClass}" id="ad-{ad.Id}">
                         <div class="post-card-cover">{cover}</div>
@@ -96,7 +93,7 @@ static class AdLibraryPage
                         <p>{H.Encode(ad.PostText)}</p>
                         <textarea id="{copyId}" class="copy-source" readonly>{H.Encode(ad.PostText)}</textarea>
                         <div class="post-card-actions">
-                            <button class="button secondary small copy-button" type="button" data-cover-url="{H.Encode(coverUrl)}" onclick="copyPostText('{copyId}', this)">Copy post + cover</button>
+                            <button class="button secondary small copy-button" type="button" onclick="copyPostText('{copyId}', this)">Copy post</button>
                             {regenButton}
                             {approveButton}
                         </div>
@@ -117,21 +114,15 @@ static class AdLibraryPage
         var totalThisMonth = monthAds.Count;
         var scheduledPerWeek = store.Schedules.Sum(s => s.PostsPerWeek);
 
-        var appUrlJs = JsonSerializer.Serialize(appUrl);
-
-        var script = $$"""
+        var script = """
             <script>
-            var BPAI_APP_URL = {{appUrlJs}};
-
             function copyPostText(textareaId, button) {
                 var textarea = document.getElementById(textareaId);
                 var text = textarea.value;
-                var coverUrl = button.getAttribute('data-cover-url') || '';
-                var html = buildPostHtml(text, coverUrl);
 
-                function showCopied(label) {
+                function showCopied() {
                     var original = button.textContent;
-                    button.textContent = label || 'Copied!';
+                    button.textContent = 'Copied!';
                     button.classList.add('copied');
                     setTimeout(function () {
                         button.textContent = original;
@@ -139,88 +130,13 @@ static class AdLibraryPage
                     }, 2000);
                 }
 
-                if (!coverUrl) {
-                    copyTextOnly(text, textarea, showCopied);
-                    return;
-                }
-
-                copyPostWithCover(text, html, coverUrl)
-                    .then(function () { showCopied('Copied with cover!'); })
-                    .catch(function () {
-                        if (copyHtmlFallback(html)) {
-                            showCopied('Copied!');
-                            return;
-                        }
-                        copyTextOnly(text, textarea, showCopied);
-                    });
-            }
-
-            function buildPostHtml(text, coverUrl) {
-                var escaped = text
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;')
-                    .replace(/"/g, '&quot;');
-                var linked = escaped.replace(/(https?:\/\/[^\s<]+)/g, function (url) {
-                    return '<a href="' + url + '">' + url + '</a>';
-                });
-                var imageHtml = coverUrl
-                    ? '<img src="' + coverUrl + '" alt="Book cover" style="max-width:320px;width:100%;height:auto;border:0;display:block;margin:0 0 12px">'
-                    : '';
-                return '<div>' + imageHtml + linked.replace(/\n/g, '<br>') + '</div>';
-            }
-
-            async function copyPostWithCover(text, html, coverUrl) {
-                if (!navigator.clipboard) throw new Error('no clipboard');
-                var coverResponse = await fetch(coverUrl);
-                if (!coverResponse.ok) throw new Error('cover fetch failed');
-                var coverBlob = await coverResponse.blob();
-                var coverType = coverBlob.type || 'image/png';
-
-                if (window.ClipboardItem) {
-                    var item = new ClipboardItem({
-                        'text/plain': new Blob([text], { type: 'text/plain' }),
-                        'text/html': new Blob([html], { type: 'text/html' }),
-                        [coverType]: coverBlob
-                    });
-                    await navigator.clipboard.write([item]);
-                    return;
-                }
-
-                throw new Error('ClipboardItem unsupported');
-            }
-
-            function copyTextOnly(text, textarea, showCopied) {
                 if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(text).then(function () { showCopied('Text copied'); }).catch(function () {
+                    navigator.clipboard.writeText(text).then(showCopied).catch(function () {
                         fallbackCopy(textarea, showCopied);
                     });
                 } else {
                     fallbackCopy(textarea, showCopied);
                 }
-            }
-
-            function copyHtmlFallback(html) {
-                var container = document.createElement('div');
-                container.contentEditable = 'true';
-                container.innerHTML = html;
-                container.style.position = 'fixed';
-                container.style.left = '-9999px';
-                document.body.appendChild(container);
-                var range = document.createRange();
-                range.selectNodeContents(container);
-                var selection = window.getSelection();
-                selection.removeAllRanges();
-                selection.addRange(range);
-                var ok = false;
-                try {
-                    ok = document.execCommand('copy');
-                } catch (e) {
-                    ok = false;
-                }
-                selection.removeAllRanges();
-                document.body.removeChild(container);
-                return ok;
             }
 
             function fallbackCopy(textarea, onSuccess) {
@@ -230,7 +146,7 @@ static class AdLibraryPage
                 textarea.select();
                 try {
                     document.execCommand('copy');
-                    onSuccess('Text copied');
+                    onSuccess();
                 } catch (e) {
                     alert('Could not copy automatically. Please select and copy the text manually.');
                 } finally {
@@ -258,7 +174,7 @@ static class AdLibraryPage
                     <p class="eyebrow">Ad Library</p>
                     <h1>AI-generated posts for {H.Encode(monthLabel)}.</h1>
                     <p class="muted">{totalThisMonth} post(s) this month &middot; Schedule: {scheduledPerWeek} posts/week across {store.Schedules.Count(s => s.PostsPerWeek > 0)} platform(s)</p>
-                    <p class="muted small-text"><strong>Copy post + cover</strong> pastes your caption with a book page link (<code>/book/…</code>) that shows your cover, counts clicks in Analytics, and links readers to your store. On social, paste the caption — the link preview should show your book cover. Upload the cover image from the card if the platform asks for a photo.</p>
+                    <p class="muted small-text"><strong>Copy post</strong> copies the caption only. Your book link is on the last line — when readers open it, your book page shows the cover and buy buttons. Clicks count in Analytics.</p>
                 </div>
                 <form method="post" action="/ad-library/generate-week">
                     <button class="button" type="submit">Generate This Week's Posts</button>

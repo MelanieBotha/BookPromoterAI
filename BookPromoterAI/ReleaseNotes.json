@@ -1,4 +1,13 @@
 {
+  "1.8.0": {
+    "title": "BookPromoter AI v1.8.0 — What's new",
+    "updated": [
+      "Ad Library posts: caption text only with book link on the last line — cover shows on your book page when readers click",
+      "Removed BookPromoter promo footer and cover-in-clipboard from generated posts"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.7.9": {
     "title": "BookPromoter AI v1.7.9 — What's new",
     "updated": [

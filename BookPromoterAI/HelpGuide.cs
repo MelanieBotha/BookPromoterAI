@@ -39,7 +39,7 @@ static class HelpGuide
                 "Click Add Book (or edit an existing one).",
                 "Upload a cover image, add title, author, genre, and store buy links.",
                 "Save — your first post may be generated automatically.",
-                "Generated posts link to your book page (/book/…) with cover preview — clicks count in Analytics before readers reach your store."
+                "Generated posts put your book link on the last line — the book page shows your cover when readers click."
             ],
             UpNext = "Connect social accounts and set your weekly posting schedule."
         },
@@ -67,7 +67,7 @@ static class HelpGuide
             Instructions =
             [
                 "Click Generate This Week's Posts if the library is empty.",
-                "Use Copy post + cover to paste into Facebook, Instagram, X, etc.",
+                "Use Copy post to paste the caption — your book link is on the last line.",
                 "Click Regenerate for a new caption while keeping the same book.",
                 "If approval is required, click Approve for Auto-Post before the scheduler sends it."
             ],

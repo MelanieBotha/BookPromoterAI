@@ -11,13 +11,11 @@ class PostGenerator
     };
 
     private static readonly string[] GenericHooks = ["Looking for your next read?", "Your next favorite book is one click away.", "Readers can't stop talking about this one."];
-    private static readonly string[] ClosingCallToActions = ["Read now", "Grab your copy", "Start reading today", "Dive in here"];
 
     public string Generate(Book book, string platform, string purchaseUrl, int variantSeed = 0, string appBaseUrl = "")
     {
         var descriptionHook = ExtractDescriptionHook(book.Description, variantSeed);
         var genreHook = PickHook(book.Genre, variantSeed);
-        var cta = ClosingCallToActions[Math.Abs(variantSeed) % ClosingCallToActions.Length];
         var useDescriptionFirst = descriptionHook is not null && variantSeed % 2 == 0;
         var hook = useDescriptionFirst
             ? $"{descriptionHook} {genreHook} \"{book.Title}\""
@@ -27,31 +25,23 @@ class PostGenerator
 
         var link = purchaseUrl.Trim();
         var hasLink = !string.IsNullOrWhiteSpace(link);
-        var ctaLine = hasLink ? $"{cta}: {link}" : $"{cta} (add a store link in Books)";
+        var linkLine = hasLink ? link : "(add a store link in Books)";
 
         var body = platform switch
         {
             _ when PostLimits.IsX(platform) => hasLink
-                ? $"{hook} {link} #Books #{CleanTag(book.Genre)}"
-                : $"{hook} #Books #{CleanTag(book.Genre)}",
+                ? $"{hook}\n\n#Books #{CleanTag(book.Genre)}\n\n{link}"
+                : $"{hook}\n\n#Books #{CleanTag(book.Genre)}",
             _ when PostLimits.IsBluesky(platform) => hasLink
-                ? $"{hook} {link} #Books #{CleanTag(book.GenreOrDefault())}"
-                : $"{hook} #Books #{CleanTag(book.GenreOrDefault())}",
+                ? $"{hook}\n\n#Books #{CleanTag(book.GenreOrDefault())}\n\n{link}"
+                : $"{hook}\n\n#Books #{CleanTag(book.GenreOrDefault())}",
             "Instagram" => hasLink
-                ? $"{hook}\n\n{ctaLine}\n\n#Bookstagram #{CleanTag(book.GenreOrDefault())}"
-                : $"{hook}\n\n{ctaLine}\n\n#Bookstagram #{CleanTag(book.GenreOrDefault())}",
+                ? $"{hook}\n\n#Bookstagram #{CleanTag(book.GenreOrDefault())}\n\n{link}"
+                : $"{hook}\n\n#Bookstagram #{CleanTag(book.GenreOrDefault())}\n\n{linkLine}",
             _ => hasLink
-                ? $"{hook}\n\n{book.Description}\n\n{ctaLine}"
-                : $"{hook}\n\n{book.Description}\n\n{ctaLine}"
+                ? $"{hook}\n\n{book.Description}\n\n{link}"
+                : $"{hook}\n\n{book.Description}\n\n{linkLine}"
         };
-
-        if (!string.IsNullOrWhiteSpace(appBaseUrl))
-        {
-            var footer = PostBranding.Footer(platform, appBaseUrl);
-            var max = PostLimits.GetMaxGraphemes(platform);
-            if (max is null || PostLimits.GraphemeLength(body) + PostLimits.GraphemeLength(footer) <= max)
-                body += footer;
-        }
 
         return PostLimits.Enforce(body, platform);
     }
