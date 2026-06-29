@@ -71,33 +71,32 @@ builder.Services.AddScoped<SocialPostingService>();
 
 var generator = new PostGenerator();
 var mailingListEmailGenerator = new MailingListEmailGenerator();
+builder.Services.AddHostedService<DatabaseBootstrapHostedService>();
 builder.Services.AddHostedService<PostingSchedulerServiceDb>();
-
-// Database setup runs before the web server starts listening so Railway's
-// healthcheck can succeed as soon as the app is up.
-using (var bootstrap = builder.Services.BuildServiceProvider())
-{
-    try
-    {
-        using var scope = bootstrap.CreateScope();
-        var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
-        using var db = dbFactory.CreateDbContext();
-        DatabaseInitializer.ApplyMigrations(db);
-        scope.ServiceProvider.GetRequiredService<AppStoreDb>().SeedPromoCodes();
-        scope.ServiceProvider.GetRequiredService<AppStoreDb>().SeedOwnerAccount();
-        Console.WriteLine("[Startup] Database ready.");
-    }
-    catch (Exception ex)
-    {
-        Console.Error.WriteLine($"[Startup] Database setup failed: {ex}");
-        throw;
-    }
-}
 
 var app = builder.Build();
 var onRailway = !string.IsNullOrWhiteSpace(port);
 
+// Liveness probe — always 200 so Railway deploy healthcheck passes while DB migrates.
 app.MapGet("/health", () => Results.Text("ok"));
+app.MapGet("/ready", () => DatabaseStartup.IsReady
+    ? Results.Text("ok")
+    : Results.Text(DatabaseStartup.LastError ?? "starting", statusCode: StatusCodes.Status503ServiceUnavailable));
+
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.Equals("/health", StringComparison.OrdinalIgnoreCase)
+        || context.Request.Path.Equals("/ready", StringComparison.OrdinalIgnoreCase)
+        || context.Request.Path.StartsWithSegments("/webhooks")
+        || DatabaseStartup.IsReady)
+    {
+        await next();
+        return;
+    }
+
+    context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+    await context.Response.WriteAsync("Starting up — please retry in a moment.");
+});
 
 app.UseForwardedHeaders();
 if (!onRailway)

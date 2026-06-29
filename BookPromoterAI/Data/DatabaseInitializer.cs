@@ -28,6 +28,10 @@ static class DatabaseInitializer
                 "20260629023122_AddPlatformClickHistory",
                 "8.0.0");
         }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[DatabaseInitializer] EF Migrate skipped: {ex.Message}");
+        }
 
         LogRepairStep("RepairMissingTables", () => RepairMissingTables(db));
         LogRepairStep("RepairMissingColumns", () => RepairMissingColumns(db));
@@ -116,15 +120,22 @@ static class DatabaseInitializer
         if (!ColumnExists(db, "MailingListSettings", "ListKind")) return;
 
         db.Database.ExecuteSqlRaw("""UPDATE "MailingListSettings" SET "ListKind" = 'Author' WHERE "ListKind" IS NULL OR "ListKind" = ''""");
-        db.Database.ExecuteSqlRaw("""
-            DELETE FROM "MailingListSettings"
-            WHERE "Id" NOT IN (
-                SELECT MIN("Id") FROM "MailingListSettings" GROUP BY "UserId", "ListKind"
-            );
-            """);
-        db.Database.ExecuteSqlRaw("""DROP INDEX IF EXISTS "IX_MailingListSettings_UserId";""");
-        db.Database.ExecuteSqlRaw(
-            """CREATE UNIQUE INDEX IF NOT EXISTS "IX_MailingListSettings_UserId_ListKind" ON "MailingListSettings" ("UserId", "ListKind");""");
+        try
+        {
+            db.Database.ExecuteSqlRaw("""
+                DELETE FROM "MailingListSettings"
+                WHERE "Id" NOT IN (
+                    SELECT MIN("Id") FROM "MailingListSettings" GROUP BY "UserId", "ListKind"
+                );
+                """);
+            db.Database.ExecuteSqlRaw("""DROP INDEX IF EXISTS "IX_MailingListSettings_UserId";""");
+            db.Database.ExecuteSqlRaw(
+                """CREATE UNIQUE INDEX IF NOT EXISTS "IX_MailingListSettings_UserId_ListKind" ON "MailingListSettings" ("UserId", "ListKind");""");
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[DatabaseInitializer] MailingListSettings index repair skipped: {ex.Message}");
+        }
     }
 
     static bool TableExists(AppDbContext db, string table)

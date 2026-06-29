@@ -11,6 +11,13 @@ class PostingSchedulerServiceDb : BackgroundService
     {
         while (!stoppingToken.IsCancellationRequested)
         {
+            if (!DatabaseStartup.IsReady)
+            {
+                try { await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken); }
+                catch (TaskCanceledException) { break; }
+                continue;
+            }
+
             try
             {
                 using var scope = _scopeFactory.CreateScope();

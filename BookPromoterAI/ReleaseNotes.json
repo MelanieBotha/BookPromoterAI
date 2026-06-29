@@ -1,4 +1,12 @@
 {
+  "1.9.11": {
+    "title": "BookPromoter AI v1.9.11 — What's new",
+    "updated": [
+      "Railway deploy: /health responds immediately while database migration runs in the background"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.9.10": {
     "title": "BookPromoter AI v1.9.10 — What's new",
     "updated": [
