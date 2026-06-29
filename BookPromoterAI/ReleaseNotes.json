@@ -1,4 +1,13 @@
 {
+  "1.8.1": {
+    "title": "BookPromoter AI v1.8.1 — What's new",
+    "updated": [
+      "Facebook link previews: book page serves cover image to social crawlers (no app logo)",
+      "Book link stays on the last line so Facebook picks up your cover for the preview"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.8.0": {
     "title": "BookPromoter AI v1.8.0 — What's new",
     "updated": [

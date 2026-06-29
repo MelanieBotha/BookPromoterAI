@@ -244,6 +244,14 @@ class AppStoreDb
         return b is null ? null : ToModel(b);
     }
 
+    public Book? FindBookByTrackingCode(string trackingCode)
+    {
+        using var db = Db();
+        var b = db.Books.Include(x => x.Links).AsNoTracking()
+            .FirstOrDefault(x => x.TrackingCode == trackingCode);
+        return b is null ? null : ToModel(b);
+    }
+
     public Book? RecordClick(string trackingCode)
     {
         using var db = Db();

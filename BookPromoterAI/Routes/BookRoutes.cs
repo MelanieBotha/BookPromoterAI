@@ -79,16 +79,28 @@ static class BookRoutes
             return Results.Redirect("/dashboard");
         });
 
-        app.MapGet("/book/{trackingCode}", (string trackingCode, HttpContext http, AppStoreDb store, AppSettings settings) =>
+        app.MapGet("/book/{trackingCode}", (string trackingCode, HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings) =>
         {
-            var book = store.RecordClick(trackingCode);
-            if (book is null) return Results.NotFound("Book not found.");
             var appBaseUrl = PublicUrl.Base(http.Request, settings);
-            var assetBaseUrl = PublicUrl.Base(http.Request, settings);
             var pageUrl = PostBranding.BookShareUrl(appBaseUrl, trackingCode);
-            var ogMeta = PostBranding.BuildBookShareMeta(book, pageUrl, assetBaseUrl);
+
+            if (SocialCrawler.IsCrawler(request.Headers.UserAgent.ToString()))
+            {
+                var book = store.FindBookByTrackingCode(trackingCode);
+                if (book is null) return Results.NotFound("Book not found.");
+                return Results.Content(
+                    PostBranding.RenderCrawlerPreviewHtml(book, pageUrl, appBaseUrl),
+                    "text/html");
+            }
+
+            var clicked = store.RecordClick(trackingCode);
+            if (clicked is null) return Results.NotFound("Book not found.");
+            var description = string.IsNullOrWhiteSpace(clicked.Description)
+                ? $"Discover {clicked.Title} by {clicked.AuthorName}"
+                : H.LimitWords(clicked.Description, 40);
+            var ogMeta = PostBranding.BuildBookShareMeta(clicked, pageUrl, appBaseUrl);
             return Results.Content(
-                H.RenderMarketingPage(http, book.Title, PublicBookPage.Render(book, appBaseUrl, assetBaseUrl), store, ogMeta),
+                H.RenderMarketingPage(http, clicked.Title, PublicBookPage.Render(clicked, appBaseUrl, appBaseUrl), store, ogMeta, description),
                 "text/html");
         });
 

@@ -174,7 +174,7 @@ static class AdLibraryPage
                     <p class="eyebrow">Ad Library</p>
                     <h1>AI-generated posts for {H.Encode(monthLabel)}.</h1>
                     <p class="muted">{totalThisMonth} post(s) this month &middot; Schedule: {scheduledPerWeek} posts/week across {store.Schedules.Count(s => s.PostsPerWeek > 0)} platform(s)</p>
-                    <p class="muted small-text"><strong>Copy post</strong> copies the caption only. Your book link is on the last line — when readers open it, your book page shows the cover and buy buttons. Clicks count in Analytics.</p>
+                    <p class="muted small-text"><strong>Copy post</strong> copies the caption only. Your book link is on the <strong>last line</strong> — Facebook uses the last URL in a post for the preview image. Keep only that one link so Facebook shows your book cover (not the app logo). Clicks count when readers open the link.</p>
                 </div>
                 <form method="post" action="/ad-library/generate-week">
                     <button class="button" type="submit">Generate This Week's Posts</button>

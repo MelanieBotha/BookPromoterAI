@@ -19,11 +19,11 @@ static class H
     public static string RenderPage(HttpContext http, string title, string body, AppStoreDb store) =>
         Page(title, body, store, http);
 
-    public static string RenderMarketingPage(HttpContext http, string title, string body, AppStoreDb store, string extraHead = "") =>
-        MarketingPage(title, body, store, http, extraHead);
+    public static string RenderMarketingPage(HttpContext http, string title, string body, AppStoreDb store, string extraHead = "", string? metaDescription = null) =>
+        MarketingPage(title, body, store, http, extraHead, metaDescription);
 
     // Public marketing site shell — slim nav, no account banner.
-    public static string MarketingPage(string title, string body, AppStoreDb store, HttpContext? http = null, string extraHead = "")
+    public static string MarketingPage(string title, string body, AppStoreDb store, HttpContext? http = null, string extraHead = "", string? metaDescription = null)
     {
         var csrfMeta = "";
         var csrfScript = "";
@@ -65,13 +65,17 @@ static class H
                 ? """<a class="button secondary" href="/start">Continue setup</a>"""
                 : """<a href="/start">Log in</a><a class="button nav-cta" href="/start">Get started</a>""";
 
+        var pageDescription = string.IsNullOrWhiteSpace(metaDescription)
+            ? "BookPromoter AI helps authors promote books with AI-generated social posts, click tracking, and a weekly Ad Library."
+            : metaDescription;
+
         return $"""
         <!DOCTYPE html>
         <html lang="en">
         <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
-            <meta name="description" content="BookPromoter AI helps authors promote books with AI-generated social posts, click tracking, and a weekly Ad Library.">
+            <meta name="description" content="{Encode(pageDescription)}">
             {extraHead}
             {csrfMeta}
             <link rel="icon" type="image/png" href="/images/BookPromoterAI.logo.png">
