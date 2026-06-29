@@ -79,7 +79,13 @@ static class SocialAccountRoutes
             return Results.Redirect(returnUrl);
         });
 
-        app.MapGet("/social-accounts/connect/{platform}", (string platform, HttpRequest request, HttpContext http, AppStoreDb store) =>
+        app.MapGet("/social-accounts/connect/{platform}", async (
+            string platform,
+            HttpRequest request,
+            HttpContext http,
+            AppStoreDb store,
+            AppSettings settings,
+            XService xService) =>
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
             var returnUrl = SocialConnectHelper.ResolveReturnUrl(request);
@@ -89,10 +95,87 @@ static class SocialAccountRoutes
             var platformName = Uri.UnescapeDataString(platform);
             if (SocialConnectHelper.IsPlatformDisabled(platformName))
                 return Results.Redirect(returnUrl);
-            var notice = request.Query["notice"].ToString();
+
+            if (PostLimits.IsX(platformName))
+            {
+                var notice = request.Query["notice"].ToString();
+                if (!settings.IsXConfigured)
+                {
+                    return Results.Content(
+                        H.RenderPage(http, "Connect X", SocialConnectHelper.XSetupPage(returnUrl, notice, settings), store),
+                        "text/html");
+                }
+
+                var appBaseUrl = PublicUrl.Base(request, settings);
+                var callbackUrl = XService.CallbackUrl(appBaseUrl);
+                var (authorizeUrl, state, verifier) = xService.BuildAuthorizationUrl(callbackUrl);
+                XOAuthSession.Save(http, state, verifier, returnUrl, kind);
+                return Results.Redirect(authorizeUrl);
+            }
+
+            var connectNotice = request.Query["notice"].ToString();
             return Results.Content(
-                H.RenderPage(http, $"Connect {platformName}", SocialConnectHelper.OAuthAuthorizePage(platformName, returnUrl, notice), store),
+                H.RenderPage(http, $"Connect {platformName}", SocialConnectHelper.OAuthAuthorizePage(platformName, returnUrl, connectNotice), store),
                 "text/html");
+        });
+
+        app.MapGet(XService.CallbackPath, async (
+            HttpRequest request,
+            HttpContext http,
+            AppStoreDb store,
+            AppSettings settings,
+            XService xService) =>
+        {
+            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
+
+            var (savedState, verifier, returnUrl, kind) = XOAuthSession.Load(http);
+            XOAuthSession.Clear(http);
+            returnUrl = SocialConnectHelper.IsAllowedReturnUrl(returnUrl) ? returnUrl! : "/my-account";
+            kind ??= SocialAccountKinds.Author;
+
+            if (SocialAccountKinds.IsBrand(kind) && !store.IsOwner) return Results.Redirect("/my-account");
+            if (store.CheckSocialAccountLimit(kind) is not null) return Results.Redirect(returnUrl);
+
+            var error = request.Query["error"].ToString();
+            if (!string.IsNullOrWhiteSpace(error))
+            {
+                var notice = error.Equals("access_denied", StringComparison.OrdinalIgnoreCase)
+                    ? "X authorization was cancelled."
+                    : "X authorization failed. Try again.";
+                return Results.Redirect($"/social-accounts/connect/X?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(notice)}");
+            }
+
+            var code = request.Query["code"].ToString();
+            var state = request.Query["state"].ToString();
+            if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(state) || state != savedState || string.IsNullOrWhiteSpace(verifier))
+            {
+                return Results.Redirect($"/social-accounts/connect/X?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Invalid X login response. Try again.")}");
+            }
+
+            var callbackUrl = XService.CallbackUrl(PublicUrl.Base(request, settings));
+            var (ok, connectError, tokens, user) = await xService.CompleteAuthorizationAsync(code, callbackUrl, verifier);
+            if (!ok || tokens is null || user is null)
+            {
+                return Results.Redirect($"/social-accounts/connect/X?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(connectError)}");
+            }
+
+            store.AddSocialAccount(new SocialAccount
+            {
+                Platform = "X",
+                DisplayName = string.IsNullOrWhiteSpace(user.Name)
+                    ? (SocialAccountKinds.IsBrand(kind) ? "BookPromoter AI" : "X Account")
+                    : user.Name.Trim(),
+                Handle = user.Username,
+                IsConnected = true,
+                ConnectedViaOAuth = true,
+                AccountKind = kind,
+                AccessToken = tokens.AccessToken,
+                RefreshToken = tokens.RefreshToken,
+                ExternalAccountId = user.Id
+            }, kind);
+            if (SocialAccountKinds.IsAuthor(kind))
+                store.AddSchedule(new SocialSchedule { Platform = "X", PostsPerWeek = 1, RequiresApproval = true });
+            return Results.Redirect(returnUrl);
         });
 
         app.MapPost("/social-accounts/oauth-callback/{platform}", async (string platform, HttpRequest request, HttpContext http, AppStoreDb store, BlueskyService bluesky) =>
@@ -136,6 +219,12 @@ static class SocialAccountRoutes
                 if (SocialAccountKinds.IsAuthor(kind))
                     store.AddSchedule(new SocialSchedule { Platform = platformName, PostsPerWeek = 1, RequiresApproval = true });
                 return Results.Redirect(returnUrl);
+            }
+
+            if (PostLimits.IsX(platformName))
+            {
+                var connectUrl = $"/social-accounts/connect/X?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Use the Connect X button to sign in with X.")}";
+                return Results.Redirect(connectUrl);
             }
 
             var simulatedToken = $"SIMULATED-{platformName.ToUpperInvariant()}-{Guid.NewGuid():N}";

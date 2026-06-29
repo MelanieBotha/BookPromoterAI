@@ -213,6 +213,33 @@ static class OwnerPage
                 </div>
             </details>
 
+            <details class="owner-collapsible" id="owner-section-x-api"{open("x-api")}>
+                <summary class="owner-collapsible-heading">X (Twitter) API</summary>
+                <div class="panel owner-settings">
+                    {(store.IsXConfigured
+                        ? """<p class="notice success">X API: Connected. Authors and owner can use Sign in with X for live posting.</p>"""
+                        : $"""
+                            <p class="notice error">X is not configured yet. Authors cannot connect X until these Railway variables are set.</p>
+                            <ul class="plan-features">
+                                <li><strong>Client ID:</strong> {H.Encode(store.XClientIdStatus)}</li>
+                                <li><strong>Client secret:</strong> {H.Encode(store.XClientSecretStatus)}</li>
+                            </ul>
+                            """)}
+                    <p class="muted">Create a project at <a href="https://developer.x.com" target="_blank" rel="noopener">developer.x.com</a> with <strong>OAuth 2.0</strong> enabled and these settings:</p>
+                    <ul class="plan-features">
+                        <li><strong>Type:</strong> Web App, Confidential client</li>
+                        <li><strong>Callback URL:</strong> <code>{H.Encode(XService.CallbackUrl(appBaseUrl.TrimEnd('/')))}</code></li>
+                        <li><strong>Scopes:</strong> <code>{H.Encode(XService.Scopes)}</code></li>
+                    </ul>
+                    <p class="muted">Add Railway variables, then redeploy:</p>
+                    <ul class="plan-features">
+                        <li><code>X__ClientId</code></li>
+                        <li><code>X__ClientSecret</code></li>
+                    </ul>
+                    <p class="muted">Your X developer account must have API access that allows posting (paid tier may be required). Test from <strong>My Account → Connect X</strong> after deploy.</p>
+                </div>
+            </details>
+
             <details class="owner-collapsible" id="owner-section-railway-cleanup"{open("railway-cleanup")}>
                 <summary class="owner-collapsible-heading">Railway Cleanup (Unused Services)</summary>
                 <div class="panel owner-settings">

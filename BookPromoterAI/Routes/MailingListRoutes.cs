@@ -110,8 +110,8 @@ static class MailingListRoutes
         {
             var authorName = store.GetAuthorPublicNameByUserCode(userCode);
             if (authorName is null)
-                return Results.Content(H.RenderPage(http, "Signup", """<div class="notice error">This signup link is not valid.</div>""", store), "text/html");
-            return Results.Content(H.RenderPage(http, "Join Mailing List", MailingListPage.SignupPage(userCode, authorName, ""), store), "text/html");
+                return Results.Content(H.RenderMarketingPage(http, "Signup", """<div class="notice error">This signup link is not valid.</div>""", store), "text/html");
+            return Results.Content(H.RenderMarketingPage(http, "Join Mailing List", MailingListPage.SignupPage(userCode, authorName, ""), store), "text/html");
         });
 
         app.MapPost("/readers/signup/{userCode}", async (string userCode, HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings) =>
@@ -123,18 +123,18 @@ static class MailingListRoutes
                 await store.SendSubscriberWelcomeEmailAsync(authorUserId, form["email"].ToString(), form["name"].ToString(), token, baseUrl);
             var cls = success ? "success" : "error";
             var notice = $"""<div class="notice {cls}">{H.Encode(message)}</div>""";
-            return Results.Content(H.RenderPage(http, "Join Mailing List", MailingListPage.SignupPage(userCode, authorName ?? AuthorDisplayName.Fallback, notice), store), "text/html");
+            return Results.Content(H.RenderMarketingPage(http, "Join Mailing List", MailingListPage.SignupPage(userCode, authorName ?? AuthorDisplayName.Fallback, notice), store), "text/html");
         });
 
         app.MapGet("/readers/unsubscribe/{token}", (string token, HttpContext http, AppStoreDb store) =>
-            Results.Content(H.RenderPage(http, "Unsubscribe", MailingListPage.UnsubscribePage(token, "", store), store), "text/html"));
+            Results.Content(H.RenderMarketingPage(http, "Unsubscribe", MailingListPage.UnsubscribePage(token, "", store), store), "text/html"));
 
         app.MapPost("/readers/unsubscribe/{token}", (string token, HttpContext http, AppStoreDb store) =>
         {
             var (success, message, _) = store.UnsubscribeByToken(token);
             var cls = success ? "success" : "error";
             var notice = $"""<div class="notice {cls}">{H.Encode(message)}</div>""";
-            return Results.Content(H.RenderPage(http, "Unsubscribe", MailingListPage.UnsubscribePage(token, notice, store, unsubscribed: success), store), "text/html");
+            return Results.Content(H.RenderMarketingPage(http, "Unsubscribe", MailingListPage.UnsubscribePage(token, notice, store, unsubscribed: success), store), "text/html");
         });
 
         app.MapPost("/mailing-list/unsubscribe/{id:int}", async (int id, HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings) =>

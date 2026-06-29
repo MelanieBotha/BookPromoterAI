@@ -186,18 +186,23 @@ static class AdLibraryPage
             : "";
 
         var hasAccount = store.AuthorSocialAccounts.Any(a =>
-            a.Platform.Equals(ad.Platform, StringComparison.OrdinalIgnoreCase) && a.IsConnected);
+            PostLimits.PlatformsMatch(a.Platform, ad.Platform) && a.IsConnected);
         var authorAccount = store.AuthorSocialAccounts.FirstOrDefault(a =>
-            a.Platform.Equals(ad.Platform, StringComparison.OrdinalIgnoreCase) && a.IsConnected);
-        var blueskyNotLive = PostLimits.IsBluesky(ad.Platform) && authorAccount is not null && !authorAccount.IsLiveConnection;
+            PostLimits.PlatformsMatch(a.Platform, ad.Platform) && a.IsConnected);
+        var platformNotLive = authorAccount is not null
+            && PostLimits.RequiresLiveConnection(ad.Platform)
+            && !authorAccount.IsLiveConnection;
         var canPostNow = hasAccount
-            && !blueskyNotLive
+            && !platformNotLive
             && ad.PostStatus is "Pending" or "Failed"
             && (!needsApproval || ad.ApprovedForPosting);
+        var reconnectHint = PostLimits.IsBluesky(ad.Platform)
+            ? "Reconnect Bluesky with an app password in My Account to use Post now."
+            : "Reconnect X with Sign in with X in My Account to use Post now.";
         var postNowButton = canPostNow
             ? $"""<form method="post" action="/ad-library/post-now/{ad.Id}">{searchField}<button class="button small" type="submit">Post now</button></form>"""
-            : blueskyNotLive && ad.PostStatus is "Pending" or "Failed"
-                ? """<p class="muted small-text">Reconnect Bluesky with an app password in My Account to use Post now.</p>"""
+            : platformNotLive && ad.PostStatus is "Pending" or "Failed"
+                ? $"""<p class="muted small-text">{H.Encode(reconnectHint)}</p>"""
                 : "";
 
         var postErrorNote = ad.PostStatus == "Failed" && !string.IsNullOrWhiteSpace(ad.PostError)

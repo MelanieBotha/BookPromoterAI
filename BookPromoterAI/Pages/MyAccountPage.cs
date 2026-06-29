@@ -40,7 +40,7 @@ static class MyAccountPage
                     ? """<small class="status used">Connected (simulated — not posting to network yet)</small>"""
                     : """<small class="status used">Manually added</small>""";
 
-            var schedule = store.Schedules.FirstOrDefault(s => s.Platform.Equals(account.Platform, StringComparison.OrdinalIgnoreCase));
+            var schedule = store.Schedules.FirstOrDefault(s => PostLimits.PlatformsMatch(s.Platform, account.Platform));
             var postsPerWeek = schedule?.PostsPerWeek ?? 0;
             var requiresApproval = schedule?.RequiresApproval ?? true;
             var checkedText = requiresApproval ? "checked" : "";
@@ -107,7 +107,7 @@ static class MyAccountPage
                 <h2>Author Social Accounts &amp; Posting Schedule</h2>
                 <p class="muted">Connect platforms where you promote <strong>your books</strong>. Set posts/week, approval, and auto-post for each author account.</p>
                 {ownerBrandNote}
-                <p class="muted small-text">Check "Auto-post", set <strong>posts/week</strong> above 0, then click <strong>Save Posting Schedule</strong>. If "Approval required" is checked, approve posts in the Ad Library first. Auto-posting runs immediately on save and every few minutes after that. <strong>Bluesky</strong> posts live when connected with an app password; other platforms remain simulated until OAuth is configured.</p>
+                <p class="muted small-text">Check "Auto-post", set <strong>posts/week</strong> above 0, then click <strong>Save Posting Schedule</strong>. If "Approval required" is checked, approve posts in the Ad Library first. Auto-posting runs immediately on save and every few minutes after that. <strong>Bluesky</strong> and <strong>X</strong> post live when connected; other platforms remain simulated until OAuth is configured.</p>
                 {limitText}
                 {limitNotice}
                 <form method="post" action="/schedule" class="schedule-list">

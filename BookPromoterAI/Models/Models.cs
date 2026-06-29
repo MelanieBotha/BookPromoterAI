@@ -68,7 +68,8 @@ class SocialAccount
         IsConnected
         && !string.IsNullOrWhiteSpace(AccessToken)
         && !AccessToken.StartsWith("SIMULATED-", StringComparison.Ordinal)
-        && (!PostLimits.IsBluesky(Platform) || !string.IsNullOrWhiteSpace(ExternalAccountId));
+        && (!PostLimits.IsBluesky(Platform) || !string.IsNullOrWhiteSpace(ExternalAccountId))
+        && (!PostLimits.IsX(Platform) || !string.IsNullOrWhiteSpace(ExternalAccountId));
 }
 
 class PromoCode

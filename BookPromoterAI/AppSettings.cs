@@ -13,6 +13,9 @@ class AppSettings
     public string StripePublishableKey { get; init; } = "";
     public string StripeWebhookSecret { get; init; } = "";
 
+    public string XClientId { get; init; } = "";
+    public string XClientSecret { get; init; } = "";
+
     public bool IsSendGridConfigured =>
         !string.IsNullOrWhiteSpace(SendGridApiKey) &&
         SendGridApiKey != "YOUR_SENDGRID_API_KEY_HERE" &&
@@ -24,6 +27,12 @@ class AppSettings
         StripeSecretKey.StartsWith("sk_", StringComparison.Ordinal);
 
     public bool IsBillingConfigured => IsStripeConfigured;
+
+    public bool IsXConfigured =>
+        !string.IsNullOrWhiteSpace(XClientId) &&
+        XClientId != "YOUR_X_CLIENT_ID" &&
+        !string.IsNullOrWhiteSpace(XClientSecret) &&
+        XClientSecret != "YOUR_X_CLIENT_SECRET";
 
     public bool IsStripeWebhookConfigured =>
         !string.IsNullOrWhiteSpace(StripeWebhookSecret) &&
@@ -97,6 +106,20 @@ class AppSettings
         return $"OK - {SendGridSenderEmail.Trim()}.";
     }
 
+    public string DescribeXClientId()
+    {
+        if (string.IsNullOrWhiteSpace(XClientId) || XClientId == "YOUR_X_CLIENT_ID")
+            return "Missing - add X__ClientId in Railway (from developer.x.com).";
+        return "OK - detected.";
+    }
+
+    public string DescribeXClientSecret()
+    {
+        if (string.IsNullOrWhiteSpace(XClientSecret) || XClientSecret == "YOUR_X_CLIENT_SECRET")
+            return "Missing - add X__ClientSecret in Railway.";
+        return "OK - detected.";
+    }
+
     public string DescribePublicBaseUrl()
     {
         if (string.IsNullOrWhiteSpace(PublicBaseUrl))
@@ -126,7 +149,9 @@ class AppSettings
             RailwayCleanupDone = config.GetValue("Launch:RailwayCleanupDone", false),
             StripeSecretKey = CleanSecret(config["Stripe:SecretKey"]),
             StripePublishableKey = CleanSecret(config["Stripe:PublishableKey"]),
-            StripeWebhookSecret = CleanSecret(config["Stripe:WebhookSecret"])
+            StripeWebhookSecret = CleanSecret(config["Stripe:WebhookSecret"]),
+            XClientId = CleanSecret(config["X:ClientId"]),
+            XClientSecret = CleanSecret(config["X:ClientSecret"])
         };
     }
 

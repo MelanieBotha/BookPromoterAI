@@ -3,19 +3,20 @@ namespace BookPromoterAI;
 // =====================================================================
 // SOCIAL MEDIA POSTING SERVICE
 //
-// Bluesky uses live AT Protocol posting when the account was connected
-// with an app password. Other platforms remain simulated until OAuth is
-// wired up for each one.
+// Bluesky uses live AT Protocol posting; X uses OAuth 2.0. Other platforms
+// remain simulated until OAuth is wired up for each one.
 // =====================================================================
 class SocialPostingService
 {
     readonly BlueskyService _bluesky;
+    readonly XService _x;
     readonly HttpClient _http;
     readonly UploadPaths _uploads;
 
-    public SocialPostingService(BlueskyService bluesky, IHttpClientFactory httpFactory, UploadPaths uploads)
+    public SocialPostingService(BlueskyService bluesky, XService x, IHttpClientFactory httpFactory, UploadPaths uploads)
     {
         _bluesky = bluesky;
+        _x = x;
         _uploads = uploads;
         _http = httpFactory.CreateClient(nameof(SocialPostingService));
         _http.Timeout = TimeSpan.FromSeconds(30);
@@ -30,6 +31,9 @@ class SocialPostingService
     {
         if (PostLimits.IsBluesky(account.Platform) && account.IsLiveConnection)
             return await PostToBlueskyLive(account, postText, media, brandMedia, cancellationToken);
+
+        if (PostLimits.IsX(account.Platform) && account.IsLiveConnection)
+            return await PostToXLive(account, postText, cancellationToken);
 
         var result = account.Platform.ToLowerInvariant() switch
         {
@@ -100,6 +104,33 @@ class SocialPostingService
         };
     }
 
+    async Task<PostingOutcome> PostToXLive(
+        SocialAccount account,
+        string postText,
+        CancellationToken cancellationToken)
+    {
+        if (!PostLimits.IsWithinLimit(postText, account.Platform))
+        {
+            return new PostingOutcome
+            {
+                Result = PostingResult.Failure(
+                    $"Post exceeds X's {PostLimits.XMaxGraphemes}-character limit ({PostLimits.GraphemeLength(postText)} graphemes). Regenerate or shorten the post.")
+            };
+        }
+
+        if (string.IsNullOrWhiteSpace(account.AccessToken) || string.IsNullOrWhiteSpace(account.ExternalAccountId))
+            return new PostingOutcome { Result = PostingResult.Failure("X is not connected. Reconnect your account in My Account.") };
+
+        var tokens = new XTokenSet(account.AccessToken, account.RefreshToken ?? "", 0);
+        var (result, updated) = await _x.PostAsync(tokens, postText, cancellationToken);
+        return new PostingOutcome
+        {
+            Result = result,
+            AccessToken = updated?.AccessToken,
+            RefreshToken = updated?.RefreshToken
+        };
+    }
+
     static string ResolveBaseUrl(string? appBaseUrl)
     {
         var baseUrl = appBaseUrl?.TrimEnd('/');
@@ -120,8 +151,11 @@ class SocialPostingService
 
     async Task<PostingResult> PostToX(SocialAccount account, string postText)
     {
+        if (!PostLimits.IsWithinLimit(postText, account.Platform))
+            return PostingResult.Failure($"Post exceeds X's {PostLimits.XMaxGraphemes}-character limit ({PostLimits.GraphemeLength(postText)} graphemes). Regenerate or shorten the post.");
+
         await Task.CompletedTask;
-        return PostingResult.SimulatedOk("(Simulated) Posted to X.");
+        return PostingResult.Failure("Connect X with OAuth in My Account for live posting.");
     }
 
     async Task<PostingResult> PostToBluesky(SocialAccount account, string postText)

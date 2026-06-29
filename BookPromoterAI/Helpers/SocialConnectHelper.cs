@@ -81,6 +81,9 @@ static class SocialConnectHelper
         if (PostLimits.IsBluesky(platformName))
             return BlueskyConnectPage(returnUrl, notice, brandContext);
 
+        if (PostLimits.IsX(platformName))
+            return XSetupPage(returnUrl, notice, null);
+
         if (IsPlatformDisabled(platformName))
         {
             return $"""
@@ -149,6 +152,46 @@ static class SocialConnectHelper
                         <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
                     </div>
                 </form>
+            </section>
+            """;
+    }
+
+    public static string XSetupPage(string returnUrl, string notice, AppSettings? settings)
+    {
+        var brandContext = IsBrandContext(returnUrl);
+        var heading = brandContext
+            ? "Connect BookPromoter AI on X"
+            : "Connect your X account";
+        var intro = brandContext
+            ? "This account is for <strong>BookPromoter AI promotions only</strong>. It is separate from author accounts you use to promote your books."
+            : "Sign in with X to auto-post book promotions from the Ad Library.";
+        var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<div class="notice error">{H.Encode(notice)}</div>""";
+        var configured = settings?.IsXConfigured == true;
+        var callbackExample = settings is not null && !string.IsNullOrWhiteSpace(settings.PublicBaseUrl)
+            ? XService.CallbackUrl(settings.PublicBaseUrl.TrimEnd('/'))
+            : $"https://bookpromoterai.us{XService.CallbackPath}";
+        var connectBlock = configured
+            ? $"""
+                <p class="muted">You will be redirected to X to authorize BookPromoter AI.</p>
+                <div class="form-actions">
+                    <a class="button" href="/social-accounts/connect/X?return={H.Encode(returnUrl)}" style="background:#000000">Sign in with X</a>
+                    <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
+                </div>
+                """
+            : """
+                <p class="notice error">X API credentials are not configured yet. The app owner must add them in Railway before authors can connect.</p>
+                <p class="muted">Owner: open <strong>Owner → X (Twitter) API</strong> for setup steps.</p>
+                <a class="button secondary" href="/my-account">Back</a>
+                """;
+        return $"""
+            <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>{heading}</h1></div></section>
+            <section class="panel oauth-panel">
+                <div class="oauth-platform-badge" style="background:#000000">X</div>
+                <h2>Live X posting</h2>
+                <p class="muted">{intro}</p>
+                <p class="muted small-text">OAuth callback URL for your X developer app: <code>{H.Encode(callbackExample)}</code></p>
+                {noticeHtml}
+                {connectBlock}
             </section>
             """;
     }

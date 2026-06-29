@@ -195,7 +195,7 @@ static class MailingListPage
 
             <section class="panel" id="compose-email">
                 <h2>Send Email to List</h2>
-                <p class="muted">{(store.MailingListSubscribers.Count == 0 ? "<strong>Add subscribers first.</strong> " : $"Ready to reach {store.MailingListSubscribers.Count} subscriber(s). ")}Use Auto-Generate to draft a promotion from your books, edit if needed, then send.</p>
+                <p class="muted">{(store.MailingListSubscribers.Count == 0 ? "<strong>Add subscribers first.</strong> " : $"Ready to reach {store.MailingListSubscribers.Count} subscriber(s). ")}Use Auto-Generate to draft a promotion from your books, edit if needed, then send. Manual sends are separate from weekly auto-send.</p>
                 <form method="post" action="/mailing-list/send" class="form" onsubmit="return confirm('Send this email to all {store.MailingListSubscribers.Count} subscriber(s)?');">
                     {bookField}
                     <label>Subject <input name="subject" required placeholder="New book announcement" value="{H.Encode(effectiveSubject)}"></label>

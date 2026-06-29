@@ -91,6 +91,9 @@ class AppStoreDb
     public bool UsesCustomDomain => _settings.UsesCustomDomain;
     public bool ShowSoftLaunchBanner => _settings.ShowSoftLaunchBanner;
     public bool RailwayCleanupDone => _settings.RailwayCleanupDone;
+    public bool IsXConfigured => _settings.IsXConfigured;
+    public string XClientIdStatus => _settings.DescribeXClientId();
+    public string XClientSecretStatus => _settings.DescribeXClientSecret();
 
     public DatabasePaths Database => _database;
 
@@ -1545,15 +1548,8 @@ class AppStoreDb
         if (sent > 0)
         {
             var settings = EnsureMailingListSettingsRow(db, uid, MailingListKinds.Author);
-            var now = DateTime.UtcNow;
-            var currentWeek = System.Globalization.ISOWeek.GetWeekOfYear(now);
-            if (settings.WeekTrackerStart != currentWeek)
-            {
-                settings.WeekTrackerStart = currentWeek;
-                settings.EmailsSentThisWeek = 0;
-            }
-            settings.LastSentAt = now;
-            settings.EmailsSentThisWeek++;
+            settings.LastSentAt = DateTime.UtcNow;
+            // Manual sends do not count toward the weekly auto-send quota.
             settings.PendingSubject = "";
             settings.PendingBody = "";
             settings.PendingApproved = false;
@@ -2614,7 +2610,7 @@ class AppStoreDb
                 a.UserId == schedule.UserId
                 && (a.AccountKind == SocialAccountKinds.Author || a.AccountKind == ""))
                 .ToListAsync())
-                .FirstOrDefault(a => a.Platform.Equals(schedule.Platform, StringComparison.OrdinalIgnoreCase));
+                .FirstOrDefault(a => PostLimits.PlatformsMatch(a.Platform, schedule.Platform));
             if (account is null) continue;
             var candidate = await db.GeneratedAds.Where(a => a.UserId == schedule.UserId && a.Platform == schedule.Platform && a.PostStatus == "Pending" && (!schedule.RequiresApproval || a.ApprovedForPosting)).OrderBy(a => a.GeneratedAt).FirstOrDefaultAsync();
             if (candidate is null) continue;
@@ -2678,7 +2674,7 @@ class AppStoreDb
                 && a.IsConnected
                 && a.AccountKind == SocialAccountKinds.Brand)
                 .ToListAsync())
-                .FirstOrDefault(a => a.Platform.Equals(schedule.Platform, StringComparison.OrdinalIgnoreCase));
+                .FirstOrDefault(a => PostLimits.PlatformsMatch(a.Platform, schedule.Platform));
             if (account is null) continue;
 
             var postText = promoPosts.GetValueOrDefault(schedule.Platform)
@@ -2743,13 +2739,18 @@ class AppStoreDb
             && a.IsConnected
             && (a.AccountKind == SocialAccountKinds.Author || a.AccountKind == ""))
             .ToListAsync())
-            .FirstOrDefault(a => a.Platform.Equals(ad.Platform, StringComparison.OrdinalIgnoreCase));
+            .FirstOrDefault(a => PostLimits.PlatformsMatch(a.Platform, ad.Platform));
         if (account is null)
             return (false, $"Connect your {ad.Platform} account in My Account first.");
 
         var accountModel = ToModel(account);
-        if (PostLimits.IsBluesky(ad.Platform) && !accountModel.IsLiveConnection)
-            return (false, "Bluesky is not connected for live posting. In My Account, remove your Bluesky account and reconnect with an app password.");
+        if (PostLimits.RequiresLiveConnection(ad.Platform) && !accountModel.IsLiveConnection)
+        {
+            var reconnect = PostLimits.IsBluesky(ad.Platform)
+                ? "Bluesky is not connected for live posting. In My Account, remove your Bluesky account and reconnect with an app password."
+                : "X is not connected for live posting. In My Account, remove your X account and reconnect with Sign in with X.";
+            return (false, reconnect);
+        }
 
         var book = await db.Books.AsNoTracking().FirstOrDefaultAsync(b => b.Id == ad.BookId && b.UserId == uid);
         var media = BuildBookPostMedia(ad, book);

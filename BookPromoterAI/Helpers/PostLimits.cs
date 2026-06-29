@@ -113,4 +113,14 @@ static class PostLimits
         platform.Equals("X", StringComparison.OrdinalIgnoreCase) ||
         platform.Equals("Twitter", StringComparison.OrdinalIgnoreCase) ||
         platform.StartsWith("X (", StringComparison.OrdinalIgnoreCase);
+
+    public static bool RequiresLiveConnection(string platform) =>
+        IsBluesky(platform) || IsX(platform);
+
+    public static bool PlatformsMatch(string? a, string? b)
+    {
+        if (string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b)) return false;
+        if (a.Equals(b, StringComparison.OrdinalIgnoreCase)) return true;
+        return IsX(a) && IsX(b);
+    }
 }
