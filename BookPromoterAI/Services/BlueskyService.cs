@@ -1,5 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace BookPromoterAI;
@@ -33,10 +35,13 @@ class BlueskyService
     }
 
     public async Task<(PostingResult Result, BlueskySession? UpdatedSession)> PostAsync(
-        BlueskySession session, string postText, CancellationToken cancellationToken = default)
+        BlueskySession session,
+        string postText,
+        BlueskyImageAttachment? image = null,
+        CancellationToken cancellationToken = default)
     {
         var active = session;
-        var firstTry = await TryCreatePostAsync(active, postText, cancellationToken);
+        var firstTry = await TryCreatePostAsync(active, postText, image, cancellationToken);
         if (firstTry.Result.Success)
             return (firstTry.Result, firstTry.UpdatedSession);
 
@@ -48,26 +53,27 @@ class BlueskyService
             return (PostingResult.Failure("Bluesky session expired. Reconnect your Bluesky account in My Account."), null);
 
         active = refreshed.Session;
-        var retry = await TryCreatePostAsync(active, postText, cancellationToken);
+        var retry = await TryCreatePostAsync(active, postText, image, cancellationToken);
         return (retry.Result, retry.UpdatedSession ?? active);
     }
 
     async Task<(PostingResult Result, BlueskySession? UpdatedSession, bool NeedsRefresh)> TryCreatePostAsync(
-        BlueskySession session, string postText, CancellationToken cancellationToken)
+        BlueskySession session,
+        string postText,
+        BlueskyImageAttachment? image,
+        CancellationToken cancellationToken)
     {
-        var postRecord = new Dictionary<string, object?>
+        JsonNode? uploadedBlob = null;
+        if (image is not null)
         {
-            ["$type"] = "app.bsky.feed.post",
-            ["text"] = postText,
-            ["createdAt"] = DateTime.UtcNow.ToString("o"),
-            ["langs"] = new[] { "en" }
-        };
+            var upload = await UploadBlobAsync(session, image, cancellationToken);
+            if (upload.NeedsRefresh)
+                return (PostingResult.Failure("Bluesky session expired."), null, true);
+            uploadedBlob = upload.Blob;
+        }
 
-        var facets = BlueskyRichText.BuildFacets(postText);
-        if (facets.Count > 0)
-            postRecord["facets"] = facets;
-
-        var recordBody = new Dictionary<string, object?>
+        var postRecord = BuildPostRecord(postText, image, uploadedBlob);
+        var recordBody = new JsonObject
         {
             ["repo"] = session.Did,
             ["collection"] = "app.bsky.feed.post",
@@ -80,7 +86,12 @@ class BlueskyService
 
         var response = await _http.SendAsync(request, cancellationToken);
         if (response.IsSuccessStatusCode)
-            return (PostingResult.Ok("Posted to Bluesky."), session, false);
+        {
+            var message = uploadedBlob is not null
+                ? "Posted to Bluesky with cover image."
+                : "Posted to Bluesky.";
+            return (PostingResult.LiveOk(message), session, false);
+        }
 
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
         if (response.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.BadRequest
@@ -88,6 +99,73 @@ class BlueskyService
             return (PostingResult.Failure("Bluesky session expired."), null, true);
 
         return (PostingResult.Failure(DescribePostError(response.StatusCode, body)), null, false);
+    }
+
+    async Task<(JsonNode? Blob, bool NeedsRefresh)> UploadBlobAsync(
+        BlueskySession session,
+        BlueskyImageAttachment image,
+        CancellationToken cancellationToken)
+    {
+        using var content = new ByteArrayContent(image.Data);
+        content.Headers.ContentType = new MediaTypeHeaderValue(image.MimeType);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/xrpc/com.atproto.repo.uploadBlob");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessJwt);
+        request.Content = content;
+
+        var response = await _http.SendAsync(request, cancellationToken);
+        if (response.IsSuccessStatusCode)
+        {
+            var json = JsonNode.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+            return (json?["blob"]?.DeepClone(), false);
+        }
+
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (response.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.BadRequest
+            && body.Contains("ExpiredToken", StringComparison.OrdinalIgnoreCase))
+            return (null, true);
+
+        return (null, false);
+    }
+
+    static JsonObject BuildPostRecord(string postText, BlueskyImageAttachment? image, JsonNode? uploadedBlob)
+    {
+        var record = new JsonObject
+        {
+            ["$type"] = "app.bsky.feed.post",
+            ["text"] = postText,
+            ["createdAt"] = DateTime.UtcNow.ToString("o"),
+            ["langs"] = new JsonArray("en")
+        };
+
+        var facets = BlueskyRichText.BuildFacets(postText);
+        if (facets.Count > 0)
+            record["facets"] = JsonSerializer.SerializeToNode(facets, BlueskyJson.Options);
+
+        if (uploadedBlob is not null && image is not null)
+        {
+            var imageEntry = new JsonObject
+            {
+                ["alt"] = image.AltText,
+                ["image"] = uploadedBlob.DeepClone()
+            };
+            if (image.Width is int w && image.Height is int h && w > 0 && h > 0)
+            {
+                imageEntry["aspectRatio"] = new JsonObject
+                {
+                    ["width"] = w,
+                    ["height"] = h
+                };
+            }
+
+            record["embed"] = new JsonObject
+            {
+                ["$type"] = "app.bsky.embed.images",
+                ["images"] = new JsonArray { imageEntry }
+            };
+        }
+
+        return record;
     }
 
     async Task<(bool Ok, BlueskySession? Session)> RefreshSessionAsync(string refreshJwt, CancellationToken cancellationToken)
@@ -142,9 +220,9 @@ class BlueskyService
 
     static class BlueskyJson
     {
-        public static readonly System.Text.Json.JsonSerializerOptions Options = new()
+        public static readonly JsonSerializerOptions Options = new()
         {
-            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
     }

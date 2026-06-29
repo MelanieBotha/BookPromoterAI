@@ -10,13 +10,25 @@ namespace BookPromoterAI;
 class SocialPostingService
 {
     readonly BlueskyService _bluesky;
+    readonly HttpClient _http;
+    readonly UploadPaths _uploads;
 
-    public SocialPostingService(BlueskyService bluesky) => _bluesky = bluesky;
+    public SocialPostingService(BlueskyService bluesky, IHttpClientFactory httpFactory, UploadPaths uploads)
+    {
+        _bluesky = bluesky;
+        _uploads = uploads;
+        _http = httpFactory.CreateClient(nameof(SocialPostingService));
+        _http.Timeout = TimeSpan.FromSeconds(30);
+    }
 
-    public async Task<PostingOutcome> PostAsync(SocialAccount account, string postText)
+    public async Task<PostingOutcome> PostAsync(
+        SocialAccount account,
+        string postText,
+        BookPostMedia? media = null,
+        CancellationToken cancellationToken = default)
     {
         if (PostLimits.IsBluesky(account.Platform) && account.IsLiveConnection)
-            return await PostToBlueskyLive(account, postText);
+            return await PostToBlueskyLive(account, postText, media, cancellationToken);
 
         var result = account.Platform.ToLowerInvariant() switch
         {
@@ -32,7 +44,11 @@ class SocialPostingService
         return new PostingOutcome { Result = result };
     }
 
-    async Task<PostingOutcome> PostToBlueskyLive(SocialAccount account, string postText)
+    async Task<PostingOutcome> PostToBlueskyLive(
+        SocialAccount account,
+        string postText,
+        BookPostMedia? media,
+        CancellationToken cancellationToken)
     {
         if (!PostLimits.IsWithinLimit(postText, "Bluesky"))
         {
@@ -46,13 +62,29 @@ class SocialPostingService
         if (string.IsNullOrWhiteSpace(account.AccessToken) || string.IsNullOrWhiteSpace(account.ExternalAccountId))
             return new PostingOutcome { Result = PostingResult.Failure("Bluesky is not connected. Reconnect your account in My Account.") };
 
+        BlueskyImageAttachment? image = null;
+        if (media is not null)
+        {
+            var baseUrl = string.IsNullOrWhiteSpace(media.AppBaseUrl)
+                ? "https://bookpromoterai.us"
+                : media.AppBaseUrl.TrimEnd('/');
+            image = await BookCoverLoader.TryLoadAsync(
+                _http,
+                _uploads.Path,
+                baseUrl,
+                media.BookTitle,
+                media.CoverImageUrl,
+                media.TrackingCode,
+                cancellationToken);
+        }
+
         var session = new BlueskySession(
             account.AccessToken,
             account.RefreshToken ?? "",
             account.ExternalAccountId,
             account.Handle);
 
-        var (result, updated) = await _bluesky.PostAsync(session, postText);
+        var (result, updated) = await _bluesky.PostAsync(session, postText, image, cancellationToken);
         return new PostingOutcome
         {
             Result = result,

@@ -1883,7 +1883,9 @@ class AppStoreDb
             if (account is null) continue;
             var candidate = await db.GeneratedAds.Where(a => a.UserId == schedule.UserId && a.Platform == schedule.Platform && a.PostStatus == "Pending" && (!schedule.RequiresApproval || a.ApprovedForPosting)).OrderBy(a => a.GeneratedAt).FirstOrDefaultAsync();
             if (candidate is null) continue;
-            var outcome = await postingService.PostAsync(ToModel(account), candidate.PostText);
+            var book = await db.Books.AsNoTracking().FirstOrDefaultAsync(b => b.Id == candidate.BookId && b.UserId == schedule.UserId);
+            var media = BuildBookPostMedia(candidate, book);
+            var outcome = await postingService.PostAsync(ToModel(account), candidate.PostText, media);
             var result = outcome.Result;
             if (!string.IsNullOrWhiteSpace(outcome.AccessToken))
             {
@@ -1929,7 +1931,9 @@ class AppStoreDb
         if (PostLimits.IsBluesky(ad.Platform) && !accountModel.IsLiveConnection)
             return (false, "Bluesky is not connected for live posting. In My Account, remove your Bluesky account and reconnect with an app password.");
 
-        var outcome = await postingService.PostAsync(accountModel, ad.PostText);
+        var book = await db.Books.AsNoTracking().FirstOrDefaultAsync(b => b.Id == ad.BookId && b.UserId == uid);
+        var media = BuildBookPostMedia(ad, book);
+        var outcome = await postingService.PostAsync(accountModel, ad.PostText, media);
         var result = outcome.Result;
         if (!string.IsNullOrWhiteSpace(outcome.AccessToken))
         {
@@ -1982,6 +1986,20 @@ class AppStoreDb
         ad.PostedAt = null;
         ad.PostError = result.Message;
         return false;
+    }
+
+    BookPostMedia? BuildBookPostMedia(DbGeneratedAd ad, DbBook? book)
+    {
+        var cover = !string.IsNullOrWhiteSpace(book?.CoverImageUrl) ? book.CoverImageUrl : ad.CoverImageUrl;
+        var trackingCode = book?.TrackingCode;
+        if (string.IsNullOrWhiteSpace(cover) && string.IsNullOrWhiteSpace(trackingCode))
+            return null;
+
+        var baseUrl = _settings.PublicBaseUrl.TrimEnd('/');
+        if (string.IsNullOrWhiteSpace(baseUrl))
+            baseUrl = "https://bookpromoterai.us";
+
+        return new BookPostMedia(cover, trackingCode, ad.BookTitle, baseUrl);
     }
 
     public static string? FormatNextAutoPostHint(SocialSchedule? schedule)
