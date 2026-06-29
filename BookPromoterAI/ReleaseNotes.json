@@ -1,4 +1,12 @@
 {
+  "1.8.11": {
+    "title": "BookPromoter AI v1.8.11 — What's new",
+    "updated": [
+      "Deleting an access code now reliably revokes the user's app access, including after plan changes"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.8.10": {
     "title": "BookPromoter AI v1.8.10 — What's new",
     "updated": [

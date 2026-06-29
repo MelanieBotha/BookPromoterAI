@@ -68,7 +68,7 @@ class AppStoreDb
         if (_cachedUser is not null && _cachedUser.Email == LoggedInEmail) return _cachedUser;
         using var db = Db();
         var user = db.Users.FirstOrDefault(u => u.Email == LoggedInEmail);
-        if (user is not null && RevokeExpiredAccessIfNeeded(user, db))
+        if (user is not null && SyncCustomerAccessState(user, db))
             user = db.Users.FirstOrDefault(u => u.Email == LoggedInEmail);
         _cachedUser = user;
         return user;
@@ -963,24 +963,54 @@ class AppStoreDb
         if (promo is null) return (false, "Promo code not found.");
 
         var codeLabel = promo.Code;
-        var redeemedEmail = promo.RedeemedByEmail?.Trim().ToLowerInvariant();
-        var accessRevoked = false;
+        var revokedEmails = new List<string>();
 
-        if (promo.IsRedeemed && !string.IsNullOrWhiteSpace(redeemedEmail) && !OwnerAccount.IsOwnerEmail(redeemedEmail))
+        foreach (var user in FindUsersAffectedByPromoDelete(promo, db))
         {
-            var user = db.Users.FirstOrDefault(u => u.Email == redeemedEmail);
-            if (user is not null)
-                accessRevoked = RevokeAccessForPromo(user, promo, db);
+            if (RevokeAccessForPromo(user, promo, db))
+                revokedEmails.Add(user.Email);
         }
 
         db.PromoCodes.Remove(promo);
         db.SaveChanges();
+        ClearUserCache();
 
-        if (accessRevoked)
-            return (true, $"Deleted {codeLabel} and removed access for {redeemedEmail}.");
+        if (revokedEmails.Count > 0)
+            return (true, $"Deleted {codeLabel} and removed access for {string.Join(", ", revokedEmails)}.");
         if (promo.IsRedeemed)
             return (true, $"Deleted {codeLabel}. The user kept access (paid subscription or other active access).");
         return (true, $"Deleted unused code {codeLabel}.");
+    }
+
+    static IEnumerable<DbUser> FindUsersAffectedByPromoDelete(DbPromoCode promo, AppDbContext db)
+    {
+        var users = new List<DbUser>();
+        var seenIds = new HashSet<int>();
+
+        void TryAdd(DbUser? user)
+        {
+            if (user is null || seenIds.Contains(user.Id) || OwnerAccount.IsOwnerEmail(user.Email))
+                return;
+            seenIds.Add(user.Id);
+            users.Add(user);
+        }
+
+        var redeemedEmail = promo.RedeemedByEmail?.Trim().ToLowerInvariant();
+        if (!string.IsNullOrWhiteSpace(redeemedEmail))
+            TryAdd(db.Users.FirstOrDefault(u => u.Email == redeemedEmail));
+
+        var intendedEmail = promo.IntendedRecipientEmail?.Trim().ToLowerInvariant();
+        if (!string.IsNullOrWhiteSpace(intendedEmail))
+            TryAdd(db.Users.FirstOrDefault(u => u.Email == intendedEmail));
+
+        var linkedUserIds = db.Subscriptions
+            .Where(s => s.PromoCodeUsed == promo.Code)
+            .Select(s => s.UserId)
+            .Distinct();
+        foreach (var userId in linkedUserIds)
+            TryAdd(db.Users.FirstOrDefault(u => u.Id == userId));
+
+        return users;
     }
 
     static bool RevokeAccessForPromo(DbUser user, DbPromoCode promo, AppDbContext db)
@@ -988,16 +1018,25 @@ class AppStoreDb
         if (!string.IsNullOrWhiteSpace(user.StripeSubscriptionId) || !string.IsNullOrWhiteSpace(user.PayPalSubscriptionId))
             return false;
 
-        var relatedSubs = db.Subscriptions.Where(s => s.UserId == user.Id && s.PromoCodeUsed == promo.Code).ToList();
-        foreach (var sub in relatedSubs)
-            db.Subscriptions.Remove(sub);
-
-        if (db.Subscriptions.Any(s => s.UserId == user.Id))
+        var userSubs = db.Subscriptions.Where(s => s.UserId == user.Id).ToList();
+        if (userSubs.Any(s => s.PromoCodeUsed.StartsWith("Paid (", StringComparison.Ordinal)))
             return false;
 
-        var matchesLifetime = promo.IsLifetimeFree && user.AccessType == "Lifetime Free (Publisher)";
-        var matchesTrial = !promo.IsLifetimeFree && user.AccessType == "Free Trial";
-        if (!matchesLifetime && !matchesTrial)
+        var redeemedEmail = promo.RedeemedByEmail?.Trim().ToLowerInvariant();
+        var linkedToPromo = userSubs.Any(s => s.PromoCodeUsed == promo.Code);
+        var redeemedByUser = promo.IsRedeemed && redeemedEmail == user.Email;
+        var accessFromPromo = linkedToPromo
+            || redeemedByUser
+            || (promo.IsLifetimeFree && user.AccessType == "Lifetime Free (Publisher)")
+            || (!promo.IsLifetimeFree && user.AccessType == "Free Trial");
+
+        if (!accessFromPromo)
+            return false;
+
+        foreach (var sub in userSubs.Where(s => s.PromoCodeUsed == promo.Code))
+            db.Subscriptions.Remove(sub);
+
+        if (userSubs.Any(s => s.PromoCodeUsed != promo.Code))
             return false;
 
         user.HasCustomerAccess = false;
@@ -1486,11 +1525,61 @@ class AppStoreDb
 
     public void CheckAccessExpiry()
     {
-        var user = GetCurrentUser();
-        if (user is null) return;
-        using var db = Db();
-        if (RevokeExpiredAccessIfNeeded(user, db))
-            ClearUserCache();
+        ClearUserCache();
+        _ = GetCurrentUser();
+    }
+
+    private static bool SyncCustomerAccessState(DbUser user, AppDbContext db) =>
+        RevokeExpiredAccessIfNeeded(user, db) || RevokeOrphanedPromoAccessIfNeeded(user, db);
+
+    private static bool RevokeOrphanedPromoAccessIfNeeded(DbUser user, AppDbContext db)
+    {
+        if (!user.HasCustomerAccess || OwnerAccount.IsOwnerEmail(user.Email))
+            return false;
+
+        if (!string.IsNullOrWhiteSpace(user.StripeSubscriptionId) || !string.IsNullOrWhiteSpace(user.PayPalSubscriptionId))
+            return false;
+
+        var subs = db.Subscriptions.Where(s => s.UserId == user.Id).ToList();
+        if (subs.Any(s => s.PromoCodeUsed.StartsWith("Paid (", StringComparison.Ordinal)))
+            return false;
+
+        var promoSubs = subs.Where(s => !s.PromoCodeUsed.StartsWith("Paid (", StringComparison.Ordinal)).ToList();
+        if (promoSubs.Any(s => !db.PromoCodes.Any(p => p.Code == s.PromoCodeUsed)))
+            return ClearPromoBasedAccess(user, db, promoSubs);
+
+        if (user.AccessType is "Free Trial" or "Lifetime Free (Publisher)")
+        {
+            var isLifetime = user.AccessType == "Lifetime Free (Publisher)";
+            var hasPromo = db.PromoCodes.Any(p =>
+                p.IsRedeemed
+                && p.RedeemedByEmail == user.Email
+                && p.IsLifetimeFree == isLifetime);
+            if (!hasPromo)
+                return ClearPromoBasedAccess(user, db, promoSubs);
+        }
+
+        if (promoSubs.Count == 0
+            && user.AccessType.EndsWith(" Subscription", StringComparison.Ordinal)
+            && !db.PromoCodes.Any(p => p.IsRedeemed && p.RedeemedByEmail == user.Email))
+            return ClearPromoBasedAccess(user, db, promoSubs);
+
+        return false;
+    }
+
+    static bool ClearPromoBasedAccess(DbUser user, AppDbContext db, List<DbSubscription> promoSubs)
+    {
+        foreach (var sub in promoSubs)
+            db.Subscriptions.Remove(sub);
+
+        user.HasCustomerAccess = false;
+        user.AccessType = "No Access Selected";
+        user.CurrentPlanId = null;
+        user.AccessEndsAt = null;
+        user.IsCancelled = false;
+        user.SubscriptionEndsAt = null;
+        db.SaveChanges();
+        return true;
     }
 
     private static bool RevokeExpiredAccessIfNeeded(DbUser user, AppDbContext db)

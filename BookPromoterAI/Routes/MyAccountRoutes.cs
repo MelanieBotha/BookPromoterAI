@@ -7,6 +7,7 @@ static class MyAccountRoutes
         app.MapGet("/my-account", (HttpRequest request, HttpContext http, AppStoreDb store) =>
         {
             if (!store.IsLoggedIn) return Results.Redirect("/start");
+            if (!store.HasCustomerAccess) return Results.Redirect("/start");
             var notice = request.Query["saved"] == "1"
                 ? """<div class="notice success">Posting schedule saved. This week's posts have been generated — check the Ad Library.</div>"""
                 : "";
