@@ -1,4 +1,12 @@
 {
+  "1.9.12": {
+    "title": "BookPromoter AI v1.9.12 — What's new",
+    "updated": [
+      "Fixed Railway healthcheck failure caused by mailing list route parameter binding"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.9.11": {
     "title": "BookPromoter AI v1.9.11 — What's new",
     "updated": [

@@ -4,7 +4,7 @@ static class MailingListRoutes
 {
     public static void Map(WebApplication app, MailingListEmailGenerator emailGenerator)
     {
-        app.MapGet("/mailing-list", (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings, MailingListEmailGenerator emailGenerator) =>
+        app.MapGet("/mailing-list", (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings) =>
         {
             if (!store.HasCustomerAccess || !store.IsLoggedIn) return Results.Redirect("/start");
             var baseUrl = PublicUrl.Base(request, settings);
@@ -39,7 +39,7 @@ static class MailingListRoutes
             return Results.Content(H.RenderPage(http, "Mailing List", MailingListPage.Render(store, notice, baseUrl, subject, body, newBookId), store), "text/html");
         });
 
-        app.MapPost("/mailing-list/schedule", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings, MailingListEmailGenerator emailGenerator) =>
+        app.MapPost("/mailing-list/schedule", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings) =>
         {
             if (!store.HasCustomerAccess || !store.IsLoggedIn) return Results.Redirect("/start");
             var form = await request.ReadFormAsync();
