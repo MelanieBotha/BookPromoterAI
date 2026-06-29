@@ -87,7 +87,6 @@ static class MailingListRoutes
         {
             if (!store.HasCustomerAccess || !store.IsLoggedIn) return Results.Redirect("/start");
             var form = await request.ReadFormAsync();
-            var fromName = store.LoggedInEmail ?? settings.SendGridSenderName;
             var baseUrl = PublicUrl.Base(request, settings);
             var bookId = int.TryParse(form["bookId"].ToString(), out var id) ? id : (int?)null;
             var (sent, failed, message) = await store.SendMailingListCampaignAsync(
@@ -96,7 +95,6 @@ static class MailingListRoutes
                 settings.SendGridApiKey,
                 settings.SendGridSenderEmail,
                 settings.SendGridSenderName,
-                fromName,
                 baseUrl,
                 bookId);
 
@@ -110,22 +108,22 @@ static class MailingListRoutes
 
         app.MapGet("/readers/signup/{userCode}", (string userCode, HttpContext http, AppStoreDb store) =>
         {
-            var authorEmail = store.GetAuthorEmailByUserCode(userCode);
-            if (authorEmail is null)
+            var authorName = store.GetAuthorPublicNameByUserCode(userCode);
+            if (authorName is null)
                 return Results.Content(H.RenderPage(http, "Signup", """<div class="notice error">This signup link is not valid.</div>""", store), "text/html");
-            return Results.Content(H.RenderPage(http, "Join Mailing List", MailingListPage.SignupPage(userCode, authorEmail, ""), store), "text/html");
+            return Results.Content(H.RenderPage(http, "Join Mailing List", MailingListPage.SignupPage(userCode, authorName, ""), store), "text/html");
         });
 
         app.MapPost("/readers/signup/{userCode}", async (string userCode, HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings) =>
         {
             var form = await request.ReadFormAsync();
             var baseUrl = PublicUrl.Base(request, settings);
-            var (success, message, authorEmail, token, authorUserId) = store.SubscribeToMailingListByUserCode(userCode, form["email"].ToString(), form["name"].ToString());
+            var (success, message, authorName, token, authorUserId) = store.SubscribeToMailingListByUserCode(userCode, form["email"].ToString(), form["name"].ToString());
             if (success && token is not null && authorUserId > 0)
                 await store.SendSubscriberWelcomeEmailAsync(authorUserId, form["email"].ToString(), form["name"].ToString(), token, baseUrl);
             var cls = success ? "success" : "error";
             var notice = $"""<div class="notice {cls}">{H.Encode(message)}</div>""";
-            return Results.Content(H.RenderPage(http, "Join Mailing List", MailingListPage.SignupPage(userCode, authorEmail ?? "", notice), store), "text/html");
+            return Results.Content(H.RenderPage(http, "Join Mailing List", MailingListPage.SignupPage(userCode, authorName ?? AuthorDisplayName.Fallback, notice), store), "text/html");
         });
 
         app.MapGet("/readers/unsubscribe/{token}", (string token, HttpContext http, AppStoreDb store) =>

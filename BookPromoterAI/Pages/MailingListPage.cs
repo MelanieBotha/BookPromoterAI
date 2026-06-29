@@ -15,11 +15,13 @@ static class MailingListPage
         var subscriptionRows = new StringBuilder();
         foreach (var sub in mySubscriptions)
         {
-            var ownerLabel = OwnerAccount.IsOwnerEmail(sub.ListOwnerEmail) && MailingListKinds.IsBrand(sub.ListKind)
-                ? "BookPromoter AI product updates"
-                : OwnerAccount.IsOwnerEmail(sub.ListOwnerEmail)
-                    ? "BookPromoter AI reader list"
-                    : $"Updates from {sub.ListOwnerEmail}";
+            var ownerLabel = !string.IsNullOrWhiteSpace(sub.ListOwnerDisplayName)
+                ? sub.ListOwnerDisplayName
+                : OwnerAccount.IsOwnerEmail(sub.ListOwnerEmail) && MailingListKinds.IsBrand(sub.ListKind)
+                    ? "BookPromoter AI product updates"
+                    : OwnerAccount.IsOwnerEmail(sub.ListOwnerEmail)
+                        ? "BookPromoter AI reader list"
+                        : "Author mailing list";
             subscriptionRows.Append($"""
                 <article class="book-row">
                     <div>
@@ -225,13 +227,16 @@ static class MailingListPage
             """;
     }
 
-    public static string SignupPage(string userCode, string authorEmail, string notice)
+    public static string SignupPage(string userCode, string authorName, string notice)
     {
+        var heading = string.IsNullOrWhiteSpace(authorName) || authorName == AuthorDisplayName.Fallback
+            ? "Join the mailing list"
+            : $"Join {H.Encode(authorName)}'s mailing list";
         return $"""
             <section class="hero">
                 <div>
                     <p class="eyebrow">Reader Signup</p>
-                    <h1>Join the mailing list</h1>
+                    <h1>{heading}</h1>
                     <p class="muted">Get book updates and news from this author.</p>
                 </div>
             </section>
@@ -245,7 +250,7 @@ static class MailingListPage
                     <button class="button" type="submit">Subscribe</button>
                 </form>
                 <p class="muted small-text">You can unsubscribe anytime from the link in any email, or from Mailing List after you log in.</p>
-                {(string.IsNullOrWhiteSpace(authorEmail) ? "" : """<p class="muted small-text">List managed via BookPromoter AI.</p>""")}
+                <p class="muted small-text">List managed via BookPromoter AI.</p>
             </section>
             """;
     }

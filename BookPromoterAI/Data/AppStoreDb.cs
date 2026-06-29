@@ -245,7 +245,8 @@ class AppStoreDb
         var trackingUrl = PostBranding.PurchaseUrlForPost(book, appBaseUrl);
         var (subject, body) = generator.GenerateNewRelease(book, trackingUrl);
         var (sent, _, _) = await SendMailingListCampaignForUserAsync(
-            db, uid, subject, body, apiKey, senderEmail, senderName, user.Email, appBaseUrl,
+            db, uid, subject, body, apiKey, senderEmail, senderName,
+            GetAuthorPublicName(db, uid), appBaseUrl,
             MailingListKinds.Author, bookId);
 
         if (sent > 0)
@@ -896,9 +897,10 @@ class AppStoreDb
                 var releaseModel = ToModel(releaseBook);
                 var releaseUrl = PostBranding.PurchaseUrlForPost(releaseModel, appBaseUrl);
                 var (releaseSubject, releaseBody) = generator.GenerateNewRelease(releaseModel, releaseUrl);
+                var authorName = GetAuthorPublicName(db, settings.UserId);
                 var (releaseSent, _, _) = await SendMailingListCampaignForUserAsync(
                     db, settings.UserId, releaseSubject, releaseBody,
-                    apiKey, senderEmail, senderName, user.Email, appBaseUrl,
+                    apiKey, senderEmail, senderName, authorName, appBaseUrl,
                     MailingListKinds.Author, releaseBookId);
                 if (releaseSent > 0)
                 {
@@ -924,9 +926,10 @@ class AppStoreDb
         if (string.IsNullOrWhiteSpace(settings.PendingSubject) || string.IsNullOrWhiteSpace(settings.PendingBody))
             return sentCount;
 
+        var weeklyAuthorName = GetAuthorPublicName(db, settings.UserId);
         var (weeklySent, _, _) = await SendMailingListCampaignForUserAsync(
             db, settings.UserId, settings.PendingSubject, settings.PendingBody,
-            apiKey, senderEmail, senderName, user.Email, appBaseUrl,
+            apiKey, senderEmail, senderName, weeklyAuthorName, appBaseUrl,
             MailingListKinds.Author, settings.PendingBookId);
 
         if (weeklySent > 0)
@@ -1369,27 +1372,40 @@ class AppStoreDb
         string appBaseUrl)
     {
         using var db = Db();
-        var author = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == authorUserId);
-        if (author is null) return;
-
-        var authorName = await db.Books.AsNoTracking()
-            .Where(b => b.UserId == authorUserId && b.AuthorName != "")
-            .Select(b => b.AuthorName)
-            .FirstOrDefaultAsync();
-        if (string.IsNullOrWhiteSpace(authorName))
-            authorName = author.Email;
-
+        var authorName = GetAuthorPublicName(db, authorUserId);
         var unsubUrl = GetUnsubscribeUrl(appBaseUrl, unsubscribeToken);
         await EmailService.SendMailingListWelcomeEmail(
             subscriberEmail,
             subscriberName,
             authorName,
-            author.Email,
+            authorName,
             _settings.SendGridApiKey,
             _settings.SendGridSenderEmail,
             _settings.SendGridSenderName,
             appBaseUrl,
             unsubUrl);
+    }
+
+    static string GetAuthorPublicName(AppDbContext db, int userId)
+    {
+        var books = db.Books.AsNoTracking().Where(b => b.UserId == userId).ToList();
+        return AuthorDisplayName.FromDbBooks(books);
+    }
+
+    public string GetAuthorPublicNameForCurrentUser()
+    {
+        var uid = CurrentUserId();
+        if (uid == 0) return AuthorDisplayName.Fallback;
+        using var db = Db();
+        return GetAuthorPublicName(db, uid);
+    }
+
+    public string? GetAuthorPublicNameByUserCode(string userCode)
+    {
+        using var db = Db();
+        var user = db.Users.AsNoTracking().FirstOrDefault(u => u.UserCode == userCode.Trim());
+        if (user is null) return null;
+        return GetAuthorPublicName(db, user.Id);
     }
 
     public void RemoveMailingListSubscriber(int id)
@@ -1422,13 +1438,24 @@ class AppStoreDb
         using var db = Db();
         return db.MailingListSubscribers.AsNoTracking()
             .Where(s => s.Email == email)
-            .Join(db.Users.AsNoTracking(), s => s.UserId, u => u.Id, (s, u) => new MailingListSubscription
+            .Join(db.Users.AsNoTracking(), s => s.UserId, u => u.Id, (s, u) => new { s, u })
+            .AsEnumerable()
+            .Select(row =>
             {
-                Id = s.Id,
-                ListOwnerEmail = u.Email,
-                ListKind = s.ListKind,
-                SubscribedAt = s.SubscribedAt,
-                Source = s.Source
+                var displayName = OwnerAccount.IsOwnerEmail(row.u.Email) && MailingListKinds.IsBrand(row.s.ListKind)
+                    ? "BookPromoter AI product updates"
+                    : OwnerAccount.IsOwnerEmail(row.u.Email)
+                        ? "BookPromoter AI reader list"
+                        : $"Updates from {GetAuthorPublicName(db, row.u.Id)}";
+                return new MailingListSubscription
+                {
+                    Id = row.s.Id,
+                    ListOwnerEmail = row.u.Email,
+                    ListOwnerDisplayName = displayName,
+                    ListKind = row.s.ListKind,
+                    SubscribedAt = row.s.SubscribedAt,
+                    Source = row.s.Source
+                };
             })
             .OrderByDescending(s => s.SubscribedAt)
             .ToList();
@@ -1467,15 +1494,16 @@ class AppStoreDb
 
     static string NewUnsubscribeToken() => Guid.NewGuid().ToString("N");
 
-    public (bool Success, string Message, string? AuthorEmail, string? UnsubscribeToken, int AuthorUserId) SubscribeToMailingListByUserCode(string userCode, string email, string name)
+    public (bool Success, string Message, string? AuthorPublicName, string? UnsubscribeToken, int AuthorUserId) SubscribeToMailingListByUserCode(string userCode, string email, string name)
     {
         var cleanEmail = email.Trim().ToLowerInvariant();
         if (string.IsNullOrWhiteSpace(cleanEmail) || !cleanEmail.Contains('@')) return (false, "Enter a valid email address.", null, null, 0);
         using var db = Db();
         var user = db.Users.FirstOrDefault(u => u.UserCode == userCode.Trim());
         if (user is null) return (false, "This signup link is not valid.", null, null, 0);
+        var authorPublicName = GetAuthorPublicName(db, user.Id);
         if (db.MailingListSubscribers.Any(s => s.UserId == user.Id && s.Email == cleanEmail && s.ListKind == MailingListKinds.Author))
-            return (false, "You're already subscribed to this mailing list.", user.Email, null, user.Id);
+            return (false, "You're already subscribed to this mailing list.", authorPublicName, null, user.Id);
         var token = NewUnsubscribeToken();
         db.MailingListSubscribers.Add(new DbMailingListSubscriber
         {
@@ -1488,7 +1516,7 @@ class AppStoreDb
             ListKind = MailingListKinds.Author
         });
         db.SaveChanges();
-        return (true, "You're subscribed! Check your inbox for a welcome email.", user.Email, token, user.Id);
+        return (true, "You're subscribed! Check your inbox for a welcome email.", authorPublicName, token, user.Id);
     }
 
     public string? GetAuthorEmailByUserCode(string userCode)
@@ -1498,7 +1526,7 @@ class AppStoreDb
     }
 
     public async Task<(int Sent, int Failed, string Message)> SendMailingListCampaignAsync(
-        string subject, string body, string apiKey, string senderEmail, string senderName, string fromDisplayName, string? appBaseUrl = null, int? bookId = null)
+        string subject, string body, string apiKey, string senderEmail, string senderName, string? appBaseUrl = null, int? bookId = null)
     {
         var uid = CurrentUserId();
         if (uid == 0) return (0, 0, "Not logged in.");
@@ -1511,8 +1539,9 @@ class AppStoreDb
             var draftSettings = EnsureMailingListSettingsRow(db, uid, MailingListKinds.Author);
             bookId = draftSettings.PendingBookId;
         }
+        var fromName = GetAuthorPublicName(db, uid);
         var (sent, failed, message) = await SendMailingListCampaignForUserAsync(
-            db, uid, subject, body, apiKey, senderEmail, senderName, fromDisplayName, appBaseUrl, MailingListKinds.Author, bookId);
+            db, uid, subject, body, apiKey, senderEmail, senderName, fromName, appBaseUrl, MailingListKinds.Author, bookId);
         if (sent > 0)
         {
             var settings = EnsureMailingListSettingsRow(db, uid, MailingListKinds.Author);

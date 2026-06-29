@@ -302,6 +302,7 @@ class MailingListSubscription
 {
     public int Id { get; set; }
     public string ListOwnerEmail { get; set; } = "";
+    public string ListOwnerDisplayName { get; set; } = "";
     public string ListKind { get; set; } = MailingListKinds.Author;
     public DateTime SubscribedAt { get; set; }
     public string Source { get; set; } = "";
