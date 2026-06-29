@@ -1895,6 +1895,91 @@ class AppStoreDb
         return count;
     }
 
+    /// <summary>Post a single Ad Library ad immediately, bypassing schedule spacing.</summary>
+    public async Task<(bool Success, string Message)> PostAdNowAsync(int adId, SocialPostingService postingService)
+    {
+        var uid = CurrentUserId();
+        if (uid == 0) return (false, "Not logged in.");
+
+        var now = DateTime.UtcNow;
+        using var db = Db();
+        var ad = await db.GeneratedAds.FirstOrDefaultAsync(a => a.Id == adId && a.UserId == uid);
+        if (ad is null) return (false, "Post not found.");
+        if (ad.PostStatus == "Posted") return (false, "This post was already published.");
+
+        var schedule = await db.SocialSchedules.FirstOrDefaultAsync(s =>
+            s.UserId == uid && s.Platform == ad.Platform);
+        if (schedule?.RequiresApproval == true && !ad.ApprovedForPosting)
+            return (false, "Approve this post first, then use Post now.");
+
+        var account = await db.SocialAccounts.FirstOrDefaultAsync(a =>
+            a.UserId == uid
+            && a.Platform == ad.Platform
+            && a.IsConnected
+            && (a.AccountKind == SocialAccountKinds.Author || a.AccountKind == ""));
+        if (account is null)
+            return (false, $"Connect your {ad.Platform} account in My Account first.");
+
+        var outcome = await postingService.PostAsync(ToModel(account), ad.PostText);
+        var result = outcome.Result;
+        if (!string.IsNullOrWhiteSpace(outcome.AccessToken))
+        {
+            account.AccessToken = outcome.AccessToken;
+            if (!string.IsNullOrWhiteSpace(outcome.RefreshToken))
+                account.RefreshToken = outcome.RefreshToken;
+        }
+
+        ad.PostStatus = result.Success ? "Posted" : "Failed";
+        ad.PostedAt = result.Success ? now : null;
+        ad.PostError = result.Success ? null : result.Message;
+        db.PostingLog.Add(new DbPostingLogEntry
+        {
+            UserId = uid,
+            GeneratedAdId = ad.Id,
+            Platform = ad.Platform,
+            BookTitle = ad.BookTitle,
+            Success = result.Success,
+            Message = result.Success ? "Posted now from Ad Library." : result.Message,
+            AttemptedAt = now
+        });
+
+        if (result.Success && schedule is not null)
+        {
+            var currentWeek = System.Globalization.ISOWeek.GetWeekOfYear(now);
+            if (schedule.WeekTrackerStart != currentWeek)
+            {
+                schedule.WeekTrackerStart = currentWeek;
+                schedule.PostsSentThisWeek = 0;
+            }
+            schedule.LastPostedAt = now;
+            schedule.PostsSentThisWeek++;
+        }
+
+        await db.SaveChangesAsync();
+        return result.Success
+            ? (true, $"Posted to {ad.Platform}.")
+            : (false, result.Message);
+    }
+
+    public static string? FormatNextAutoPostHint(SocialSchedule? schedule)
+    {
+        if (schedule is null || !schedule.AutoPostEnabled || schedule.PostsPerWeek <= 0)
+            return null;
+
+        if (schedule.PostsSentThisWeek >= schedule.PostsPerWeek)
+            return "Weekly auto-post limit reached for this platform.";
+
+        var hoursBetween = (24.0 * 7) / schedule.PostsPerWeek;
+        if (schedule.LastPostedAt is null)
+            return "Auto-post checks every 5 minutes — next slot is due soon.";
+
+        var nextAt = schedule.LastPostedAt.Value.AddHours(hoursBetween);
+        if (nextAt <= DateTime.UtcNow)
+            return "Auto-post checks every 5 minutes — due now.";
+
+        return $"Next auto-post slot: ~{nextAt:ddd MMM d, HH:mm} UTC";
+    }
+
     // ── Client matching ────────────────────────────────────────────────
     public void MatchBookToClient(Book book)
     {

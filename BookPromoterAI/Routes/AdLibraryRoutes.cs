@@ -15,7 +15,11 @@ static class AdLibraryRoutes
                     ? """<div class="notice success">Post regenerated.</div>"""
                     : request.Query["approved"] == "1"
                         ? """<div class="notice success">Post approved for auto-posting.</div>"""
-                        : "";
+                        : request.Query["posted"] == "1"
+                            ? """<div class="notice success">Post published to your connected social account.</div>"""
+                            : request.Query["postError"] == "1"
+                                ? $"""<div class="notice error">{H.Encode(request.Query["msg"].ToString())}</div>"""
+                                : "";
             return Results.Content(H.RenderPage(http, "Ad Library", AdLibraryPage.Render(store, search, notice, focus, request, settings), store), "text/html");
         });
 
@@ -42,15 +46,27 @@ static class AdLibraryRoutes
             store.RegenerateAd(id, generator, PublicUrl.Base(request, settings));
             return Results.Redirect(AdLibraryReturnUrl(search, id, regenerated: true));
         });
+
+        app.MapPost("/ad-library/post-now/{id:int}", async (HttpRequest request, int id, AppStoreDb store, SocialPostingService postingService) =>
+        {
+            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
+            var form = await request.ReadFormAsync();
+            var search = form["search"].ToString();
+            var (success, message) = await store.PostAdNowAsync(id, postingService);
+            if (success)
+                return Results.Redirect(AdLibraryReturnUrl(search, id, posted: true));
+            return Results.Redirect($"/ad-library?postError=1&msg={Uri.EscapeDataString(message)}&focus=ad-{id}#ad-{id}");
+        });
     }
 
-    static string AdLibraryReturnUrl(string search, int focusAdId, bool regenerated = false, bool approved = false)
+    static string AdLibraryReturnUrl(string search, int focusAdId, bool regenerated = false, bool approved = false, bool posted = false)
     {
         var parts = new List<string>();
         if (!string.IsNullOrWhiteSpace(search)) parts.Add($"search={Uri.EscapeDataString(search)}");
         parts.Add($"focus=ad-{focusAdId}");
         if (regenerated) parts.Add("regenerated=1");
         if (approved) parts.Add("approved=1");
+        if (posted) parts.Add("posted=1");
         return $"/ad-library?{string.Join("&", parts)}#ad-{focusAdId}";
     }
 }

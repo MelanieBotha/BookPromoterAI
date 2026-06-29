@@ -131,7 +131,7 @@ static class AdLibraryPage
                     <p class="eyebrow">Ad Library</p>
                     <h1>AI-generated posts by week.</h1>
                     <p class="muted">{totalAds} post(s) total &middot; {thisWeekCount} this week ({H.Encode(currentWeekLabel)}) &middot; Schedule: {scheduledPerWeek} posts/week across {store.Schedules.Count(s => s.PostsPerWeek > 0)} platform(s)</p>
-                    <p class="muted small-text"><strong>Copy post</strong> copies the caption only. Your book link is on the <strong>last line</strong> — Facebook and X use the last URL for the preview image. Keep only that one link so readers see your book cover. <strong>Generate This Week's Posts</strong> refreshes unapproved posts for the current week; approved or already-posted ads are left unchanged.</p>
+                    <p class="muted small-text"><strong>Copy post</strong> copies the caption only. Your book link is on the <strong>last line</strong> — Facebook and X use the last URL for the preview image. Keep only that one link so readers see your book cover. <strong>Generate This Week's Posts</strong> refreshes unapproved posts for the current week; approved or already-posted ads are left unchanged. Auto-post runs every <strong>5 minutes</strong> and spaces posts evenly across the week — use <strong>Post now</strong> to publish immediately.</p>
                 </div>
                 <form method="post" action="/ad-library/generate-week">
                     <button class="button" type="submit">Generate This Week's Posts</button>
@@ -185,6 +185,21 @@ static class AdLibraryPage
                 : $"""<form method="post" action="/ad-library/approve/{ad.Id}">{searchField}<button class="button small" type="submit">Approve for Auto-Post</button></form>"""
             : "";
 
+        var hasAccount = store.AuthorSocialAccounts.Any(a =>
+            a.Platform.Equals(ad.Platform, StringComparison.OrdinalIgnoreCase) && a.IsConnected);
+        var canPostNow = hasAccount
+            && ad.PostStatus is "Pending" or "Failed"
+            && (!needsApproval || ad.ApprovedForPosting);
+        var postNowButton = canPostNow
+            ? $"""<form method="post" action="/ad-library/post-now/{ad.Id}">{searchField}<button class="button small" type="submit">Post now</button></form>"""
+            : "";
+
+        var autoPostHint = ad.PostStatus == "Pending" && schedule?.AutoPostEnabled == true
+            ? AppStoreDb.FormatNextAutoPostHint(schedule) is string hint
+                ? $"""<p class="muted small-text">{H.Encode(hint)}</p>"""
+                : ""
+            : "";
+
         var charCount = PostLimits.CharacterCountLabel(ad.Platform, ad.PostText);
         var focusClass = focus == $"ad-{ad.Id}" ? " post-card-focused" : "";
 
@@ -200,10 +215,12 @@ static class AdLibraryPage
                 </div>
                 <p class="platform-tag">{H.Encode(ad.Platform)}{charCount}</p>
                 <p>{H.Encode(ad.PostText)}</p>
+                {autoPostHint}
                 <textarea id="{copyId}" class="copy-source" readonly>{H.Encode(ad.PostText)}</textarea>
                 <div class="post-card-actions">
                     <button class="button secondary small copy-button" type="button" onclick="copyPostText('{copyId}', this)">Copy post</button>
                     {regenButton}
+                    {postNowButton}
                     {approveButton}
                 </div>
             </article>

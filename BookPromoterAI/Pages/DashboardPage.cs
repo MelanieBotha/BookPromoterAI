@@ -131,10 +131,27 @@ static class DashboardPage
     static string BookCard(AppStoreDb store, PostGenerator generator, HttpRequest request, AppSettings settings, Book book)
     {
         var baseUrl = PublicUrl.Base(request, settings);
-        var schedule = store.Schedules.FirstOrDefault(s => s.PostsPerWeek > 0);
-        var platform = schedule?.Platform ?? "General";
+        var now = DateTime.UtcNow;
+        var (currentWeek, currentYear, _) = AdWeek.For(now);
+        var activeSchedules = store.Schedules.Where(s => s.PostsPerWeek > 0).ToList();
+        var platform = activeSchedules.FirstOrDefault()?.Platform ?? "General";
         var purchaseUrl = PostBranding.PurchaseUrlForPost(book, baseUrl, platform);
         var text = generator.Generate(book, platform, purchaseUrl, book.PostVariantSeed, baseUrl);
+
+        var bookAds = store.GeneratedAds
+            .Where(a => a.BookId == book.Id)
+            .OrderByDescending(a => a.WeekYear == currentYear && a.WeekNumber == currentWeek ? 1 : 0)
+            .ThenByDescending(a => a.GeneratedAt)
+            .ToList();
+
+        var displayAd = bookAds.FirstOrDefault(a => a.Platform.Equals(platform, StringComparison.OrdinalIgnoreCase))
+            ?? bookAds.FirstOrDefault();
+        var displayText = displayAd is not null && !string.IsNullOrWhiteSpace(displayAd.PostText)
+            ? displayAd.PostText
+            : text;
+        if (displayAd is not null)
+            platform = displayAd.Platform;
+
         var cover = string.IsNullOrWhiteSpace(book.CoverImageUrl)
             ? """<div class="cover-placeholder large">No cover</div>"""
             : $"""<img class="book-cover large" src="{H.Encode(book.CoverImageUrl)}" alt="{H.Encode(book.Title)} cover">""";
@@ -147,13 +164,51 @@ static class DashboardPage
                         <strong>{H.Encode(book.Title)}</strong>
                         <small>{ClickAnalytics.ClicksThisMonth(book)} clicks this month</small>
                     </div>
+                    {HeaderStatusBadge(displayAd)}
                 </div>
-                <p class="platform-tag">{H.Encode(platform)}</p>
-                <p>{H.Encode(text)}</p>
+                {PlatformStatusLines(activeSchedules, bookAds, platform, displayAd)}
+                <p>{H.Encode(displayText)}</p>
                 <form method="post" action="/books/{book.Id}/regenerate-post">
                     <button class="button secondary small" type="submit">Generate New Post</button>
                 </form>
             </article>
             """;
     }
+
+    static string HeaderStatusBadge(GeneratedAd? ad) =>
+        ad?.PostStatus == "Posted"
+            ? """<span class="status available">Posted</span>"""
+            : ad?.PostStatus == "Failed"
+                ? """<span class="status used">Failed</span>"""
+                : "";
+
+    static string PlatformStatusLines(
+        List<SocialSchedule> activeSchedules,
+        List<GeneratedAd> bookAds,
+        string fallbackPlatform,
+        GeneratedAd? displayAd)
+    {
+        if (activeSchedules.Count == 0)
+        {
+            var line = RenderPlatformStatusLine(fallbackPlatform, displayAd);
+            return $"""<p class="platform-tag">{line}</p>""";
+        }
+
+        var lines = new StringBuilder();
+        foreach (var schedule in activeSchedules)
+        {
+            var ad = bookAds.FirstOrDefault(a => a.Platform.Equals(schedule.Platform, StringComparison.OrdinalIgnoreCase));
+            lines.Append($"""<p class="platform-tag">{RenderPlatformStatusLine(schedule.Platform, ad)}</p>""");
+        }
+        return lines.ToString();
+    }
+
+    static string RenderPlatformStatusLine(string platform, GeneratedAd? ad) =>
+        ad?.PostStatus switch
+        {
+            "Posted" => $"""<span class="status available">Posted</span> <span class="muted">· {H.Encode(platform)}{(ad.PostedAt is DateTime posted ? $" · {posted:ddd MMM d, HH:mm} UTC" : "")}</span>""",
+            "Failed" => $"""<span class="status used">Failed</span> <span class="muted">· {H.Encode(platform)}</span>""",
+            _ when ad is not null => $"""{H.Encode(platform)} <span class="muted">· Pending</span>""",
+            _ => H.Encode(platform)
+        };
 }

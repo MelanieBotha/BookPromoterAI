@@ -1,4 +1,14 @@
 {
+  "1.9.2": {
+    "title": "BookPromoter AI v1.9.2 — What's new",
+    "updated": [
+      "Dashboard shows Posted status for books successfully published to social media"
+    ],
+    "new": [
+      "Ad Library Post now button to publish immediately without waiting for the auto-post schedule"
+    ],
+    "added": []
+  },
   "1.9.1": {
     "title": "BookPromoter AI v1.9.1 — What's new",
     "updated": [
