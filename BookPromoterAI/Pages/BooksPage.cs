@@ -52,6 +52,11 @@ static class BooksPage
                 var custom = row.querySelector('.custom-store');
                 custom.style.display = select.value === '__custom__' ? 'block' : 'none';
             }
+            function toggleCustomGenre(select) {
+                var custom = document.querySelector('.genre-custom');
+                if (!custom) return;
+                custom.style.display = select.value === '__custom__' ? 'block' : 'none';
+            }
             function updateWordCount(textarea) {
                 var words = textarea.value.trim().length === 0 ? [] : textarea.value.trim().split(/\s+/);
                 var count = words.length;
@@ -63,6 +68,8 @@ static class BooksPage
             document.addEventListener('DOMContentLoaded', function () {
                 var field = document.getElementById('description-field');
                 if (field) updateWordCount(field);
+                var genreSelect = document.getElementById('genre-select');
+                if (genreSelect) toggleCustomGenre(genreSelect);
             });
             </script>
             """;
@@ -74,7 +81,8 @@ static class BooksPage
                     {limitNotice}
                     <label>Title <input name="title" value="{H.Encode(title)}" required></label>
                     <label>Author <input name="authorName" value="{H.Encode(author)}" required></label>
-                    <label>Genre <input name="genre" value="{H.Encode(genre)}"></label>
+                    <label>Genre</label>
+                    {BookGenres.RenderSelect(genre)}
                     <label>Description (200 words max)
                         <textarea name="description" id="description-field" oninput="updateWordCount(this)">{H.Encode(description)}</textarea>
                         <span id="word-count" class="small-text muted"></span>
