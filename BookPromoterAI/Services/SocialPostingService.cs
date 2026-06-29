@@ -64,19 +64,19 @@ class SocialPostingService
     async Task<PostingResult> PostToFacebook(SocialAccount account, string postText)
     {
         await Task.CompletedTask;
-        return PostingResult.Ok("(Simulated) Posted to Facebook Page.");
+        return PostingResult.SimulatedOk("(Simulated) Posted to Facebook Page.");
     }
 
     async Task<PostingResult> PostToInstagram(SocialAccount account, string postText)
     {
         await Task.CompletedTask;
-        return PostingResult.Ok("(Simulated) Posted to Instagram.");
+        return PostingResult.SimulatedOk("(Simulated) Posted to Instagram.");
     }
 
     async Task<PostingResult> PostToX(SocialAccount account, string postText)
     {
         await Task.CompletedTask;
-        return PostingResult.Ok("(Simulated) Posted to X.");
+        return PostingResult.SimulatedOk("(Simulated) Posted to X.");
     }
 
     async Task<PostingResult> PostToBluesky(SocialAccount account, string postText)
@@ -85,39 +85,50 @@ class SocialPostingService
             return PostingResult.Failure($"Post exceeds Bluesky's {PostLimits.BlueskyMaxGraphemes}-character limit ({PostLimits.GraphemeLength(postText)} graphemes). Regenerate or shorten the post.");
 
         await Task.CompletedTask;
-        return PostingResult.Ok("(Simulated) Posted to Bluesky. Connect with an app password in My Account for live posting.");
+        return PostingResult.Failure("Connect Bluesky with an app password in My Account for live posting.");
     }
 
     async Task<PostingResult> PostToLinkedIn(SocialAccount account, string postText)
     {
         await Task.CompletedTask;
-        return PostingResult.Ok("(Simulated) Posted to LinkedIn.");
+        return PostingResult.SimulatedOk("(Simulated) Posted to LinkedIn.");
     }
 
     async Task<PostingResult> PostToPinterest(SocialAccount account, string postText)
     {
         await Task.CompletedTask;
-        return PostingResult.Ok("(Simulated) Posted to Pinterest.");
+        return PostingResult.SimulatedOk("(Simulated) Posted to Pinterest.");
     }
 
     async Task<PostingResult> PostToTikTok(SocialAccount account, string postText)
     {
         await Task.CompletedTask;
-        return PostingResult.Ok("(Simulated) Posted to TikTok. Note: TikTok requires video content for real posts.");
+        return PostingResult.SimulatedOk("(Simulated) Posted to TikTok. Note: TikTok requires video content for real posts.");
     }
 
     async Task<PostingResult> PostGeneric(SocialAccount account, string postText)
     {
         await Task.CompletedTask;
-        return PostingResult.Ok($"(Simulated) Posted to {account.Platform}. No dedicated API integration configured for this platform yet.");
+        return PostingResult.SimulatedOk($"(Simulated) Posted to {account.Platform}. No dedicated API integration configured for this platform yet.");
     }
 }
 
 class PostingResult
 {
     public bool Success { get; init; }
+    public bool IsSimulated { get; init; }
     public string Message { get; init; } = "";
 
-    public static PostingResult Ok(string message = "Posted successfully.") => new() { Success = true, Message = message };
+    /// <summary>True only when content was sent to a real platform API (not simulated).</summary>
+    public bool PostedToFeed => Success && !IsSimulated;
+
+    public static PostingResult LiveOk(string message = "Posted successfully.") =>
+        new() { Success = true, IsSimulated = false, Message = message };
+
+    public static PostingResult SimulatedOk(string message) =>
+        new() { Success = true, IsSimulated = true, Message = message };
+
+    public static PostingResult Ok(string message = "Posted successfully.") => LiveOk(message);
+
     public static PostingResult Failure(string message) => new() { Success = false, Message = message };
 }

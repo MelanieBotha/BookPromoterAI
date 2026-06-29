@@ -23,6 +23,8 @@ class PostGenerator
 
         var link = purchaseUrl.Trim();
         var hasLink = !string.IsNullOrWhiteSpace(link);
+        if (hasLink && !link.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && !link.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            link = "https://" + link.TrimStart('/');
         var linkLine = hasLink ? link : "(add a store link in Books)";
 
         var body = platform switch

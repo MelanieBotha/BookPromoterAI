@@ -187,11 +187,21 @@ static class AdLibraryPage
 
         var hasAccount = store.AuthorSocialAccounts.Any(a =>
             a.Platform.Equals(ad.Platform, StringComparison.OrdinalIgnoreCase) && a.IsConnected);
+        var authorAccount = store.AuthorSocialAccounts.FirstOrDefault(a =>
+            a.Platform.Equals(ad.Platform, StringComparison.OrdinalIgnoreCase) && a.IsConnected);
+        var blueskyNotLive = PostLimits.IsBluesky(ad.Platform) && authorAccount is not null && !authorAccount.IsLiveConnection;
         var canPostNow = hasAccount
+            && !blueskyNotLive
             && ad.PostStatus is "Pending" or "Failed"
             && (!needsApproval || ad.ApprovedForPosting);
         var postNowButton = canPostNow
             ? $"""<form method="post" action="/ad-library/post-now/{ad.Id}">{searchField}<button class="button small" type="submit">Post now</button></form>"""
+            : blueskyNotLive && ad.PostStatus is "Pending" or "Failed"
+                ? """<p class="muted small-text">Reconnect Bluesky with an app password in My Account to use Post now.</p>"""
+                : "";
+
+        var postErrorNote = ad.PostStatus == "Failed" && !string.IsNullOrWhiteSpace(ad.PostError)
+            ? $"""<p class="notice error small-text">{H.Encode(ad.PostError)}</p>"""
             : "";
 
         var autoPostHint = ad.PostStatus == "Pending" && schedule?.AutoPostEnabled == true
@@ -215,6 +225,7 @@ static class AdLibraryPage
                 </div>
                 <p class="platform-tag">{H.Encode(ad.Platform)}{charCount}</p>
                 <p>{H.Encode(ad.PostText)}</p>
+                {postErrorNote}
                 {autoPostHint}
                 <textarea id="{copyId}" class="copy-source" readonly>{H.Encode(ad.PostText)}</textarea>
                 <div class="post-card-actions">

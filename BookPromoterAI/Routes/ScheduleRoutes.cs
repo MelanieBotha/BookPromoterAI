@@ -79,7 +79,7 @@ static class ScheduleRoutes
         if (generatedCount > 0)
             lines.Add($"{generatedCount} post(s) updated for this week — check the Ad Library.");
         if (postedCount > 0)
-            lines.Add($"{postedCount} post(s) auto-posted now (simulated until real OAuth is connected — see Posting Activity Log below).");
+            lines.Add($"{postedCount} post(s) auto-posted now — check the Ad Library and Posting Activity Log below.");
         else
         {
             foreach (var schedule in schedules.Where(s => s.AutoPostEnabled))
@@ -90,7 +90,7 @@ static class ScheduleRoutes
         }
 
         if (schedules.Any(s => s.AutoPostEnabled))
-            lines.Add("Real social networks are not posted to yet — connect OAuth when available, or copy posts from the Ad Library.");
+            lines.Add("Bluesky posts live when connected with an app password. Other platforms need OAuth (coming soon) or use Post now / copy from the Ad Library.");
 
         var body = string.Join("<br>", lines.Select(H.Encode));
         return $"""<div class="notice success">{body}</div>""";

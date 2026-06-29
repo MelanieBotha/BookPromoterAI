@@ -6,7 +6,7 @@ namespace BookPromoterAI;
 /// <summary>Builds Bluesky richtext facets so links and hashtags are clickable in the app.</summary>
 static class BlueskyRichText
 {
-    static readonly Regex UrlRegex = new(@"https?://[^\s<>\[\]()]+", RegexOptions.Compiled);
+    static readonly Regex UrlRegex = new(@"(?:https?://[^\s<>\[\]()]+|(?<![@\w])[\w][\w.-]*\.[\w.-]+/[^\s<>\[\]()]+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     static readonly Regex TagRegex = new(@"(?<![\w])#([\w]+)", RegexOptions.Compiled);
 
     public static List<Dictionary<string, object?>> BuildFacets(string text)
@@ -17,11 +17,12 @@ static class BlueskyRichText
 
         foreach (Match match in UrlRegex.Matches(text))
         {
-            var uri = TrimTrailingPunctuation(match.Value);
+            var uri = NormalizeLinkUri(TrimTrailingPunctuation(match.Value));
             if (uri.Length == 0) continue;
 
+            var matchedLength = match.Value.TrimEnd('.', ',', ';', ':', '!', '?', ')', ']', '}', '"', '\'').Length;
             var byteStart = Utf8ByteOffset(text, match.Index);
-            var byteEnd = Utf8ByteOffset(text, match.Index + uri.Length);
+            var byteEnd = Utf8ByteOffset(text, match.Index + matchedLength);
             facets.Add(LinkFacet(byteStart, byteEnd, uri));
         }
 
@@ -47,6 +48,15 @@ static class BlueskyRichText
 
     static string TrimTrailingPunctuation(string value) =>
         value.TrimEnd('.', ',', ';', ':', '!', '?', ')', ']', '}', '"', '\'');
+
+    static string NormalizeLinkUri(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "";
+        return value.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            || value.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+            ? value
+            : "https://" + value;
+    }
 
     static Dictionary<string, object?> LinkFacet(int byteStart, int byteEnd, string uri) => new()
     {

@@ -558,6 +558,9 @@ class AppStoreDb
         ad.BookTitle = book.Title;
         ad.GeneratedAt = DateTime.UtcNow;
         ad.ApprovedForPosting = false;
+        ad.PostStatus = "Pending";
+        ad.PostedAt = null;
+        ad.PostError = null;
     }
 
     // ── Posting Log ────────────────────────────────────────────────────
@@ -1872,10 +1875,11 @@ class AppStoreDb
             if (schedule.PostsSentThisWeek >= schedule.PostsPerWeek) continue;
             var hoursBetween = (24.0 * 7) / schedule.PostsPerWeek;
             if (schedule.LastPostedAt is DateTime last && (now - last).TotalHours < hoursBetween) continue;
-            var account = await db.SocialAccounts.FirstOrDefaultAsync(a =>
+            var account = (await db.SocialAccounts.Where(a =>
                 a.UserId == schedule.UserId
-                && a.Platform == schedule.Platform
-                && (a.AccountKind == SocialAccountKinds.Author || a.AccountKind == ""));
+                && (a.AccountKind == SocialAccountKinds.Author || a.AccountKind == ""))
+                .ToListAsync())
+                .FirstOrDefault(a => a.Platform.Equals(schedule.Platform, StringComparison.OrdinalIgnoreCase));
             if (account is null) continue;
             var candidate = await db.GeneratedAds.Where(a => a.UserId == schedule.UserId && a.Platform == schedule.Platform && a.PostStatus == "Pending" && (!schedule.RequiresApproval || a.ApprovedForPosting)).OrderBy(a => a.GeneratedAt).FirstOrDefaultAsync();
             if (candidate is null) continue;
@@ -1887,9 +1891,9 @@ class AppStoreDb
                 if (!string.IsNullOrWhiteSpace(outcome.RefreshToken))
                     account.RefreshToken = outcome.RefreshToken;
             }
-            candidate.PostStatus = result.Success ? "Posted" : "Failed"; candidate.PostedAt = result.Success ? now : null; candidate.PostError = result.Success ? null : result.Message;
-            db.PostingLog.Add(new DbPostingLogEntry { UserId = schedule.UserId, GeneratedAdId = candidate.Id, Platform = schedule.Platform, BookTitle = candidate.BookTitle, Success = result.Success, Message = result.Message, AttemptedAt = now });
-            if (result.Success) { schedule.LastPostedAt = now; schedule.PostsSentThisWeek++; count++; }
+            var posted = ApplyGeneratedAdPostResult(candidate, result, now);
+            db.PostingLog.Add(new DbPostingLogEntry { UserId = schedule.UserId, GeneratedAdId = candidate.Id, Platform = schedule.Platform, BookTitle = candidate.BookTitle, Success = posted, Message = result.Message, AttemptedAt = now });
+            if (posted) { schedule.LastPostedAt = now; schedule.PostsSentThisWeek++; count++; }
         }
         await db.SaveChangesAsync();
         return count;
@@ -1905,22 +1909,27 @@ class AppStoreDb
         using var db = Db();
         var ad = await db.GeneratedAds.FirstOrDefaultAsync(a => a.Id == adId && a.UserId == uid);
         if (ad is null) return (false, "Post not found.");
-        if (ad.PostStatus == "Posted") return (false, "This post was already published.");
+        if (ad.PostStatus == "Posted") return (false, "This post was already published. Click Regenerate to create a fresh version you can post again.");
 
         var schedule = await db.SocialSchedules.FirstOrDefaultAsync(s =>
             s.UserId == uid && s.Platform == ad.Platform);
         if (schedule?.RequiresApproval == true && !ad.ApprovedForPosting)
             return (false, "Approve this post first, then use Post now.");
 
-        var account = await db.SocialAccounts.FirstOrDefaultAsync(a =>
+        var account = (await db.SocialAccounts.Where(a =>
             a.UserId == uid
-            && a.Platform == ad.Platform
             && a.IsConnected
-            && (a.AccountKind == SocialAccountKinds.Author || a.AccountKind == ""));
+            && (a.AccountKind == SocialAccountKinds.Author || a.AccountKind == ""))
+            .ToListAsync())
+            .FirstOrDefault(a => a.Platform.Equals(ad.Platform, StringComparison.OrdinalIgnoreCase));
         if (account is null)
             return (false, $"Connect your {ad.Platform} account in My Account first.");
 
-        var outcome = await postingService.PostAsync(ToModel(account), ad.PostText);
+        var accountModel = ToModel(account);
+        if (PostLimits.IsBluesky(ad.Platform) && !accountModel.IsLiveConnection)
+            return (false, "Bluesky is not connected for live posting. In My Account, remove your Bluesky account and reconnect with an app password.");
+
+        var outcome = await postingService.PostAsync(accountModel, ad.PostText);
         var result = outcome.Result;
         if (!string.IsNullOrWhiteSpace(outcome.AccessToken))
         {
@@ -1929,21 +1938,19 @@ class AppStoreDb
                 account.RefreshToken = outcome.RefreshToken;
         }
 
-        ad.PostStatus = result.Success ? "Posted" : "Failed";
-        ad.PostedAt = result.Success ? now : null;
-        ad.PostError = result.Success ? null : result.Message;
+        var posted = ApplyGeneratedAdPostResult(ad, result, now);
         db.PostingLog.Add(new DbPostingLogEntry
         {
             UserId = uid,
             GeneratedAdId = ad.Id,
             Platform = ad.Platform,
             BookTitle = ad.BookTitle,
-            Success = result.Success,
-            Message = result.Success ? "Posted now from Ad Library." : result.Message,
+            Success = posted,
+            Message = posted ? "Posted now from Ad Library." : result.Message,
             AttemptedAt = now
         });
 
-        if (result.Success && schedule is not null)
+        if (posted && schedule is not null)
         {
             var currentWeek = System.Globalization.ISOWeek.GetWeekOfYear(now);
             if (schedule.WeekTrackerStart != currentWeek)
@@ -1956,9 +1963,25 @@ class AppStoreDb
         }
 
         await db.SaveChangesAsync();
-        return result.Success
+        return posted
             ? (true, $"Posted to {ad.Platform}.")
             : (false, result.Message);
+    }
+
+    static bool ApplyGeneratedAdPostResult(DbGeneratedAd ad, PostingResult result, DateTime now)
+    {
+        if (result.PostedToFeed)
+        {
+            ad.PostStatus = "Posted";
+            ad.PostedAt = now;
+            ad.PostError = null;
+            return true;
+        }
+
+        ad.PostStatus = "Failed";
+        ad.PostedAt = null;
+        ad.PostError = result.Message;
+        return false;
     }
 
     public static string? FormatNextAutoPostHint(SocialSchedule? schedule)
@@ -2090,11 +2113,11 @@ class AppStoreDb
                 UserId = owner.Id,
                 Platform = account.Platform,
                 BookTitle = "BookPromoter AI",
-                Success = result.Success,
+                Success = result.PostedToFeed,
                 Message = result.Message,
                 AttemptedAt = now
             });
-            if (result.Success) posted++; else failed++;
+            if (result.PostedToFeed) posted++; else failed++;
         }
 
         await db.SaveChangesAsync();
@@ -2178,11 +2201,11 @@ class AppStoreDb
                         UserId = owner.Id,
                         Platform = account.Platform,
                         BookTitle = $"Update v{version}",
-                        Success = result.Success,
+                        Success = result.PostedToFeed,
                         Message = result.Message,
                         AttemptedAt = DateTime.UtcNow
                     });
-                    if (result.Success) update.SocialPostsSent++;
+                    if (result.PostedToFeed) update.SocialPostsSent++;
                 }
             }
         }
