@@ -19,7 +19,7 @@ static class MailingListRoutes
         {
             if (!store.HasCustomerAccess || !store.IsLoggedIn) return Results.Redirect("/start");
             var baseUrl = PublicUrl.Base(request, settings);
-            var (subject, body, bookId, error) = store.GenerateAndStoreMailingListDraft(emailGenerator, baseUrl);
+            var (subject, body, bookId, error) = store.GenerateAndStoreMailingListDraft(emailGenerator, baseUrl, advanceBook: true);
             var notice = error is not null
                 ? $"""<div class="notice error">{H.Encode(error)}</div>"""
                 : """<div class="notice success">Email draft generated from your books. Review and send when ready.</div>""";
@@ -32,10 +32,10 @@ static class MailingListRoutes
             var form = await request.ReadFormAsync();
             var bookId = int.TryParse(form["bookId"].ToString(), out var id) ? id : (int?)null;
             var baseUrl = PublicUrl.Base(request, settings);
-            var (subject, body, newBookId, error) = store.GenerateAndStoreMailingListDraft(emailGenerator, baseUrl, bookId, regenerate: true);
+            var (subject, body, newBookId, error) = store.GenerateAndStoreMailingListDraft(emailGenerator, baseUrl, bookId, advanceBook: true);
             var notice = error is not null
                 ? $"""<div class="notice error">{H.Encode(error)}</div>"""
-                : """<div class="notice success">Email draft regenerated.</div>""";
+                : """<div class="notice success">Draft updated for your next book in rotation.</div>""";
             return Results.Content(H.RenderPage(http, "Mailing List", MailingListPage.Render(store, notice, baseUrl, subject, body, newBookId), store), "text/html");
         });
 

@@ -93,6 +93,12 @@ static class MailingListPage
         var coverNote = draftBook is not null && !string.IsNullOrWhiteSpace(draftBook.CoverImageUrl)
             ? """<p class="muted small-text">The novel cover will appear at the top of the sent email.</p>"""
             : "";
+        var featuringNote = draftBook is not null
+            ? $"""<p class="muted small-text">Featuring: <strong>{H.Encode(draftBook.Title)}</strong>{(store.Books.Count > 1 ? " — auto-rotate through your books each generate/send" : "")}</p>"""
+            : store.Books.Count > 1
+                ? """<p class="muted small-text">Emails rotate through your books — each generate or send features the next novel.</p>"""
+                : "";
+        var nextBookButton = store.Books.Count > 1 ? "Next Book Draft" : "Regenerate Draft";
 
         var autoSendChecked = settings.AutoSendEnabled ? "checked" : "";
         var requiresApprovalChecked = settings.RequiresApproval ? "checked" : "";
@@ -196,10 +202,11 @@ static class MailingListPage
                     <label>Message
                         <textarea name="body" required placeholder="Hi readers,&#10;&#10;I wanted to share...">{H.Encode(effectiveBody)}</textarea>
                     </label>
+                    {featuringNote}
                     {coverNote}
                     <button class="button" type="submit" {(store.MailingListSubscribers.Count == 0 ? "disabled" : "")}>Send to All Subscribers</button>
                 </form>
-                {(hasDraft ? $"""<form method="post" action="/mailing-list/regenerate" class="inline-form" style="margin-top:12px">{bookField}<button class="button secondary" type="submit">Regenerate Draft</button></form>""" : "")}
+                {(hasDraft ? $"""<form method="post" action="/mailing-list/regenerate" class="inline-form" style="margin-top:12px">{bookField}<button class="button secondary" type="submit">{nextBookButton}</button></form>""" : "")}
             </section>
 
             {viewedSection}

@@ -533,15 +533,17 @@ class AppStoreDb
         return adId;
     }
 
-    public (string Subject, string Body, int BookId, string? Error) BuildMailingListDraft(MailingListEmailGenerator generator, string baseUrl, int? bookId = null, bool regenerate = false)
+    public (string Subject, string Body, int BookId, string? Error) BuildMailingListDraft(
+        MailingListEmailGenerator generator, string baseUrl, int? bookId = null, bool regenerate = false, bool advanceBook = false)
     {
         var books = Books;
         if (books.Count == 0) return ("", "", 0, "Add at least one book before generating a mailing list email.");
 
-        var book = bookId is int id ? books.FirstOrDefault(b => b.Id == id) : null;
-        book ??= books[Math.Abs(DateTime.UtcNow.GetHashCode()) % books.Count];
+        var lastBookId = MailingListSettings.PendingBookId;
+        var book = MailingListBookRotation.PickBook(books, b => b.Id, bookId, lastBookId, advanceBook);
+        if (book is null) return ("", "", 0, "Add at least one book before generating a mailing list email.");
 
-        if (regenerate)
+        if (regenerate && !advanceBook)
         {
             book.PostVariantSeed++;
             UpdateBook(book);
@@ -599,9 +601,9 @@ class AppStoreDb
     }
 
     public (string Subject, string Body, int BookId, string? Error) GenerateAndStoreMailingListDraft(
-        MailingListEmailGenerator generator, string baseUrl, int? bookId = null, bool regenerate = false)
+        MailingListEmailGenerator generator, string baseUrl, int? bookId = null, bool regenerate = false, bool advanceBook = false)
     {
-        var result = BuildMailingListDraft(generator, baseUrl, bookId, regenerate);
+        var result = BuildMailingListDraft(generator, baseUrl, bookId, regenerate, advanceBook);
         if (result.Error is not null) return result;
         StoreAuthorMailingDraft(result.Subject, result.Body, result.BookId);
         return result;
@@ -672,7 +674,7 @@ class AppStoreDb
             && !string.IsNullOrWhiteSpace(settings.PendingSubject);
         if (draftIsCurrent) return;
 
-        var result = BuildMailingListDraft(generator, baseUrl);
+        var result = BuildMailingListDraft(generator, baseUrl, advanceBook: true);
         if (result.Error is not null) return;
 
         settings.PendingSubject = result.Subject;
@@ -756,7 +758,7 @@ class AppStoreDb
                 if (MailingListKinds.IsBrand(listKind))
                     await GenerateBrandMailingDraftForUserAsync(db, settings, appBaseUrl, regenerate: false);
                 else if (generator is not null)
-                    await GenerateMailingDraftForUserAsync(db, settings, generator, appBaseUrl, regenerate: false);
+                    await GenerateMailingDraftForUserAsync(db, settings, generator, appBaseUrl, advanceBook: true);
             }
 
             if (settings.RequiresApproval && !settings.PendingApproved) continue;
@@ -773,6 +775,7 @@ class AppStoreDb
 
             if (sent > 0)
             {
+                var lastBookId = settings.PendingBookId;
                 settings.LastSentAt = now;
                 settings.EmailsSentThisWeek++;
                 settings.PendingApproved = false;
@@ -781,7 +784,7 @@ class AppStoreDb
                 if (MailingListKinds.IsBrand(listKind))
                     await GenerateBrandMailingDraftForUserAsync(db, settings, appBaseUrl, regenerate: true);
                 else if (generator is not null)
-                    await GenerateMailingDraftForUserAsync(db, settings, generator, appBaseUrl, regenerate: true);
+                    await GenerateMailingDraftForUserAsync(db, settings, generator, appBaseUrl, lastBookId: lastBookId, advanceBook: true);
                 count++;
             }
         }
@@ -827,10 +830,13 @@ class AppStoreDb
         DbMailingListSettings settings,
         MailingListEmailGenerator generator,
         string baseUrl,
-        bool regenerate,
-        int? bookId = null)
+        bool regenerate = false,
+        int? bookId = null,
+        int? lastBookId = null,
+        bool advanceBook = false)
     {
-        var result = BuildMailingListDraftForUser(db, settings.UserId, generator, baseUrl, bookId, regenerate);
+        lastBookId ??= settings.PendingBookId;
+        var result = BuildMailingListDraftForUser(db, settings.UserId, generator, baseUrl, bookId, lastBookId, regenerate, advanceBook);
         if (result.Error is not null) return;
         settings.PendingSubject = result.Subject;
         settings.PendingBody = result.Body;
@@ -846,15 +852,17 @@ class AppStoreDb
         MailingListEmailGenerator generator,
         string baseUrl,
         int? bookId = null,
-        bool regenerate = false)
+        int? lastBookId = null,
+        bool regenerate = false,
+        bool advanceBook = false)
     {
         var dbBooks = db.Books.Include(b => b.Links).Where(b => b.UserId == userId).ToList();
         if (dbBooks.Count == 0) return ("", "", 0, "Add at least one book before generating a mailing list email.");
 
-        var dbBook = bookId is int id ? dbBooks.FirstOrDefault(b => b.Id == id) : null;
-        dbBook ??= dbBooks[Math.Abs(DateTime.UtcNow.GetHashCode()) % dbBooks.Count];
+        var dbBook = MailingListBookRotation.PickBook(dbBooks, b => b.Id, bookId, lastBookId, advanceBook);
+        if (dbBook is null) return ("", "", 0, "Add at least one book before generating a mailing list email.");
 
-        if (regenerate)
+        if (regenerate && !advanceBook)
         {
             dbBook.PostVariantSeed++;
             db.SaveChanges();
