@@ -84,8 +84,11 @@ static class BookRoutes
             var book = store.RecordClick(trackingCode);
             if (book is null) return Results.NotFound("Book not found.");
             var appBaseUrl = PublicUrl.Base(http.Request, settings);
+            var assetBaseUrl = PublicUrl.Base(http.Request, settings);
+            var pageUrl = PostBranding.BookShareUrl(appBaseUrl, trackingCode);
+            var ogMeta = PostBranding.BuildBookShareMeta(book, pageUrl, assetBaseUrl);
             return Results.Content(
-                H.RenderMarketingPage(http, book.Title, PublicBookPage.Render(book, appBaseUrl, PublicUrl.Local(http.Request)), store),
+                H.RenderMarketingPage(http, book.Title, PublicBookPage.Render(book, appBaseUrl, assetBaseUrl), store, ogMeta),
                 "text/html");
         });
 

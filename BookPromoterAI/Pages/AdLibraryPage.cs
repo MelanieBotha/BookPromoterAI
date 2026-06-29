@@ -7,7 +7,6 @@ static class AdLibraryPage
     public static string Render(AppStoreDb store, string search, string notice, string focus, HttpRequest request, AppSettings settings)
     {
         var appBaseUrl = PublicUrl.Base(request, settings);
-        var assetBaseUrl = PublicUrl.Local(request);
         var filtered = store.GeneratedAds.AsEnumerable();
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -48,7 +47,7 @@ static class AdLibraryPage
             {
                 var book = store.Books.FirstOrDefault(b => b.Id == ad.BookId);
                 var coverPath = !string.IsNullOrWhiteSpace(book?.CoverImageUrl) ? book!.CoverImageUrl : ad.CoverImageUrl;
-                var coverSrc = PostBranding.AbsoluteImageUrl(assetBaseUrl, coverPath);
+                var coverSrc = PostBranding.AbsoluteImageUrl(appBaseUrl, coverPath);
                 var cover = string.IsNullOrWhiteSpace(coverPath)
                     ? """<div class="cover-placeholder large">No cover</div>"""
                     : $"""<img class="book-cover large" src="{H.Encode(coverSrc)}" alt="{H.Encode(ad.BookTitle)} cover">""";
@@ -82,7 +81,7 @@ static class AdLibraryPage
 
                 var charCount = PostLimits.CharacterCountLabel(ad.Platform, ad.PostText);
                 var focusClass = focus == $"ad-{ad.Id}" ? " post-card-focused" : "";
-                var coverUrl = PostBranding.AbsoluteImageUrl(assetBaseUrl, coverPath);
+                var coverUrl = PostBranding.AbsoluteImageUrl(appBaseUrl, coverPath);
                 cards.Append($"""
                     <article class="post-card{focusClass}" id="ad-{ad.Id}">
                         <div class="post-card-cover">{cover}</div>
@@ -162,10 +161,13 @@ static class AdLibraryPage
                     .replace(/</g, '&lt;')
                     .replace(/>/g, '&gt;')
                     .replace(/"/g, '&quot;');
+                var linked = escaped.replace(/(https?:\/\/[^\s<]+)/g, function (url) {
+                    return '<a href="' + url + '">' + url + '</a>';
+                });
                 var imageHtml = coverUrl
-                    ? '<br><br><img src="' + coverUrl + '" alt="Book cover" style="max-width:320px;width:100%;height:auto;border:0">'
+                    ? '<img src="' + coverUrl + '" alt="Book cover" style="max-width:320px;width:100%;height:auto;border:0;display:block;margin:0 0 12px">'
                     : '';
-                return '<div>' + escaped.replace(/\n/g, '<br>') + imageHtml + '</div>';
+                return '<div>' + imageHtml + linked.replace(/\n/g, '<br>') + '</div>';
             }
 
             async function copyPostWithCover(text, html, coverUrl) {
@@ -256,7 +258,7 @@ static class AdLibraryPage
                     <p class="eyebrow">Ad Library</p>
                     <h1>AI-generated posts for {H.Encode(monthLabel)}.</h1>
                     <p class="muted">{totalThisMonth} post(s) this month &middot; Schedule: {scheduledPerWeek} posts/week across {store.Schedules.Count(s => s.PostsPerWeek > 0)} platform(s)</p>
-                    <p class="muted small-text"><strong>Copy post + cover</strong> includes your BookPromoter <code>/go/</code> tracking link — reader clicks count in Analytics, then redirect to your store.</p>
+                    <p class="muted small-text"><strong>Copy post + cover</strong> pastes your caption with a book page link (<code>/book/…</code>) that shows your cover, counts clicks in Analytics, and links readers to your store. On social, paste the caption — the link preview should show your book cover. Upload the cover image from the card if the platform asks for a photo.</p>
                 </div>
                 <form method="post" action="/ad-library/generate-week">
                     <button class="button" type="submit">Generate This Week's Posts</button>

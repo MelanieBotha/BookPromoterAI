@@ -19,11 +19,11 @@ static class H
     public static string RenderPage(HttpContext http, string title, string body, AppStoreDb store) =>
         Page(title, body, store, http);
 
-    public static string RenderMarketingPage(HttpContext http, string title, string body, AppStoreDb store) =>
-        MarketingPage(title, body, store, http);
+    public static string RenderMarketingPage(HttpContext http, string title, string body, AppStoreDb store, string extraHead = "") =>
+        MarketingPage(title, body, store, http, extraHead);
 
     // Public marketing site shell — slim nav, no account banner.
-    public static string MarketingPage(string title, string body, AppStoreDb store, HttpContext? http = null)
+    public static string MarketingPage(string title, string body, AppStoreDb store, HttpContext? http = null, string extraHead = "")
     {
         var csrfMeta = "";
         var csrfScript = "";
@@ -72,6 +72,7 @@ static class H
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <meta name="description" content="BookPromoter AI helps authors promote books with AI-generated social posts, click tracking, and a weekly Ad Library.">
+            {extraHead}
             {csrfMeta}
             <link rel="icon" type="image/png" href="/images/BookPromoterAI.logo.png">
             <title>{Encode(title)} - BookPromoter AI</title>

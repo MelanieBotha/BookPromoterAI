@@ -10,11 +10,39 @@ static class PostBranding
             .Select(l => l.Url?.Trim())
             .FirstOrDefault(url => !string.IsNullOrWhiteSpace(url) && UrlSafety.IsSafeRedirect(url));
 
-    /// <summary>Link embedded in generated posts — tracks clicks via /go/ then redirects to the store.</summary>
+    /// <summary>Link embedded in generated posts — book landing page tracks clicks and shows cover before store links.</summary>
     public static string PurchaseUrlForPost(Book book, string appBaseUrl) =>
         PrimaryPurchaseUrl(book) is null
             ? ""
-            : TrackingRedirectUrl(appBaseUrl, book.TrackingCode);
+            : BookShareUrl(appBaseUrl, book.TrackingCode);
+
+    public static string BuildBookShareMeta(Book book, string pageUrl, string assetBaseUrl)
+    {
+        var coverUrl = AbsoluteImageUrl(assetBaseUrl, book.CoverImageUrl);
+        var description = string.IsNullOrWhiteSpace(book.Description)
+            ? $"Discover {book.Title} by {book.AuthorName}"
+            : book.Description;
+        if (description.Length > 200)
+            description = description[..197] + "...";
+
+        var imageMeta = string.IsNullOrWhiteSpace(coverUrl)
+            ? ""
+            : $"""
+                <meta property="og:image" content="{System.Net.WebUtility.HtmlEncode(coverUrl)}">
+                <meta name="twitter:image" content="{System.Net.WebUtility.HtmlEncode(coverUrl)}">
+                """;
+
+        return $"""
+            <meta property="og:type" content="website">
+            <meta property="og:title" content="{System.Net.WebUtility.HtmlEncode(book.Title)}">
+            <meta property="og:description" content="{System.Net.WebUtility.HtmlEncode(description)}">
+            <meta property="og:url" content="{System.Net.WebUtility.HtmlEncode(pageUrl)}">
+            {imageMeta}
+            <meta name="twitter:card" content="summary_large_image">
+            <meta name="twitter:title" content="{System.Net.WebUtility.HtmlEncode(book.Title)}">
+            <meta name="twitter:description" content="{System.Net.WebUtility.HtmlEncode(description)}">
+            """;
+    }
 
     public static string TrackingRedirectUrl(string appBaseUrl, string trackingCode) =>
         $"{appBaseUrl.TrimEnd('/')}/go/{trackingCode}";

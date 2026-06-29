@@ -39,7 +39,7 @@ static class HelpGuide
                 "Click Add Book (or edit an existing one).",
                 "Upload a cover image, add title, author, genre, and store buy links.",
                 "Save — your first post may be generated automatically.",
-                "Generated posts include your /go/ tracking link — clicks count in Analytics before readers reach your store."
+                "Generated posts link to your book page (/book/…) with cover preview — clicks count in Analytics before readers reach your store."
             ],
             UpNext = "Connect social accounts and set your weekly posting schedule."
         },
