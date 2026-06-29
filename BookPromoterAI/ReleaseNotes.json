@@ -1,4 +1,12 @@
 {
+  "1.9.1": {
+    "title": "BookPromoter AI v1.9.1 — What's new",
+    "updated": [
+      "Bluesky posts now include link facets so app URLs are clickable in the feed"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.9.0": {
     "title": "BookPromoter AI v1.9.0 — What's new",
     "updated": [

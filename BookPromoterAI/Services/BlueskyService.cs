@@ -55,17 +55,23 @@ class BlueskyService
     async Task<(PostingResult Result, BlueskySession? UpdatedSession, bool NeedsRefresh)> TryCreatePostAsync(
         BlueskySession session, string postText, CancellationToken cancellationToken)
     {
+        var postRecord = new Dictionary<string, object?>
+        {
+            ["$type"] = "app.bsky.feed.post",
+            ["text"] = postText,
+            ["createdAt"] = DateTime.UtcNow.ToString("o"),
+            ["langs"] = new[] { "en" }
+        };
+
+        var facets = BlueskyRichText.BuildFacets(postText);
+        if (facets.Count > 0)
+            postRecord["facets"] = facets;
+
         var recordBody = new Dictionary<string, object?>
         {
             ["repo"] = session.Did,
             ["collection"] = "app.bsky.feed.post",
-            ["record"] = new Dictionary<string, object?>
-            {
-                ["$type"] = "app.bsky.feed.post",
-                ["text"] = postText,
-                ["createdAt"] = DateTime.UtcNow.ToString("o"),
-                ["langs"] = new[] { "en" }
-            }
+            ["record"] = postRecord
         };
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "/xrpc/com.atproto.repo.createRecord");
