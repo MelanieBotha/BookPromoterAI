@@ -33,7 +33,7 @@ static class BookRoutes
             book.Links = FileHelpers.ParseLinks(form);
             store.AddBook(book);
             var baseUrl = PublicUrl.Base(request, settings);
-            var purchaseUrl = PostBranding.PrimaryPurchaseUrl(book) ?? "";
+            var purchaseUrl = PostBranding.PurchaseUrlForPost(book, baseUrl);
             var schedule = store.Schedules.FirstOrDefault(s => s.PostsPerWeek > 0);
             var text = generator.Generate(book, schedule?.Platform ?? "General", purchaseUrl, book.PostVariantSeed, baseUrl);
             store.RecordGeneratedAd(book, schedule?.Platform ?? "General", text);
@@ -71,7 +71,7 @@ static class BookRoutes
                 book.PostVariantSeed++;
                 store.UpdateBook(book);
                 var baseUrl = PublicUrl.Base(request, settings);
-                var purchaseUrl = PostBranding.PrimaryPurchaseUrl(book) ?? "";
+                var purchaseUrl = PostBranding.PurchaseUrlForPost(book, baseUrl);
                 var schedule = store.Schedules.FirstOrDefault(s => s.PostsPerWeek > 0);
                 var text = generator.Generate(book, schedule?.Platform ?? "General", purchaseUrl, book.PostVariantSeed, baseUrl);
                 store.RecordGeneratedAd(book, schedule?.Platform ?? "General", text);

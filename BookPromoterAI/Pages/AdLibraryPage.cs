@@ -256,7 +256,7 @@ static class AdLibraryPage
                     <p class="eyebrow">Ad Library</p>
                     <h1>AI-generated posts for {H.Encode(monthLabel)}.</h1>
                     <p class="muted">{totalThisMonth} post(s) this month &middot; Schedule: {scheduledPerWeek} posts/week across {store.Schedules.Count(s => s.PostsPerWeek > 0)} platform(s)</p>
-                    <p class="muted small-text"><strong>Copy post + cover</strong> uses your book&apos;s store link (Amazon, etc.) in the caption. To count clicks in BookPromoter, share the <code>/go/</code> tracking link from Books instead — posts use the direct store URL.</p>
+                    <p class="muted small-text"><strong>Copy post + cover</strong> includes your BookPromoter <code>/go/</code> tracking link — reader clicks count in Analytics, then redirect to your store.</p>
                 </div>
                 <form method="post" action="/ad-library/generate-week">
                     <button class="button" type="submit">Generate This Week's Posts</button>

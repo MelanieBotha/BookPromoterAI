@@ -4,11 +4,17 @@ static class PostBranding
 {
     public const string LogoPath = "/images/BookPromoterAI.logo.png";
 
-    /// <summary>Primary Amazon/store URL saved on the book — used in post text.</summary>
+    /// <summary>Primary Amazon/store URL saved on the book — used for redirects from /go/ links.</summary>
     public static string? PrimaryPurchaseUrl(Book book) =>
         book.Links
             .Select(l => l.Url?.Trim())
             .FirstOrDefault(url => !string.IsNullOrWhiteSpace(url) && UrlSafety.IsSafeRedirect(url));
+
+    /// <summary>Link embedded in generated posts — tracks clicks via /go/ then redirects to the store.</summary>
+    public static string PurchaseUrlForPost(Book book, string appBaseUrl) =>
+        PrimaryPurchaseUrl(book) is null
+            ? ""
+            : TrackingRedirectUrl(appBaseUrl, book.TrackingCode);
 
     public static string TrackingRedirectUrl(string appBaseUrl, string trackingCode) =>
         $"{appBaseUrl.TrimEnd('/')}/go/{trackingCode}";

@@ -395,7 +395,7 @@ class AppStoreDb
 
         book.PostVariantSeed++;
         var model = ToModel(book);
-        var purchaseUrl = PostBranding.PrimaryPurchaseUrl(model) ?? "";
+        var purchaseUrl = PostBranding.PurchaseUrlForPost(model, baseUrl);
         var text = generator.Generate(model, ad.Platform, purchaseUrl, book.PostVariantSeed, baseUrl);
         ad.PostText = text;
         ad.CoverImageUrl = book.CoverImageUrl;
@@ -420,7 +420,7 @@ class AppStoreDb
             UpdateBook(book);
         }
 
-        var trackingUrl = PostBranding.PrimaryPurchaseUrl(book) ?? "";
+        var trackingUrl = PostBranding.PurchaseUrlForPost(book, baseUrl);
         var (subject, body) = generator.Generate(book, trackingUrl, book.PostVariantSeed);
         return (subject, body, book.Id, null);
     }
@@ -454,7 +454,7 @@ class AppStoreDb
                 var book = books[bookIndex % books.Count];
                 book.PostVariantSeed++;
                 UpdateBook(book);
-                var purchaseUrl = PostBranding.PrimaryPurchaseUrl(book) ?? "";
+                var purchaseUrl = PostBranding.PurchaseUrlForPost(book, baseUrl);
                 var text = generator.Generate(book, schedule.Platform, purchaseUrl, book.PostVariantSeed, baseUrl);
                 newAds.Add(RecordGeneratedAd(book, schedule.Platform, text));
                 bookIndex++;

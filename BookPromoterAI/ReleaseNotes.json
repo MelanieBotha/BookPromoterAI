@@ -1,4 +1,12 @@
 {
+  "1.7.7": {
+    "title": "BookPromoter AI v1.7.7 — What's new",
+    "updated": [
+      "Ad Library posts now use /go/ tracking links automatically — copy-paste counts clicks in Analytics"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.7.6": {
     "title": "BookPromoter AI v1.7.6 — What's new",
     "updated": [

@@ -131,7 +131,7 @@ static class DashboardPage
     static string BookCard(AppStoreDb store, PostGenerator generator, HttpRequest request, AppSettings settings, Book book)
     {
         var baseUrl = PublicUrl.Base(request, settings);
-        var purchaseUrl = PostBranding.PrimaryPurchaseUrl(book) ?? "";
+        var purchaseUrl = PostBranding.PurchaseUrlForPost(book, baseUrl);
         var schedule = store.Schedules.FirstOrDefault(s => s.PostsPerWeek > 0);
         var platform = schedule?.Platform ?? "General";
         var text = generator.Generate(book, platform, purchaseUrl, book.PostVariantSeed, baseUrl);
