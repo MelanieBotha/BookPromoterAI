@@ -60,6 +60,26 @@ static class AppPromoGenerator
         return result;
     }
 
+    public static (string Subject, string Body) GeneratePromoEmail(string appBaseUrl, int seed = 0)
+    {
+        var url = appBaseUrl.TrimEnd('/');
+        var hook = Hooks[Math.Abs(seed) % Hooks.Length];
+        var subject = Math.Abs(seed) % 2 == 0
+            ? "Promote your books smarter with BookPromoter AI"
+            : "BookPromoter AI — tips for promoting your books";
+        var body = $"""
+            Hi,
+
+            {hook}
+
+            Start here: {url}/start
+            Free access code: {url}/trial
+
+            — The BookPromoter AI Team
+            """;
+        return (subject, body.Trim());
+    }
+
     static string GeneratePost(string platform, string hook, string startUrl, string trialUrl)
     {
         if (PostLimits.IsX(platform))

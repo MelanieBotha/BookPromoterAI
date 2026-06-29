@@ -46,29 +46,53 @@ static class DatabaseInitializer
 
     static void RepairMissingTables(AppDbContext db)
     {
-        if (TableExists(db, "ProductUpdates")) return;
+        if (!TableExists(db, "ProductUpdates"))
+        {
+            db.Database.ExecuteSqlRaw("""
+                CREATE TABLE IF NOT EXISTS "ProductUpdates" (
+                    "Id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    "Version" TEXT NOT NULL,
+                    "Title" TEXT NOT NULL,
+                    "UpdatedItems" TEXT NOT NULL,
+                    "CreatedItems" TEXT NOT NULL,
+                    "AddedItems" TEXT NOT NULL,
+                    "SocialPostText" TEXT NULL,
+                    "CreatedAt" TEXT NOT NULL,
+                    "EmailedAt" TEXT NULL,
+                    "EmailsSent" INTEGER NOT NULL,
+                    "EmailsFailed" INTEGER NOT NULL,
+                    "SocialPostsSent" INTEGER NOT NULL
+                );
+                """);
 
-        db.Database.ExecuteSqlRaw("""
-            CREATE TABLE IF NOT EXISTS "ProductUpdates" (
-                "Id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-                "Version" TEXT NOT NULL,
-                "Title" TEXT NOT NULL,
-                "UpdatedItems" TEXT NOT NULL,
-                "CreatedItems" TEXT NOT NULL,
-                "AddedItems" TEXT NOT NULL,
-                "SocialPostText" TEXT NULL,
-                "CreatedAt" TEXT NOT NULL,
-                "EmailedAt" TEXT NULL,
-                "EmailsSent" INTEGER NOT NULL,
-                "EmailsFailed" INTEGER NOT NULL,
-                "SocialPostsSent" INTEGER NOT NULL
-            );
-            """);
+            db.Database.ExecuteSqlRaw(
+                "INSERT OR IGNORE INTO __EFMigrationsHistory (MigrationId, ProductVersion) VALUES ({0}, {1})",
+                "20260628031754_AddProductUpdates",
+                "8.0.0");
+        }
 
-        db.Database.ExecuteSqlRaw(
-            "INSERT OR IGNORE INTO __EFMigrationsHistory (MigrationId, ProductVersion) VALUES ({0}, {1})",
-            "20260628031754_AddProductUpdates",
-            "8.0.0");
+        if (!TableExists(db, "MailingListSettings"))
+        {
+            db.Database.ExecuteSqlRaw("""
+                CREATE TABLE IF NOT EXISTS "MailingListSettings" (
+                    "Id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    "UserId" INTEGER NOT NULL,
+                    "EmailsPerWeek" INTEGER NOT NULL DEFAULT 0,
+                    "AutoSendEnabled" INTEGER NOT NULL DEFAULT 0,
+                    "RequiresApproval" INTEGER NOT NULL DEFAULT 1,
+                    "LastSentAt" TEXT NULL,
+                    "EmailsSentThisWeek" INTEGER NOT NULL DEFAULT 0,
+                    "WeekTrackerStart" INTEGER NOT NULL DEFAULT 0,
+                    "PendingSubject" TEXT NOT NULL DEFAULT '',
+                    "PendingBody" TEXT NOT NULL DEFAULT '',
+                    "PendingBookId" INTEGER NULL,
+                    "DraftGeneratedAt" TEXT NULL,
+                    "PendingApproved" INTEGER NOT NULL DEFAULT 0,
+                    FOREIGN KEY ("UserId") REFERENCES "Users" ("Id") ON DELETE CASCADE
+                );
+                """);
+            db.Database.ExecuteSqlRaw("""CREATE UNIQUE INDEX IF NOT EXISTS "IX_MailingListSettings_UserId" ON "MailingListSettings" ("UserId");""");
+        }
     }
 
     static bool TableExists(AppDbContext db, string table)
@@ -123,6 +147,22 @@ static class DatabaseInitializer
         db.Database.ExecuteSqlRaw("""UPDATE "SocialAccounts" SET "AccountKind" = 'Author' WHERE "AccountKind" IS NULL OR "AccountKind" = ''""");
         AddColumnIfMissing(db, "SocialSchedules", "ScheduleKind", """ALTER TABLE "SocialSchedules" ADD COLUMN "ScheduleKind" TEXT NOT NULL DEFAULT 'Author'""");
         db.Database.ExecuteSqlRaw("""UPDATE "SocialSchedules" SET "ScheduleKind" = 'Author' WHERE "ScheduleKind" IS NULL OR "ScheduleKind" = ''""");
+        AddColumnIfMissing(db, "MailingListSubscribers", "ListKind", """ALTER TABLE "MailingListSubscribers" ADD COLUMN "ListKind" TEXT NOT NULL DEFAULT 'Author'""");
+        AddColumnIfMissing(db, "MailingListCampaigns", "ListKind", """ALTER TABLE "MailingListCampaigns" ADD COLUMN "ListKind" TEXT NOT NULL DEFAULT 'Author'""");
+        AddColumnIfMissing(db, "MailingListSettings", "ListKind", """ALTER TABLE "MailingListSettings" ADD COLUMN "ListKind" TEXT NOT NULL DEFAULT 'Author'""");
+        db.Database.ExecuteSqlRaw("""UPDATE "MailingListSubscribers" SET "ListKind" = 'Author' WHERE "ListKind" IS NULL OR "ListKind" = ''""");
+        db.Database.ExecuteSqlRaw("""UPDATE "MailingListCampaigns" SET "ListKind" = 'Author' WHERE "ListKind" IS NULL OR "ListKind" = ''""");
+        db.Database.ExecuteSqlRaw("""UPDATE "MailingListSettings" SET "ListKind" = 'Author' WHERE "ListKind" IS NULL OR "ListKind" = ''""");
+        MigrateOwnerBrandMailingListSubscribers(db);
+    }
+
+    static void MigrateOwnerBrandMailingListSubscribers(AppDbContext db)
+    {
+        var owner = db.Users.AsNoTracking().FirstOrDefault(u => u.Email == OwnerAccount.NormalizedEmail);
+        if (owner is null) return;
+        db.Database.ExecuteSqlRaw(
+            """UPDATE "MailingListSubscribers" SET "ListKind" = 'Brand' WHERE "UserId" = {0} AND ("Source" = 'Auto sync' OR "Source" = 'Signup')""",
+            owner.Id);
     }
 
     static bool LegacySchemaExists(AppDbContext db)

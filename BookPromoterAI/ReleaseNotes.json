@@ -1,4 +1,20 @@
 {
+  "1.9.8": {
+    "title": "BookPromoter AI v1.9.8 — What's new",
+    "updated": [],
+    "new": [
+      "Owner brand mailing list is separate from author reader lists — product emails vs novel promotions"
+    ],
+    "added": []
+  },
+  "1.9.7": {
+    "title": "BookPromoter AI v1.9.7 — What's new",
+    "updated": [],
+    "new": [
+      "Mailing list auto-generates weekly novel promotion emails and can auto-send to subscribers on a schedule"
+    ],
+    "added": []
+  },
   "1.9.6": {
     "title": "BookPromoter AI v1.9.6 — What's new",
     "updated": [],

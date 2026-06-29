@@ -146,16 +146,26 @@ static class OwnerPromoPage
             ? ""
             : """<p class="notice error">SendGrid is not configured — emails will not deliver until you add SendGrid variables in Railway.</p>""";
 
-        var defaultPromoEmail = $"""
-            Hi,
-
-            BookPromoter AI helps authors promote books with AI-generated social posts, click tracking, and a weekly Ad Library.
-
-            Start here: {appBaseUrl.TrimEnd('/')}/start
-            Free access code: {appBaseUrl.TrimEnd('/')}/trial
-
-            — The BookPromoter AI Team
-            """;
+        var brandSettings = store.OwnerBrandMailingListSettings;
+        var brandAutoSendChecked = brandSettings.AutoSendEnabled ? "checked" : "";
+        var brandRequiresApprovalChecked = brandSettings.RequiresApproval ? "checked" : "";
+        var brandAutoHint = AppStoreDb.FormatNextMailingHint(brandSettings) is string brandHint
+            ? $"""<p class="muted small-text">{H.Encode(brandHint)}</p>"""
+            : "";
+        var brandPendingApproval = brandSettings.RequiresApproval
+            && !brandSettings.PendingApproved
+            && !string.IsNullOrWhiteSpace(brandSettings.PendingSubject);
+        var brandApproveSection = brandPendingApproval
+            ? """
+                <p class="notice">Brand email draft ready — approve to allow auto-send.</p>
+                <form method="post" action="/owner/brand-email/approve" class="inline-form" style="margin-top:8px">
+                    <button class="button secondary" type="submit">Approve brand draft</button>
+                </form>
+                """
+            : "";
+        var brandDraftSubject = H.Encode(brandSettings.PendingSubject);
+        var brandDraftBody = H.Encode(brandSettings.PendingBody);
+        var brandSubscriberCount = store.OwnerBrandMailingListSubscriberCount;
 
         return $"""
             <details class="owner-collapsible" id="owner-section-owner-social"{open("owner-social")}>
@@ -201,7 +211,7 @@ static class OwnerPromoPage
             <details class="owner-collapsible" id="owner-section-promote-app"{open("promote-app")}>
                 <summary class="owner-collapsible-heading">Promote BookPromoter AI (Social &amp; Email)</summary>
                 <div class="panel owner-settings">
-                    <p class="muted">Generate ready-to-share posts that promote BookPromoter AI. Copy, post manually, enable <strong>Auto-post</strong> under Brand Social Accounts, or email all {store.RegisteredUserCount} registered user(s).</p>
+                    <p class="muted">Generate ready-to-share posts that promote BookPromoter AI. Copy, post manually, enable <strong>Auto-post</strong> under Brand Social Accounts, or email registered users on the <strong>brand mailing list</strong> ({brandSubscriberCount} subscriber(s) — separate from author reader lists).</p>
                     {accountNote}
                     {sendGridNote}
                     <div class="promo-table">
@@ -216,15 +226,38 @@ static class OwnerPromoPage
                         <button class="button secondary" type="submit">Post to all connected accounts</button>
                     </form>
 
+                    <h3 style="margin-top:24px">Brand email auto-send</h3>
+                    <p class="muted small-text">Auto-generate BookPromoter AI promo emails to <strong>registered users</strong> (not author reader lists). Checks every 5 minutes.</p>
+                    {sendGridNote}
+                    <form method="post" action="/owner/brand-email/schedule" class="form">
+                        <label>Emails per week
+                            <input name="emailsPerWeek" type="number" min="0" max="7" value="{brandSettings.EmailsPerWeek}">
+                        </label>
+                        <label class="checkbox">
+                            <input name="autoSendEnabled" type="checkbox" {brandAutoSendChecked}>
+                            Auto-send to registered users
+                        </label>
+                        <label class="checkbox">
+                            <input name="requiresApproval" type="checkbox" {brandRequiresApprovalChecked}>
+                            Approval required before sending
+                        </label>
+                        <button class="button secondary" type="submit">Save brand email schedule</button>
+                    </form>
+                    {brandAutoHint}
+                    {brandApproveSection}
+                    <form method="post" action="/owner/brand-email/generate" class="inline-form" style="margin-top:12px">
+                        <button class="button secondary" type="submit">Auto-generate brand email</button>
+                    </form>
+
                     <h3 style="margin-top:24px">Email all users (promo)</h3>
                     <form method="post" action="/owner/app-promo/email" class="form">
                         <label>Subject
-                            <input name="subject" value="Promote your books smarter with BookPromoter AI" required>
+                            <input name="subject" value="{brandDraftSubject}" required placeholder="Promote your books smarter with BookPromoter AI">
                         </label>
                         <label>Message
-                            <textarea name="body" rows="6" required>{H.Encode(defaultPromoEmail.Trim())}</textarea>
+                            <textarea name="body" rows="6" required>{brandDraftBody}</textarea>
                         </label>
-                        <button class="button" type="submit">Send to all {store.RegisteredUserCount} users</button>
+                        <button class="button" type="submit">Send to {brandSubscriberCount} brand subscriber(s)</button>
                     </form>
                 </div>
             </details>

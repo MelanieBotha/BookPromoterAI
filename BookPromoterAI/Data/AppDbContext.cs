@@ -41,6 +41,7 @@ class AppDbContext : DbContext
     public DbSet<DbOwnerPayoutSettings> OwnerPayoutSettings => Set<DbOwnerPayoutSettings>();
     public DbSet<DbMailingListSubscriber> MailingListSubscribers => Set<DbMailingListSubscriber>();
     public DbSet<DbMailingListCampaign> MailingListCampaigns => Set<DbMailingListCampaign>();
+    public DbSet<DbMailingListSettings> MailingListSettings => Set<DbMailingListSettings>();
     public DbSet<DbProductUpdate> ProductUpdates => Set<DbProductUpdate>();
 
     protected override void OnModelCreating(ModelBuilder model)
@@ -315,6 +316,7 @@ class DbMailingListSubscriber
     public DateTime SubscribedAt { get; set; }
     public string Source { get; set; } = "Manual";
     public string UnsubscribeToken { get; set; } = "";
+    public string ListKind { get; set; } = MailingListKinds.Author;
     public DbUser? User { get; set; }
 }
 
@@ -327,6 +329,26 @@ class DbMailingListCampaign
     public int RecipientCount { get; set; }
     public int FailedCount { get; set; }
     public DateTime SentAt { get; set; }
+    public string ListKind { get; set; } = MailingListKinds.Author;
+    public DbUser? User { get; set; }
+}
+
+class DbMailingListSettings
+{
+    public int Id { get; set; }
+    public int UserId { get; set; }
+    public string ListKind { get; set; } = MailingListKinds.Author;
+    public int EmailsPerWeek { get; set; }
+    public bool AutoSendEnabled { get; set; }
+    public bool RequiresApproval { get; set; }
+    public DateTime? LastSentAt { get; set; }
+    public int EmailsSentThisWeek { get; set; }
+    public int WeekTrackerStart { get; set; }
+    public string PendingSubject { get; set; } = "";
+    public string PendingBody { get; set; } = "";
+    public int? PendingBookId { get; set; }
+    public DateTime? DraftGeneratedAt { get; set; }
+    public bool PendingApproved { get; set; }
     public DbUser? User { get; set; }
 }
 

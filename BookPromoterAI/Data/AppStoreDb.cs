@@ -552,6 +552,394 @@ class AppStoreDb
         return (subject, body, book.Id, null);
     }
 
+    public MailingListSettings MailingListSettings => GetMailingListSettings(MailingListKinds.Author);
+
+    public MailingListSettings OwnerBrandMailingListSettings
+    {
+        get
+        {
+            if (!IsOwner) return new MailingListSettings { ListKind = MailingListKinds.Brand };
+            return GetMailingListSettings(MailingListKinds.Brand);
+        }
+    }
+
+    MailingListSettings GetMailingListSettings(string listKind)
+    {
+        var uid = CurrentUserId();
+        if (uid == 0) return new MailingListSettings { ListKind = listKind };
+        using var db = Db();
+        return ToModel(EnsureMailingListSettingsRow(db, uid, listKind));
+    }
+
+    public void SaveMailingListSettings(int emailsPerWeek, bool autoSendEnabled, bool requiresApproval, string listKind = MailingListKinds.Author)
+    {
+        var uid = CurrentUserId();
+        if (uid == 0) return;
+        if (MailingListKinds.IsBrand(listKind) && !IsOwner) return;
+        using var db = Db();
+        var settings = EnsureMailingListSettingsRow(db, uid, listKind);
+        settings.EmailsPerWeek = Math.Clamp(emailsPerWeek, 0, 7);
+        settings.AutoSendEnabled = autoSendEnabled;
+        settings.RequiresApproval = requiresApproval;
+        if (!requiresApproval && !string.IsNullOrWhiteSpace(settings.PendingSubject))
+            settings.PendingApproved = true;
+        db.SaveChanges();
+    }
+
+    public void ApprovePendingMailingDraft(string listKind = MailingListKinds.Author)
+    {
+        var uid = CurrentUserId();
+        if (uid == 0) return;
+        if (MailingListKinds.IsBrand(listKind) && !IsOwner) return;
+        using var db = Db();
+        var settings = EnsureMailingListSettingsRow(db, uid, listKind);
+        if (!string.IsNullOrWhiteSpace(settings.PendingSubject))
+            settings.PendingApproved = true;
+        db.SaveChanges();
+    }
+
+    public (string Subject, string Body, int BookId, string? Error) GenerateAndStoreMailingListDraft(
+        MailingListEmailGenerator generator, string baseUrl, int? bookId = null, bool regenerate = false)
+    {
+        var result = BuildMailingListDraft(generator, baseUrl, bookId, regenerate);
+        if (result.Error is not null) return result;
+        StoreAuthorMailingDraft(result.Subject, result.Body, result.BookId);
+        return result;
+    }
+
+    public (string Subject, string Body, string? Error) GenerateAndStoreOwnerBrandMailingDraft(string baseUrl, bool regenerate = false)
+    {
+        if (!IsOwner) return ("", "", "Only the owner can generate brand emails.");
+        var uid = CurrentUserId();
+        using var db = Db();
+        var settings = EnsureMailingListSettingsRow(db, uid, MailingListKinds.Brand);
+        if (regenerate) settings.WeekTrackerStart++;
+        var seed = settings.WeekTrackerStart + (settings.DraftGeneratedAt?.DayOfYear ?? 0);
+        var (subject, body) = AppPromoGenerator.GeneratePromoEmail(baseUrl, seed);
+        settings.PendingSubject = subject;
+        settings.PendingBody = body;
+        settings.PendingBookId = null;
+        settings.DraftGeneratedAt = DateTime.UtcNow;
+        settings.PendingApproved = !settings.RequiresApproval;
+        db.SaveChanges();
+        return (subject, body, null);
+    }
+
+    void StoreAuthorMailingDraft(string subject, string body, int bookId)
+    {
+        var uid = CurrentUserId();
+        using var db = Db();
+        var settings = EnsureMailingListSettingsRow(db, uid, MailingListKinds.Author);
+        settings.PendingSubject = subject;
+        settings.PendingBody = body;
+        settings.PendingBookId = bookId;
+        settings.DraftGeneratedAt = DateTime.UtcNow;
+        settings.PendingApproved = !settings.RequiresApproval;
+        db.SaveChanges();
+    }
+
+    public void EnsureWeeklyMailingDraft(MailingListEmailGenerator generator, string baseUrl)
+    {
+        EnsureWeeklyAuthorMailingDraft(generator, baseUrl);
+    }
+
+    public void EnsureWeeklyOwnerBrandMailingDraft(string baseUrl)
+    {
+        if (!IsOwner) return;
+        var uid = CurrentUserId();
+        using var db = Db();
+        var settings = EnsureMailingListSettingsRow(db, uid, MailingListKinds.Brand);
+        var now = DateTime.UtcNow;
+        var (week, year, _) = AdWeek.For(now);
+        var draftIsCurrent = settings.DraftGeneratedAt is DateTime d
+            && AdWeek.IsCurrent(d, week, year)
+            && !string.IsNullOrWhiteSpace(settings.PendingSubject);
+        if (draftIsCurrent) return;
+        GenerateAndStoreOwnerBrandMailingDraft(baseUrl);
+    }
+
+    void EnsureWeeklyAuthorMailingDraft(MailingListEmailGenerator generator, string baseUrl)
+    {
+        var uid = CurrentUserId();
+        if (uid == 0 || Books.Count == 0) return;
+
+        using var db = Db();
+        var settings = EnsureMailingListSettingsRow(db, uid, MailingListKinds.Author);
+        var now = DateTime.UtcNow;
+        var (week, year, _) = AdWeek.For(now);
+        var draftIsCurrent = settings.DraftGeneratedAt is DateTime d
+            && AdWeek.IsCurrent(d, week, year)
+            && !string.IsNullOrWhiteSpace(settings.PendingSubject);
+        if (draftIsCurrent) return;
+
+        var result = BuildMailingListDraft(generator, baseUrl);
+        if (result.Error is not null) return;
+
+        settings.PendingSubject = result.Subject;
+        settings.PendingBody = result.Body;
+        settings.PendingBookId = result.BookId;
+        settings.DraftGeneratedAt = now;
+        settings.PendingApproved = !settings.RequiresApproval;
+        db.SaveChanges();
+    }
+
+    public async Task<int> RunDueMailingListEmailsAsync(
+        MailingListEmailGenerator generator,
+        string appBaseUrl,
+        string apiKey,
+        string senderEmail,
+        string senderName,
+        int? userId = null)
+    {
+        return await RunDueMailingListEmailsForKindAsync(
+            generator, appBaseUrl, apiKey, senderEmail, senderName, MailingListKinds.Author, userId);
+    }
+
+    public async Task<int> RunDueOwnerBrandEmailsAsync(
+        string appBaseUrl,
+        string apiKey,
+        string senderEmail,
+        string senderName)
+    {
+        using var db = Db();
+        var owner = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Email == OwnerAccount.NormalizedEmail);
+        if (owner is null) return 0;
+        return await RunDueMailingListEmailsForKindAsync(
+            null, appBaseUrl, apiKey, senderEmail, senderName, MailingListKinds.Brand, owner.Id);
+    }
+
+    async Task<int> RunDueMailingListEmailsForKindAsync(
+        MailingListEmailGenerator? generator,
+        string appBaseUrl,
+        string apiKey,
+        string senderEmail,
+        string senderName,
+        string listKind,
+        int? userId = null)
+    {
+        var now = DateTime.UtcNow;
+        var currentWeek = System.Globalization.ISOWeek.GetWeekOfYear(now);
+        using var db = Db();
+
+        var query = db.MailingListSettings.Where(s =>
+            s.ListKind == listKind
+            && s.AutoSendEnabled
+            && s.EmailsPerWeek > 0);
+        if (userId is int uid) query = query.Where(s => s.UserId == uid);
+        var allSettings = await query.ToListAsync();
+        var count = 0;
+
+        foreach (var settings in allSettings)
+        {
+            if (MailingListKinds.IsBrand(listKind))
+            {
+                var owner = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == settings.UserId);
+                if (owner is null || !OwnerAccount.IsOwnerEmail(owner.Email)) continue;
+            }
+
+            if (settings.WeekTrackerStart != currentWeek)
+            {
+                settings.WeekTrackerStart = currentWeek;
+                settings.EmailsSentThisWeek = 0;
+            }
+            if (settings.EmailsSentThisWeek >= settings.EmailsPerWeek) continue;
+
+            var hoursBetween = (24.0 * 7) / settings.EmailsPerWeek;
+            if (settings.LastSentAt is DateTime last && (now - last).TotalHours < hoursBetween) continue;
+
+            var subCount = await db.MailingListSubscribers.CountAsync(s =>
+                s.UserId == settings.UserId && s.ListKind == listKind);
+            if (subCount == 0) continue;
+
+            if (string.IsNullOrWhiteSpace(settings.PendingSubject) || string.IsNullOrWhiteSpace(settings.PendingBody))
+            {
+                if (MailingListKinds.IsBrand(listKind))
+                    await GenerateBrandMailingDraftForUserAsync(db, settings, appBaseUrl, regenerate: false);
+                else if (generator is not null)
+                    await GenerateMailingDraftForUserAsync(db, settings, generator, appBaseUrl, regenerate: false);
+            }
+
+            if (settings.RequiresApproval && !settings.PendingApproved) continue;
+            if (string.IsNullOrWhiteSpace(settings.PendingSubject) || string.IsNullOrWhiteSpace(settings.PendingBody)) continue;
+
+            var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == settings.UserId);
+            if (user is null) continue;
+
+            var fromName = MailingListKinds.IsBrand(listKind) ? "BookPromoter AI" : user.Email;
+            var (sent, _, _) = await SendMailingListCampaignForUserAsync(
+                db, settings.UserId, settings.PendingSubject, settings.PendingBody,
+                apiKey, senderEmail, senderName, fromName, appBaseUrl, listKind);
+
+            if (sent > 0)
+            {
+                settings.LastSentAt = now;
+                settings.EmailsSentThisWeek++;
+                settings.PendingApproved = false;
+                settings.PendingSubject = "";
+                settings.PendingBody = "";
+                if (MailingListKinds.IsBrand(listKind))
+                    await GenerateBrandMailingDraftForUserAsync(db, settings, appBaseUrl, regenerate: true);
+                else if (generator is not null)
+                    await GenerateMailingDraftForUserAsync(db, settings, generator, appBaseUrl, regenerate: true);
+                count++;
+            }
+        }
+
+        await db.SaveChangesAsync();
+        return count;
+    }
+
+    static DbMailingListSettings EnsureMailingListSettingsRow(AppDbContext db, int userId, string listKind)
+    {
+        var row = db.MailingListSettings.FirstOrDefault(s => s.UserId == userId && s.ListKind == listKind);
+        if (row is not null) return row;
+        row = new DbMailingListSettings
+        {
+            UserId = userId,
+            ListKind = listKind,
+            RequiresApproval = true
+        };
+        db.MailingListSettings.Add(row);
+        db.SaveChanges();
+        return row;
+    }
+
+    static async Task GenerateBrandMailingDraftForUserAsync(
+        AppDbContext db,
+        DbMailingListSettings settings,
+        string baseUrl,
+        bool regenerate)
+    {
+        if (regenerate) settings.WeekTrackerStart++;
+        var seed = settings.WeekTrackerStart + (settings.DraftGeneratedAt?.DayOfYear ?? 0);
+        var (subject, body) = AppPromoGenerator.GeneratePromoEmail(baseUrl, seed);
+        settings.PendingSubject = subject;
+        settings.PendingBody = body;
+        settings.PendingBookId = null;
+        settings.DraftGeneratedAt = DateTime.UtcNow;
+        settings.PendingApproved = !settings.RequiresApproval;
+        await db.SaveChangesAsync();
+    }
+
+    static async Task GenerateMailingDraftForUserAsync(
+        AppDbContext db,
+        DbMailingListSettings settings,
+        MailingListEmailGenerator generator,
+        string baseUrl,
+        bool regenerate,
+        int? bookId = null)
+    {
+        var result = BuildMailingListDraftForUser(db, settings.UserId, generator, baseUrl, bookId, regenerate);
+        if (result.Error is not null) return;
+        settings.PendingSubject = result.Subject;
+        settings.PendingBody = result.Body;
+        settings.PendingBookId = result.BookId;
+        settings.DraftGeneratedAt = DateTime.UtcNow;
+        settings.PendingApproved = !settings.RequiresApproval;
+        await db.SaveChangesAsync();
+    }
+
+    static (string Subject, string Body, int BookId, string? Error) BuildMailingListDraftForUser(
+        AppDbContext db,
+        int userId,
+        MailingListEmailGenerator generator,
+        string baseUrl,
+        int? bookId = null,
+        bool regenerate = false)
+    {
+        var dbBooks = db.Books.Include(b => b.Links).Where(b => b.UserId == userId).ToList();
+        if (dbBooks.Count == 0) return ("", "", 0, "Add at least one book before generating a mailing list email.");
+
+        var dbBook = bookId is int id ? dbBooks.FirstOrDefault(b => b.Id == id) : null;
+        dbBook ??= dbBooks[Math.Abs(DateTime.UtcNow.GetHashCode()) % dbBooks.Count];
+
+        if (regenerate)
+        {
+            dbBook.PostVariantSeed++;
+            db.SaveChanges();
+        }
+
+        var book = ToModel(dbBook);
+        var trackingUrl = PostBranding.PurchaseUrlForPost(book, baseUrl);
+        var (subject, body) = generator.Generate(book, trackingUrl, dbBook.PostVariantSeed);
+        return (subject, body, dbBook.Id, null);
+    }
+
+    static async Task<(int Sent, int Failed, string Message)> SendMailingListCampaignForUserAsync(
+        AppDbContext db,
+        int userId,
+        string subject,
+        string body,
+        string apiKey,
+        string senderEmail,
+        string senderName,
+        string fromDisplayName,
+        string? appBaseUrl,
+        string listKind = MailingListKinds.Author)
+    {
+        if (string.IsNullOrWhiteSpace(subject)) return (0, 0, "Enter an email subject.");
+        if (string.IsNullOrWhiteSpace(body)) return (0, 0, "Enter a message to send.");
+
+        var subscribers = await db.MailingListSubscribers
+            .Where(s => s.UserId == userId && s.ListKind == listKind)
+            .ToListAsync();
+        if (subscribers.Count == 0) return (0, 0, "Your mailing list is empty.");
+
+        var sent = 0;
+        var failed = 0;
+        foreach (var sub in subscribers)
+        {
+            var unsubUrl = string.IsNullOrWhiteSpace(appBaseUrl) || string.IsNullOrWhiteSpace(sub.UnsubscribeToken)
+                ? null
+                : $"{appBaseUrl.TrimEnd('/')}/readers/unsubscribe/{Uri.EscapeDataString(sub.UnsubscribeToken)}";
+            var ok = await EmailService.SendMailingListEmail(
+                sub.Email, sub.Name, subject, body, fromDisplayName,
+                apiKey, senderEmail, senderName, appBaseUrl, unsubUrl);
+            if (ok) sent++; else failed++;
+        }
+
+        if (sent > 0)
+        {
+            db.MailingListCampaigns.Add(new DbMailingListCampaign
+            {
+                UserId = userId,
+                Subject = subject.Trim(),
+                Body = body.Trim(),
+                RecipientCount = sent,
+                FailedCount = failed,
+                SentAt = DateTime.UtcNow,
+                ListKind = listKind
+            });
+        }
+
+        var message = failed == 0
+            ? $"Email sent to {sent} subscriber(s)."
+            : $"Sent to {sent} subscriber(s). {failed} failed.";
+        return (sent, failed, message);
+    }
+
+    public static string? FormatNextMailingHint(MailingListSettings? settings)
+    {
+        if (settings is null || !settings.AutoSendEnabled || settings.EmailsPerWeek <= 0)
+            return null;
+
+        if (settings.EmailsSentThisWeek >= settings.EmailsPerWeek)
+            return "Weekly auto-send limit reached.";
+
+        if (settings.RequiresApproval && !settings.PendingApproved && !string.IsNullOrWhiteSpace(settings.PendingSubject))
+            return "Draft ready — approve it below to allow auto-send.";
+
+        var hoursBetween = (24.0 * 7) / settings.EmailsPerWeek;
+        if (settings.LastSentAt is null)
+            return "Auto-send checks every 5 minutes — next slot is due soon.";
+
+        var nextAt = settings.LastSentAt.Value.AddHours(hoursBetween);
+        if (nextAt <= DateTime.UtcNow)
+            return "Auto-send checks every 5 minutes — due now.";
+
+        return $"Next auto-send slot: ~{nextAt:ddd MMM d, HH:mm} UTC";
+    }
+
     public List<GeneratedAd> GenerateWeeklyPosts(PostGenerator generator, string baseUrl)
     {
         var touched = new List<GeneratedAd>();
@@ -714,7 +1102,7 @@ class AppStoreDb
         if (c is not null) { db.Clients.Remove(c); db.SaveChanges(); }
     }
 
-    // ── Mailing List ───────────────────────────────────────────────────
+    // ── Mailing List (author reader lists — separate from owner brand user list) ──
     public List<MailingListSubscriber> MailingListSubscribers
     {
         get
@@ -722,7 +1110,21 @@ class AppStoreDb
             var uid = CurrentUserId();
             if (uid == 0) return [];
             using var db = Db();
-            return db.MailingListSubscribers.Where(s => s.UserId == uid).OrderByDescending(s => s.SubscribedAt).AsNoTracking().ToList().Select(ToModel).ToList();
+            return db.MailingListSubscribers
+                .Where(s => s.UserId == uid && s.ListKind == MailingListKinds.Author)
+                .OrderByDescending(s => s.SubscribedAt).AsNoTracking().ToList().Select(ToModel).ToList();
+        }
+    }
+
+    public int OwnerBrandMailingListSubscriberCount
+    {
+        get
+        {
+            if (!IsOwner) return 0;
+            using var db = Db();
+            var owner = db.Users.AsNoTracking().FirstOrDefault(u => u.Email == OwnerAccount.NormalizedEmail);
+            if (owner is null) return 0;
+            return db.MailingListSubscribers.Count(s => s.UserId == owner.Id && s.ListKind == MailingListKinds.Brand);
         }
     }
 
@@ -733,7 +1135,22 @@ class AppStoreDb
             var uid = CurrentUserId();
             if (uid == 0) return [];
             using var db = Db();
-            return db.MailingListCampaigns.Where(c => c.UserId == uid).OrderByDescending(c => c.SentAt).Take(20).AsNoTracking().ToList().Select(ToModel).ToList();
+            return db.MailingListCampaigns
+                .Where(c => c.UserId == uid && c.ListKind == MailingListKinds.Author)
+                .OrderByDescending(c => c.SentAt).Take(20).AsNoTracking().ToList().Select(ToModel).ToList();
+        }
+    }
+
+    public List<MailingListCampaign> OwnerBrandMailingListCampaigns
+    {
+        get
+        {
+            if (!IsOwner) return [];
+            var uid = CurrentUserId();
+            using var db = Db();
+            return db.MailingListCampaigns
+                .Where(c => c.UserId == uid && c.ListKind == MailingListKinds.Brand)
+                .OrderByDescending(c => c.SentAt).Take(20).AsNoTracking().ToList().Select(ToModel).ToList();
         }
     }
 
@@ -742,7 +1159,8 @@ class AppStoreDb
         var uid = CurrentUserId();
         if (uid == 0) return null;
         using var db = Db();
-        return db.MailingListCampaigns.AsNoTracking().FirstOrDefault(c => c.Id == id && c.UserId == uid) is { } row
+        return db.MailingListCampaigns.AsNoTracking().FirstOrDefault(c =>
+            c.Id == id && c.UserId == uid && c.ListKind == MailingListKinds.Author) is { } row
             ? ToModel(row)
             : null;
     }
@@ -754,7 +1172,9 @@ class AppStoreDb
         var cleanEmail = email.Trim().ToLowerInvariant();
         if (string.IsNullOrWhiteSpace(cleanEmail) || !cleanEmail.Contains('@')) return (false, "Enter a valid email address.");
         using var db = Db();
-        if (db.MailingListSubscribers.Any(s => s.UserId == uid && s.Email == cleanEmail)) return (false, "That email is already on your mailing list.");
+        if (db.MailingListSubscribers.Any(s =>
+            s.UserId == uid && s.Email == cleanEmail && s.ListKind == MailingListKinds.Author))
+            return (false, "That email is already on your mailing list.");
         db.MailingListSubscribers.Add(new DbMailingListSubscriber
         {
             UserId = uid,
@@ -762,7 +1182,8 @@ class AppStoreDb
             Name = name.Trim(),
             SubscribedAt = DateTime.UtcNow,
             Source = source,
-            UnsubscribeToken = NewUnsubscribeToken()
+            UnsubscribeToken = NewUnsubscribeToken(),
+            ListKind = MailingListKinds.Author
         });
         db.SaveChanges();
         return (true, $"Added {cleanEmail} to your mailing list.");
@@ -772,7 +1193,8 @@ class AppStoreDb
     {
         var uid = CurrentUserId();
         using var db = Db();
-        var sub = db.MailingListSubscribers.FirstOrDefault(s => s.Id == id && s.UserId == uid);
+        var sub = db.MailingListSubscribers.FirstOrDefault(s =>
+            s.Id == id && s.UserId == uid && s.ListKind == MailingListKinds.Author);
         if (sub is not null) { db.MailingListSubscribers.Remove(sub); db.SaveChanges(); }
     }
 
@@ -801,6 +1223,7 @@ class AppStoreDb
             {
                 Id = s.Id,
                 ListOwnerEmail = u.Email,
+                ListKind = s.ListKind,
                 SubscribedAt = s.SubscribedAt,
                 Source = s.Source
             })
@@ -848,7 +1271,8 @@ class AppStoreDb
         using var db = Db();
         var user = db.Users.FirstOrDefault(u => u.UserCode == userCode.Trim());
         if (user is null) return (false, "This signup link is not valid.", null);
-        if (db.MailingListSubscribers.Any(s => s.UserId == user.Id && s.Email == cleanEmail)) return (false, "You're already subscribed to this mailing list.", user.Email);
+        if (db.MailingListSubscribers.Any(s => s.UserId == user.Id && s.Email == cleanEmail && s.ListKind == MailingListKinds.Author))
+            return (false, "You're already subscribed to this mailing list.", user.Email);
         db.MailingListSubscribers.Add(new DbMailingListSubscriber
         {
             UserId = user.Id,
@@ -856,7 +1280,8 @@ class AppStoreDb
             Name = name.Trim(),
             SubscribedAt = DateTime.UtcNow,
             Source = "Signup",
-            UnsubscribeToken = NewUnsubscribeToken()
+            UnsubscribeToken = NewUnsubscribeToken(),
+            ListKind = MailingListKinds.Author
         });
         db.SaveChanges();
         return (true, "You're subscribed! Watch your inbox for updates.", user.Email);
@@ -877,32 +1302,25 @@ class AppStoreDb
         if (string.IsNullOrWhiteSpace(body)) return (0, 0, "Enter a message to send.");
 
         using var db = Db();
-        var subscribers = await db.MailingListSubscribers.Where(s => s.UserId == uid).ToListAsync();
-        if (subscribers.Count == 0) return (0, 0, "Your mailing list is empty. Add subscribers first.");
-
-        var sent = 0;
-        var failed = 0;
-        foreach (var sub in subscribers)
+        var (sent, failed, message) = await SendMailingListCampaignForUserAsync(
+            db, uid, subject, body, apiKey, senderEmail, senderName, fromDisplayName, appBaseUrl, MailingListKinds.Author);
+        if (sent > 0)
         {
-            var unsubUrl = GetUnsubscribeUrl(appBaseUrl, sub.UnsubscribeToken);
-            var ok = await EmailService.SendMailingListEmail(sub.Email, sub.Name, subject, body, fromDisplayName, apiKey, senderEmail, senderName, appBaseUrl, unsubUrl);
-            if (ok) sent++; else failed++;
+            var settings = EnsureMailingListSettingsRow(db, uid, MailingListKinds.Author);
+            var now = DateTime.UtcNow;
+            var currentWeek = System.Globalization.ISOWeek.GetWeekOfYear(now);
+            if (settings.WeekTrackerStart != currentWeek)
+            {
+                settings.WeekTrackerStart = currentWeek;
+                settings.EmailsSentThisWeek = 0;
+            }
+            settings.LastSentAt = now;
+            settings.EmailsSentThisWeek++;
+            settings.PendingSubject = "";
+            settings.PendingBody = "";
+            settings.PendingApproved = false;
         }
-
-        db.MailingListCampaigns.Add(new DbMailingListCampaign
-        {
-            UserId = uid,
-            Subject = subject.Trim(),
-            Body = body.Trim(),
-            RecipientCount = sent,
-            FailedCount = failed,
-            SentAt = DateTime.UtcNow
-        });
         await db.SaveChangesAsync();
-
-        var message = failed == 0
-            ? $"Email sent to {sent} subscriber(s)."
-            : $"Sent to {sent} subscriber(s). {failed} failed.";
         return (sent, failed, message);
     }
 
@@ -1258,7 +1676,8 @@ class AppStoreDb
         using var db = Db();
         var owner = db.Users.FirstOrDefault(u => u.Email == OwnerAccount.NormalizedEmail);
         if (owner is null) return;
-        if (db.MailingListSubscribers.Any(s => s.UserId == owner.Id && s.Email == cleanEmail)) return;
+        if (db.MailingListSubscribers.Any(s =>
+            s.UserId == owner.Id && s.Email == cleanEmail && s.ListKind == MailingListKinds.Brand)) return;
 
         db.MailingListSubscribers.Add(new DbMailingListSubscriber
         {
@@ -1267,7 +1686,8 @@ class AppStoreDb
             Name = name.Trim(),
             SubscribedAt = DateTime.UtcNow,
             Source = source,
-            UnsubscribeToken = NewUnsubscribeToken()
+            UnsubscribeToken = NewUnsubscribeToken(),
+            ListKind = MailingListKinds.Brand
         });
         db.SaveChanges();
     }
@@ -1279,7 +1699,7 @@ class AppStoreDb
         if (owner is null) return 0;
 
         var existing = db.MailingListSubscribers
-            .Where(s => s.UserId == owner.Id)
+            .Where(s => s.UserId == owner.Id && s.ListKind == MailingListKinds.Brand)
             .Select(s => s.Email)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -1294,7 +1714,8 @@ class AppStoreDb
                 Name = "",
                 SubscribedAt = DateTime.UtcNow,
                 Source = "Auto sync",
-                UnsubscribeToken = NewUnsubscribeToken()
+                UnsubscribeToken = NewUnsubscribeToken(),
+                ListKind = MailingListKinds.Brand
             });
             added++;
         }
@@ -2251,17 +2672,30 @@ class AppStoreDb
         if (string.IsNullOrWhiteSpace(subject)) return (0, 0, "Enter an email subject.");
         if (string.IsNullOrWhiteSpace(body)) return (0, 0, "Enter a message to send.");
 
-        var emails = GetAllUserEmails();
-        if (emails.Count == 0) return (0, 0, "No registered users to email yet.");
+        using var db = Db();
+        var owner = db.Users.FirstOrDefault(u => u.Email == OwnerAccount.NormalizedEmail);
+        if (owner is null) return (0, 0, "Owner account not found.");
 
-        var (sent, failed) = await EmailService.SendBroadcastEmailAsync(emails, subject, body, apiKey, senderEmail, senderName, appBaseUrl);
+        var (sent, failed, message) = await SendMailingListCampaignForUserAsync(
+            db, owner.Id, subject, body, apiKey, senderEmail, senderName, "BookPromoter AI", appBaseUrl, MailingListKinds.Brand);
+        if (sent > 0)
+        {
+            var settings = EnsureMailingListSettingsRow(db, owner.Id, MailingListKinds.Brand);
+            settings.PendingSubject = "";
+            settings.PendingBody = "";
+            settings.PendingApproved = false;
+            await db.SaveChangesAsync();
+        }
+
         var devNote = !_settings.IsSendGridConfigured && sent > 0
             ? " (SendGrid not configured — logged only in dev.)"
             : "";
-        var message = failed == 0
-            ? $"Promo email sent to {sent} user(s).{devNote}"
-            : $"Sent to {sent} user(s). {failed} failed.{devNote}";
-        return (sent, failed, message);
+        var finalMessage = failed == 0
+            ? $"Promo email sent to {sent} brand subscriber(s).{devNote}"
+            : $"Sent to {sent} subscriber(s). {failed} failed.{devNote}";
+        if (sent == 0 && failed == 0 && message.Contains("empty", StringComparison.OrdinalIgnoreCase))
+            finalMessage = "No brand mailing list subscribers yet. Users are added when they register.";
+        return (sent, failed, finalMessage);
     }
 
     public async Task<(int Posted, int Failed, string Message)> PostOwnerAppPromoAsync(
@@ -2439,7 +2873,7 @@ class AppStoreDb
         var owner = db.Users.AsNoTracking().FirstOrDefault(u => u.Email == OwnerAccount.NormalizedEmail);
         if (owner is null) return [];
         return db.MailingListSubscribers.AsNoTracking()
-            .Where(s => s.UserId == owner.Id)
+            .Where(s => s.UserId == owner.Id && s.ListKind == MailingListKinds.Brand)
             .Select(s => new ValueTuple<string, string>(s.Email, s.UnsubscribeToken))
             .ToList();
     }
@@ -2535,4 +2969,19 @@ class AppStoreDb
     };
     static MailingListSubscriber ToModel(DbMailingListSubscriber s) => new() { Id = s.Id, Email = s.Email, Name = s.Name, SubscribedAt = s.SubscribedAt, Source = s.Source, UnsubscribeToken = s.UnsubscribeToken };
     static MailingListCampaign ToModel(DbMailingListCampaign c) => new() { Id = c.Id, Subject = c.Subject, Body = c.Body, RecipientCount = c.RecipientCount, FailedCount = c.FailedCount, SentAt = c.SentAt };
+    static MailingListSettings ToModel(DbMailingListSettings s) => new()
+    {
+        ListKind = s.ListKind,
+        EmailsPerWeek = s.EmailsPerWeek,
+        AutoSendEnabled = s.AutoSendEnabled,
+        RequiresApproval = s.RequiresApproval,
+        LastSentAt = s.LastSentAt,
+        EmailsSentThisWeek = s.EmailsSentThisWeek,
+        WeekTrackerStart = s.WeekTrackerStart,
+        PendingSubject = s.PendingSubject,
+        PendingBody = s.PendingBody,
+        PendingBookId = s.PendingBookId,
+        DraftGeneratedAt = s.DraftGeneratedAt,
+        PendingApproved = s.PendingApproved
+    };
 }

@@ -7,6 +7,8 @@ static class OwnerRoutes
         app.MapGet("/owner-promos", (HttpContext http, AppStoreDb store, AppSettings settings, ReleaseNotesCatalog releaseNotes) =>
         {
             if (OwnerGuard(store) is { } guard) return guard;
+            var baseUrl = PublicUrl.Base(http.Request, settings);
+            store.EnsureWeeklyOwnerBrandMailingDraft(baseUrl);
             var section = http.Request.Query["section"].ToString();
             return RenderOwner(http, store, settings, releaseNotes, activeSection: section);
         });
@@ -93,7 +95,40 @@ static class OwnerRoutes
                 settings.SendGridSenderName,
                 baseUrl);
             var cls = message.Contains("sent to", StringComparison.OrdinalIgnoreCase) ? "success" : "error";
-            return RenderOwner(http, store, settings, releaseNotes, $"""<div class="notice {cls}">{H.Encode(message)}</div>""");
+            return RenderOwner(http, store, settings, releaseNotes, $"""<div class="notice {cls}">{H.Encode(message)}</div>""", "promote-app");
+        });
+
+        app.MapPost("/owner/brand-email/schedule", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings, ReleaseNotesCatalog releaseNotes) =>
+        {
+            if (OwnerGuard(store) is { } guard) return guard;
+            var form = await request.ReadFormAsync();
+            var emailsPerWeek = int.TryParse(form["emailsPerWeek"].ToString(), out var n) ? n : 0;
+            var autoSend = form.ContainsKey("autoSendEnabled");
+            var requiresApproval = form.ContainsKey("requiresApproval");
+            store.SaveMailingListSettings(emailsPerWeek, autoSend, requiresApproval, MailingListKinds.Brand);
+            var baseUrl = PublicUrl.Base(http.Request, settings);
+            store.EnsureWeeklyOwnerBrandMailingDraft(baseUrl);
+            return RenderOwner(http, store, settings, releaseNotes,
+                """<div class="notice success">Brand email schedule saved.</div>""", "promote-app");
+        });
+
+        app.MapPost("/owner/brand-email/approve", (HttpContext http, AppStoreDb store, AppSettings settings, ReleaseNotesCatalog releaseNotes) =>
+        {
+            if (OwnerGuard(store) is { } guard) return guard;
+            store.ApprovePendingMailingDraft(MailingListKinds.Brand);
+            return RenderOwner(http, store, settings, releaseNotes,
+                """<div class="notice success">Brand email draft approved for auto-send.</div>""", "promote-app");
+        });
+
+        app.MapPost("/owner/brand-email/generate", (HttpContext http, AppStoreDb store, AppSettings settings, ReleaseNotesCatalog releaseNotes) =>
+        {
+            if (OwnerGuard(store) is { } guard) return guard;
+            var baseUrl = PublicUrl.Base(http.Request, settings);
+            var (_, _, error) = store.GenerateAndStoreOwnerBrandMailingDraft(baseUrl, regenerate: true);
+            var notice = error is not null
+                ? $"""<div class="notice error">{H.Encode(error)}</div>"""
+                : """<div class="notice success">Brand email draft generated. Review below or approve for auto-send.</div>""";
+            return RenderOwner(http, store, settings, releaseNotes, notice, "promote-app");
         });
 
         app.MapPost("/owner/app-promo/post-social", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings, SocialPostingService posting, ReleaseNotesCatalog releaseNotes) =>

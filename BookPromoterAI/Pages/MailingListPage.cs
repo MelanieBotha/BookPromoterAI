@@ -7,13 +7,19 @@ static class MailingListPage
     {
         var userCode = store.CurrentUserCode ?? "";
         var signupUrl = string.IsNullOrWhiteSpace(userCode) ? "" : $"{baseUrl}/readers/signup/{Uri.EscapeDataString(userCode)}";
+        var settings = store.MailingListSettings;
+        var effectiveSubject = !string.IsNullOrWhiteSpace(draftSubject) ? draftSubject : settings.PendingSubject;
+        var effectiveBody = !string.IsNullOrWhiteSpace(draftBody) ? draftBody : settings.PendingBody;
+        var effectiveBookId = draftBookId > 0 ? draftBookId : settings.PendingBookId ?? 0;
         var mySubscriptions = store.GetMailingListSubscriptionsForLoggedInUser();
         var subscriptionRows = new StringBuilder();
         foreach (var sub in mySubscriptions)
         {
-            var ownerLabel = OwnerAccount.IsOwnerEmail(sub.ListOwnerEmail)
+            var ownerLabel = OwnerAccount.IsOwnerEmail(sub.ListOwnerEmail) && MailingListKinds.IsBrand(sub.ListKind)
                 ? "BookPromoter AI product updates"
-                : $"Updates from {sub.ListOwnerEmail}";
+                : OwnerAccount.IsOwnerEmail(sub.ListOwnerEmail)
+                    ? "BookPromoter AI reader list"
+                    : $"Updates from {sub.ListOwnerEmail}";
             subscriptionRows.Append($"""
                 <article class="book-row">
                     <div>
@@ -81,8 +87,30 @@ static class MailingListPage
                 <p class="muted small-text">Post it on social media, in your book back matter, or on your website.</p>
                 """;
 
-        var hasDraft = !string.IsNullOrWhiteSpace(draftSubject) || !string.IsNullOrWhiteSpace(draftBody);
-        var bookField = draftBookId > 0 ? $"""<input type="hidden" name="bookId" value="{draftBookId}">""" : "";
+        var hasDraft = !string.IsNullOrWhiteSpace(effectiveSubject) || !string.IsNullOrWhiteSpace(effectiveBody);
+        var bookField = effectiveBookId > 0 ? $"""<input type="hidden" name="bookId" value="{effectiveBookId}">""" : "";
+
+        var autoSendChecked = settings.AutoSendEnabled ? "checked" : "";
+        var requiresApprovalChecked = settings.RequiresApproval ? "checked" : "";
+        var autoHint = AppStoreDb.FormatNextMailingHint(settings) is string hint
+            ? $"""<p class="muted small-text">{H.Encode(hint)}</p>"""
+            : "";
+        var sendGridNote = store.IsSendGridConfigured
+            ? ""
+            : """<p class="notice error">SendGrid is not configured — auto-send will log emails in dev mode but won't deliver until SendGrid is set up.</p>""";
+        var pendingApproval = settings.RequiresApproval
+            && !settings.PendingApproved
+            && !string.IsNullOrWhiteSpace(settings.PendingSubject);
+        var approveSection = pendingApproval
+            ? """
+                <p class="notice">A draft is ready. Approve it to allow auto-send, or edit the message below and send manually.</p>
+                <form method="post" action="/mailing-list/approve" class="inline-form" style="margin-top:8px">
+                    <button class="button secondary" type="submit">Approve draft for auto-send</button>
+                </form>
+                """
+            : settings.PendingApproved && settings.AutoSendEnabled && !string.IsNullOrWhiteSpace(settings.PendingSubject)
+                ? """<p class="notice success">Draft approved — auto-send will use this message on the next scheduled slot.</p>"""
+                : "";
 
         var viewedSection = viewedCampaign is null ? "" : $"""
             <section class="panel" id="campaign-view">
@@ -103,7 +131,7 @@ static class MailingListPage
                 <div>
                     <p class="eyebrow">Mailing List</p>
                     <h1>Build a reader list and email your subscribers.</h1>
-                    <p class="muted">Auto-generate reader emails from your books — just like the Ad Library.</p>
+                    <p class="muted">Auto-generate reader emails from your novels — just like the Ad Library — and optionally auto-send on a schedule.{(store.IsOwner ? " <strong>Registered user emails</strong> (product updates) are on the <a href=\"/owner-promos\">Owner</a> page." : "")}</p>
                 </div>
                 <form method="post" action="/mailing-list/generate" class="inline-form">
                     <button class="button" type="submit">Auto-Generate Email</button>
@@ -113,6 +141,28 @@ static class MailingListPage
             {notice}
 
             {subscriptionsSection}
+
+            <section class="panel">
+                <h2>Email auto-send schedule</h2>
+                <p class="muted">Auto-generate novel promotion emails for <strong>your readers</strong> and send on a schedule (checks every 5 minutes).</p>
+                {sendGridNote}
+                <form method="post" action="/mailing-list/schedule" class="form">
+                    <label>Emails per week
+                        <input name="emailsPerWeek" type="number" min="0" max="7" value="{settings.EmailsPerWeek}">
+                    </label>
+                    <label class="checkbox">
+                        <input name="autoSendEnabled" type="checkbox" {autoSendChecked}>
+                        Auto-send to subscribers
+                    </label>
+                    <label class="checkbox">
+                        <input name="requiresApproval" type="checkbox" {requiresApprovalChecked}>
+                        Approval required before sending
+                    </label>
+                    <button class="button" type="submit">Save schedule</button>
+                </form>
+                {autoHint}
+                {approveSection}
+            </section>
 
             <section class="panel">
                 <h2>Public Signup Link</h2>
@@ -138,9 +188,9 @@ static class MailingListPage
                 <p class="muted">{(store.MailingListSubscribers.Count == 0 ? "<strong>Add subscribers first.</strong> " : $"Ready to reach {store.MailingListSubscribers.Count} subscriber(s). ")}Use Auto-Generate to draft a promotion from your books, edit if needed, then send.</p>
                 <form method="post" action="/mailing-list/send" class="form" onsubmit="return confirm('Send this email to all {store.MailingListSubscribers.Count} subscriber(s)?');">
                     {bookField}
-                    <label>Subject <input name="subject" required placeholder="New book announcement" value="{H.Encode(draftSubject)}"></label>
+                    <label>Subject <input name="subject" required placeholder="New book announcement" value="{H.Encode(effectiveSubject)}"></label>
                     <label>Message
-                        <textarea name="body" required placeholder="Hi readers,&#10;&#10;I wanted to share...">{H.Encode(draftBody)}</textarea>
+                        <textarea name="body" required placeholder="Hi readers,&#10;&#10;I wanted to share...">{H.Encode(effectiveBody)}</textarea>
                     </label>
                     <button class="button" type="submit" {(store.MailingListSubscribers.Count == 0 ? "disabled" : "")}>Send to All Subscribers</button>
                 </form>

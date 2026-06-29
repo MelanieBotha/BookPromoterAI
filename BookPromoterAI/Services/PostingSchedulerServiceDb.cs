@@ -17,11 +17,23 @@ class PostingSchedulerServiceDb : BackgroundService
                 var store = scope.ServiceProvider.GetRequiredService<AppStoreDb>();
                 var postingService = scope.ServiceProvider.GetRequiredService<SocialPostingService>();
                 var settings = scope.ServiceProvider.GetRequiredService<AppSettings>();
+                var mailingGenerator = new MailingListEmailGenerator();
                 var baseUrl = settings.PublicBaseUrl.TrimEnd('/');
                 if (string.IsNullOrWhiteSpace(baseUrl))
                     baseUrl = "https://bookpromoterai.us";
                 await store.RunDuePostsAsync(postingService);
                 await store.RunDueOwnerPromosAsync(postingService, baseUrl);
+                await store.RunDueMailingListEmailsAsync(
+                    mailingGenerator,
+                    baseUrl,
+                    settings.SendGridApiKey,
+                    settings.SendGridSenderEmail,
+                    settings.SendGridSenderName);
+                await store.RunDueOwnerBrandEmailsAsync(
+                    baseUrl,
+                    settings.SendGridApiKey,
+                    settings.SendGridSenderEmail,
+                    settings.SendGridSenderName);
             }
             catch { /* log and continue */ }
 

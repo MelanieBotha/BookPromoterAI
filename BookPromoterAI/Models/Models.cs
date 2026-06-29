@@ -302,6 +302,7 @@ class MailingListSubscription
 {
     public int Id { get; set; }
     public string ListOwnerEmail { get; set; } = "";
+    public string ListKind { get; set; } = MailingListKinds.Author;
     public DateTime SubscribedAt { get; set; }
     public string Source { get; set; } = "";
 }
@@ -314,6 +315,22 @@ class MailingListCampaign
     public int RecipientCount { get; set; }
     public int FailedCount { get; set; }
     public DateTime SentAt { get; set; }
+}
+
+class MailingListSettings
+{
+    public string ListKind { get; set; } = MailingListKinds.Author;
+    public int EmailsPerWeek { get; set; }
+    public bool AutoSendEnabled { get; set; }
+    public bool RequiresApproval { get; set; } = true;
+    public DateTime? LastSentAt { get; set; }
+    public int EmailsSentThisWeek { get; set; }
+    public int WeekTrackerStart { get; set; }
+    public string PendingSubject { get; set; } = "";
+    public string PendingBody { get; set; } = "";
+    public int? PendingBookId { get; set; }
+    public DateTime? DraftGeneratedAt { get; set; }
+    public bool PendingApproved { get; set; }
 }
 
 class ProductUpdate

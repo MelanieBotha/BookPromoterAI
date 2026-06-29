@@ -4,10 +4,11 @@ static class MailingListRoutes
 {
     public static void Map(WebApplication app, MailingListEmailGenerator emailGenerator)
     {
-        app.MapGet("/mailing-list", (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings) =>
+        app.MapGet("/mailing-list", (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings, MailingListEmailGenerator emailGenerator) =>
         {
             if (!store.HasCustomerAccess || !store.IsLoggedIn) return Results.Redirect("/start");
             var baseUrl = PublicUrl.Base(request, settings);
+            store.EnsureWeeklyMailingDraft(emailGenerator, baseUrl);
             MailingListCampaign? viewed = null;
             if (int.TryParse(request.Query["view"].ToString(), out var viewId))
                 viewed = store.GetMailingListCampaign(viewId);
@@ -18,7 +19,7 @@ static class MailingListRoutes
         {
             if (!store.HasCustomerAccess || !store.IsLoggedIn) return Results.Redirect("/start");
             var baseUrl = PublicUrl.Base(request, settings);
-            var (subject, body, bookId, error) = store.BuildMailingListDraft(emailGenerator, baseUrl);
+            var (subject, body, bookId, error) = store.GenerateAndStoreMailingListDraft(emailGenerator, baseUrl);
             var notice = error is not null
                 ? $"""<div class="notice error">{H.Encode(error)}</div>"""
                 : """<div class="notice success">Email draft generated from your books. Review and send when ready.</div>""";
@@ -31,11 +32,34 @@ static class MailingListRoutes
             var form = await request.ReadFormAsync();
             var bookId = int.TryParse(form["bookId"].ToString(), out var id) ? id : (int?)null;
             var baseUrl = PublicUrl.Base(request, settings);
-            var (subject, body, newBookId, error) = store.BuildMailingListDraft(emailGenerator, baseUrl, bookId, regenerate: true);
+            var (subject, body, newBookId, error) = store.GenerateAndStoreMailingListDraft(emailGenerator, baseUrl, bookId, regenerate: true);
             var notice = error is not null
                 ? $"""<div class="notice error">{H.Encode(error)}</div>"""
                 : """<div class="notice success">Email draft regenerated.</div>""";
             return Results.Content(H.RenderPage(http, "Mailing List", MailingListPage.Render(store, notice, baseUrl, subject, body, newBookId), store), "text/html");
+        });
+
+        app.MapPost("/mailing-list/schedule", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings, MailingListEmailGenerator emailGenerator) =>
+        {
+            if (!store.HasCustomerAccess || !store.IsLoggedIn) return Results.Redirect("/start");
+            var form = await request.ReadFormAsync();
+            var emailsPerWeek = int.TryParse(form["emailsPerWeek"].ToString(), out var n) ? n : 0;
+            var autoSend = form.ContainsKey("autoSendEnabled");
+            var requiresApproval = form.ContainsKey("requiresApproval");
+            store.SaveMailingListSettings(emailsPerWeek, autoSend, requiresApproval);
+            var baseUrl = PublicUrl.Base(request, settings);
+            store.EnsureWeeklyMailingDraft(emailGenerator, baseUrl);
+            var notice = """<div class="notice success">Email schedule saved.</div>""";
+            return Results.Content(H.RenderPage(http, "Mailing List", MailingListPage.Render(store, notice, baseUrl), store), "text/html");
+        });
+
+        app.MapPost("/mailing-list/approve", (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings) =>
+        {
+            if (!store.HasCustomerAccess || !store.IsLoggedIn) return Results.Redirect("/start");
+            store.ApprovePendingMailingDraft();
+            var baseUrl = PublicUrl.Base(request, settings);
+            var notice = """<div class="notice success">Draft approved for auto-send.</div>""";
+            return Results.Content(H.RenderPage(http, "Mailing List", MailingListPage.Render(store, notice, baseUrl), store), "text/html");
         });
 
         app.MapPost("/mailing-list/subscribers", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings) =>
