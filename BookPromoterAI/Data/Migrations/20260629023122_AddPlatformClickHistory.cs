@@ -11,27 +11,16 @@ namespace BookPromoterAI.Data.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.AddColumn<string>(
-                name: "UnsubscribeToken",
-                table: "MailingListSubscribers",
-                type: "TEXT",
-                nullable: false,
-                defaultValue: "");
-
-            migrationBuilder.AddColumn<string>(
                 name: "PlatformClickHistory",
                 table: "Books",
                 type: "TEXT",
                 nullable: false,
-                defaultValue: "");
+                defaultValue: "{}");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "UnsubscribeToken",
-                table: "MailingListSubscribers");
-
             migrationBuilder.DropColumn(
                 name: "PlatformClickHistory",
                 table: "Books");

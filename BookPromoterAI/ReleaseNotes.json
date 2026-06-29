@@ -1,4 +1,12 @@
 {
+  "1.8.7": {
+    "title": "BookPromoter AI v1.8.7 — What's new",
+    "updated": [
+      "Fix Railway deploy: database migration no longer re-adds UnsubscribeToken column that already exists"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.8.6": {
     "title": "BookPromoter AI v1.8.6 — What's new",
     "updated": [
