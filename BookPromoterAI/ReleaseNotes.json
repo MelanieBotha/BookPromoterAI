@@ -1,4 +1,12 @@
 {
+  "1.8.10": {
+    "title": "BookPromoter AI v1.8.10 — What's new",
+    "updated": [
+      "Fix Railway startup crash: escape {} in database repair SQL so healthcheck can pass"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.8.9": {
     "title": "BookPromoter AI v1.8.9 — What's new",
     "updated": [

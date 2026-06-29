@@ -115,8 +115,8 @@ static class DatabaseInitializer
         AddColumnIfMissing(db, "SubscriptionPlans", "PayPalPlanId", """ALTER TABLE "SubscriptionPlans" ADD COLUMN "PayPalPlanId" TEXT NULL""");
         AddColumnIfMissing(db, "OwnerPayoutSettings", "StripeConnectAccountId", """ALTER TABLE "OwnerPayoutSettings" ADD COLUMN "StripeConnectAccountId" TEXT NULL""");
         AddColumnIfMissing(db, "MailingListSubscribers", "UnsubscribeToken", """ALTER TABLE "MailingListSubscribers" ADD COLUMN "UnsubscribeToken" TEXT NOT NULL DEFAULT ''""");
-        AddColumnIfMissing(db, "Books", "PlatformClickHistory", """ALTER TABLE "Books" ADD COLUMN "PlatformClickHistory" TEXT NOT NULL DEFAULT '{}'""");
-        db.Database.ExecuteSqlRaw("""UPDATE "Books" SET "PlatformClickHistory" = '{}' WHERE "PlatformClickHistory" IS NULL OR "PlatformClickHistory" = ''""");
+        AddColumnIfMissing(db, "Books", "PlatformClickHistory", """ALTER TABLE "Books" ADD COLUMN "PlatformClickHistory" TEXT NOT NULL DEFAULT '{{}}'""");
+        db.Database.ExecuteSqlRaw("""UPDATE "Books" SET "PlatformClickHistory" = '{{}}' WHERE "PlatformClickHistory" IS NULL OR "PlatformClickHistory" = ''""");
     }
 
     static bool LegacySchemaExists(AppDbContext db)
