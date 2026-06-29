@@ -151,9 +151,11 @@ static class H
                 softLaunchBanner = SoftLaunchBanner(settings);
         }
 
-        var helpPanel = http is not null && store.HasCustomerAccess
+        var helpPanel = http is not null && store.HasCustomerAccess && !IsReaderFacingPage(http)
             ? HelpGuide.RenderPanel(store, http.Request.Path.Value)
             : "";
+
+        var accountBanner = IsReaderFacingPage(http) ? "" : AccountBanner(store);
 
         return $"""
         <!DOCTYPE html>
@@ -180,7 +182,7 @@ static class H
             </header>
             <main class="page">
                 {softLaunchBanner}
-                {AccountBanner(store)}
+                {accountBanner}
                 {helpPanel}
                 {body}
             </main>
@@ -312,6 +314,14 @@ static class H
                 <span>Copy posts from your Ad Library and paste them manually to social platforms. Add Stripe API keys in Railway to enable paid subscriptions.</span>
             </section>
             """;
+    }
+
+    static bool IsReaderFacingPage(HttpContext? http)
+    {
+        if (http is null) return false;
+        var path = http.Request.Path.Value ?? "";
+        return path.StartsWith("/readers/signup", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/readers/unsubscribe", StringComparison.OrdinalIgnoreCase);
     }
 
     static string AccountBanner(AppStoreDb store)
