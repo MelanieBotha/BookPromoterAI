@@ -59,7 +59,7 @@ builder.Services.AddSingleton(DatabasePaths.Resolve(dbPath));
 builder.Services.AddSingleton(uploadsPaths);
 
 builder.Services.AddDbContextFactory<AppDbContext>(options =>
-    options.UseSqlite($"Data Source={dbPath}"));
+    options.UseSqlite($"Data Source={dbPath};Cache=Shared;Default Timeout=60"));
 
 builder.Services.AddSingleton<ReleaseNotesCatalog>();
 builder.Services.AddScoped<AppStoreDb>();
@@ -71,21 +71,35 @@ var mailingListEmailGenerator = new MailingListEmailGenerator();
 builder.Services.AddSingleton(new SocialPostingService());
 builder.Services.AddHostedService<PostingSchedulerServiceDb>();
 
+// Database setup runs before the web server starts listening so Railway's
+// healthcheck can succeed as soon as the app is up.
+using (var bootstrap = builder.Services.BuildServiceProvider())
+{
+    try
+    {
+        using var scope = bootstrap.CreateScope();
+        var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
+        using var db = dbFactory.CreateDbContext();
+        DatabaseInitializer.ApplyMigrations(db);
+        scope.ServiceProvider.GetRequiredService<AppStoreDb>().SeedPromoCodes();
+        scope.ServiceProvider.GetRequiredService<AppStoreDb>().SeedOwnerAccount();
+        Console.WriteLine("[Startup] Database ready.");
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"[Startup] Database setup failed: {ex}");
+        throw;
+    }
+}
+
 var app = builder.Build();
+var onRailway = !string.IsNullOrWhiteSpace(port);
 
 app.MapGet("/health", () => Results.Text("ok"));
 
-using (var scope = app.Services.CreateScope())
-{
-    var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
-    using var db = dbFactory.CreateDbContext();
-    DatabaseInitializer.ApplyMigrations(db);
-    scope.ServiceProvider.GetRequiredService<AppStoreDb>().SeedPromoCodes();
-    scope.ServiceProvider.GetRequiredService<AppStoreDb>().SeedOwnerAccount();
-}
-
 app.UseForwardedHeaders();
-app.UseHttpsRedirection();
+if (!onRailway)
+    app.UseHttpsRedirection();
 app.UseSession();
 app.UseBookPromoterSecurity();
 

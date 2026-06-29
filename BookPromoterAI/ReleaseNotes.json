@@ -1,4 +1,12 @@
 {
+  "1.8.9": {
+    "title": "BookPromoter AI v1.8.9 — What's new",
+    "updated": [
+      "Railway deploy: run database setup before the web server starts so healthchecks can pass"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.8.8": {
     "title": "BookPromoter AI v1.8.8 — What's new",
     "updated": [

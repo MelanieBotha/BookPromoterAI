@@ -23,6 +23,10 @@ static class DatabaseInitializer
         catch (Exception ex) when (IsDuplicateColumnError(ex))
         {
             // Column already added by RepairMissingColumns on a prior deploy — continue with repairs.
+            db.Database.ExecuteSqlRaw(
+                "INSERT OR IGNORE INTO __EFMigrationsHistory (MigrationId, ProductVersion) VALUES ({0}, {1})",
+                "20260629023122_AddPlatformClickHistory",
+                "8.0.0");
         }
 
         RepairMissingColumns(db);
