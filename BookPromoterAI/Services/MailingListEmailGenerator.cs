@@ -35,6 +35,27 @@ class MailingListEmailGenerator
         return (subject, body.Trim());
     }
 
+    public (string Subject, string Body) GenerateNewRelease(Book book, string trackingUrl)
+    {
+        var subject = $"New release: \"{book.Title}\" by {book.AuthorName}";
+        var hook = $"I'm excited to share my new {book.GenreOrDefault().ToLowerInvariant()} release with you!";
+        var body = $"""
+            Hi there,
+
+            {hook}
+
+            {book.Title} by {book.AuthorName}
+            {TrimDescription(book.Description)}
+
+            Get your copy here:
+            {trackingUrl}
+
+            Thank you for being on my reader list!
+            """;
+
+        return (subject, body.Trim());
+    }
+
     static string PickHook(Book book, int seed)
     {
         if (!string.IsNullOrWhiteSpace(book.Description))

@@ -94,11 +94,11 @@ static class MailingListPage
             ? """<p class="muted small-text">The novel cover will appear at the top of the sent email.</p>"""
             : "";
         var featuringNote = draftBook is not null
-            ? $"""<p class="muted small-text">Featuring: <strong>{H.Encode(draftBook.Title)}</strong>{(store.Books.Count > 1 ? " — auto-rotate through your books each generate/send" : "")}</p>"""
-            : store.Books.Count > 1
-                ? """<p class="muted small-text">Emails rotate through your books — each generate or send features the next novel.</p>"""
+            ? $"""<p class="muted small-text">This week's featured book: <strong>{H.Encode(draftBook.Title)}</strong>{(store.Books.Count > 1 ? " — rotates to the next novel each week" : "")}</p>"""
+            : store.Books.Count > 0
+                ? """<p class="muted small-text">One book is featured per week and auto-emailed to readers. New books trigger an immediate new-release announcement.</p>"""
                 : "";
-        var nextBookButton = store.Books.Count > 1 ? "Next Book Draft" : "Regenerate Draft";
+        var refreshDraftButton = "Refresh Draft";
 
         var autoSendChecked = settings.AutoSendEnabled ? "checked" : "";
         var requiresApprovalChecked = settings.RequiresApproval ? "checked" : "";
@@ -141,10 +141,10 @@ static class MailingListPage
                 <div>
                     <p class="eyebrow">Mailing List</p>
                     <h1>Build a reader list and email your subscribers.</h1>
-                    <p class="muted">Auto-generate reader emails from your novels — just like the Ad Library — and optionally auto-send on a schedule.{(store.IsOwner ? " <strong>Registered user emails</strong> (product updates) are on the <a href=\"/owner-promos\">Owner</a> page." : "")}</p>
+                    <p class="muted">One featured novel per week, auto-sent to your readers. Add a new book and readers get an immediate new-release announcement.{(store.IsOwner ? " <strong>Registered user emails</strong> (product updates) are on the <a href=\"/owner-promos\">Owner</a> page." : "")}</p>
                 </div>
                 <form method="post" action="/mailing-list/generate" class="inline-form">
-                    <button class="button" type="submit">Auto-Generate Email</button>
+                    <button class="button" type="submit">Preview This Week's Email</button>
                 </form>
             </section>
 
@@ -153,22 +153,20 @@ static class MailingListPage
             {subscriptionsSection}
 
             <section class="panel">
-                <h2>Email auto-send schedule</h2>
-                <p class="muted">Auto-generate novel promotion emails for <strong>your readers</strong> and send on a schedule (checks every 5 minutes).</p>
+                <h2>Weekly auto-send</h2>
+                <p class="muted">Each week, one of your books is featured and emailed to <strong>your readers</strong>. Books rotate automatically. When you add a new book, readers get a <strong>new-release</strong> email right away.</p>
                 {sendGridNote}
                 <form method="post" action="/mailing-list/schedule" class="form">
-                    <label>Emails per week
-                        <input name="emailsPerWeek" type="number" min="0" max="7" value="{settings.EmailsPerWeek}">
-                    </label>
                     <label class="checkbox">
                         <input name="autoSendEnabled" type="checkbox" {autoSendChecked}>
-                        Auto-send to subscribers
+                        Auto-send one featured book per week
                     </label>
                     <label class="checkbox">
                         <input name="requiresApproval" type="checkbox" {requiresApprovalChecked}>
-                        Approval required before sending
+                        Approval required before weekly send
                     </label>
-                    <button class="button" type="submit">Save schedule</button>
+                    <input type="hidden" name="emailsPerWeek" value="1">
+                    <button class="button" type="submit">Save</button>
                 </form>
                 {autoHint}
                 {approveSection}
@@ -206,7 +204,7 @@ static class MailingListPage
                     {coverNote}
                     <button class="button" type="submit" {(store.MailingListSubscribers.Count == 0 ? "disabled" : "")}>Send to All Subscribers</button>
                 </form>
-                {(hasDraft ? $"""<form method="post" action="/mailing-list/regenerate" class="inline-form" style="margin-top:12px">{bookField}<button class="button secondary" type="submit">{nextBookButton}</button></form>""" : "")}
+                {(hasDraft ? $"""<form method="post" action="/mailing-list/regenerate" class="inline-form" style="margin-top:12px">{bookField}<button class="button secondary" type="submit">{refreshDraftButton}</button></form>""" : "")}
             </section>
 
             {viewedSection}

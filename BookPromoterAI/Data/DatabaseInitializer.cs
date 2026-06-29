@@ -199,6 +199,7 @@ static class DatabaseInitializer
             db.Database.ExecuteSqlRaw("""UPDATE "MailingListCampaigns" SET "ListKind" = 'Author' WHERE "ListKind" IS NULL OR "ListKind" = ''""");
         if (TableExists(db, "MailingListSettings") && ColumnExists(db, "MailingListSettings", "ListKind"))
             db.Database.ExecuteSqlRaw("""UPDATE "MailingListSettings" SET "ListKind" = 'Author' WHERE "ListKind" IS NULL OR "ListKind" = ''""");
+        AddColumnIfMissing(db, "MailingListSettings", "PendingNewReleaseBookId", """ALTER TABLE "MailingListSettings" ADD COLUMN "PendingNewReleaseBookId" INTEGER NULL""");
         MigrateOwnerBrandMailingListSubscribers(db);
         RepairMailingListSettingsIndex(db);
     }

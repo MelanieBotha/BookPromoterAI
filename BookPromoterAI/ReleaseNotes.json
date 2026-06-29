@@ -1,4 +1,14 @@
 {
+  "1.9.15": {
+    "title": "BookPromoter AI v1.9.15 — What's new",
+    "updated": [
+      "Author mailing list: one featured book per week, auto-sent to readers, rotating through your library"
+    ],
+    "new": [
+      "New books trigger an immediate new-release email to your reader list"
+    ],
+    "added": []
+  },
   "1.9.14": {
     "title": "BookPromoter AI v1.9.14 — What's new",
     "updated": [

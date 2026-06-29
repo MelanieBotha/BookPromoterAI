@@ -19,23 +19,24 @@ static class MailingListRoutes
         {
             if (!store.HasCustomerAccess || !store.IsLoggedIn) return Results.Redirect("/start");
             var baseUrl = PublicUrl.Base(request, settings);
-            var (subject, body, bookId, error) = store.GenerateAndStoreMailingListDraft(emailGenerator, baseUrl, advanceBook: true);
-            var notice = error is not null
-                ? $"""<div class="notice error">{H.Encode(error)}</div>"""
-                : """<div class="notice success">Email draft generated from your books. Review and send when ready.</div>""";
-            return Results.Content(H.RenderPage(http, "Mailing List", MailingListPage.Render(store, notice, baseUrl, subject, body, bookId), store), "text/html");
+            store.EnsureWeeklyMailingDraft(emailGenerator, baseUrl);
+            var draft = store.MailingListSettings;
+            var notice = """<div class="notice success">This week's featured book draft is ready. Review and send, or leave auto-send on.</div>""";
+            return Results.Content(H.RenderPage(http, "Mailing List", MailingListPage.Render(
+                store, notice, baseUrl, draft.PendingSubject, draft.PendingBody, draft.PendingBookId ?? 0), store), "text/html");
         });
 
         app.MapPost("/mailing-list/regenerate", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings) =>
         {
             if (!store.HasCustomerAccess || !store.IsLoggedIn) return Results.Redirect("/start");
             var form = await request.ReadFormAsync();
-            var bookId = int.TryParse(form["bookId"].ToString(), out var id) ? id : (int?)null;
+            var bookId = int.TryParse(form["bookId"].ToString(), out var id) ? id : store.MailingListSettings.PendingBookId;
             var baseUrl = PublicUrl.Base(request, settings);
-            var (subject, body, newBookId, error) = store.GenerateAndStoreMailingListDraft(emailGenerator, baseUrl, bookId, advanceBook: true);
+            var (subject, body, newBookId, error) = store.GenerateAndStoreMailingListDraft(
+                emailGenerator, baseUrl, bookId, regenerate: true, advanceBook: false);
             var notice = error is not null
                 ? $"""<div class="notice error">{H.Encode(error)}</div>"""
-                : """<div class="notice success">Draft updated for your next book in rotation.</div>""";
+                : """<div class="notice success">Draft refreshed for this week's featured book.</div>""";
             return Results.Content(H.RenderPage(http, "Mailing List", MailingListPage.Render(store, notice, baseUrl, subject, body, newBookId), store), "text/html");
         });
 

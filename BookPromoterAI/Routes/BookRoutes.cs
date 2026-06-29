@@ -33,6 +33,10 @@ static class BookRoutes
             book.Links = FileHelpers.ParseLinks(form);
             store.AddBook(book);
             var baseUrl = PublicUrl.Base(request, settings);
+            var mailingGenerator = new MailingListEmailGenerator();
+            await store.TrySendPendingNewReleaseMailingAsync(
+                mailingGenerator, baseUrl,
+                settings.SendGridApiKey, settings.SendGridSenderEmail, settings.SendGridSenderName);
             var schedule = store.Schedules.FirstOrDefault(s => s.PostsPerWeek > 0);
             var platform = schedule?.Platform ?? "General";
             var purchaseUrl = PostBranding.PurchaseUrlForPost(book, baseUrl, platform);

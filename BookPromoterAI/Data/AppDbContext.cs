@@ -347,6 +347,7 @@ class DbMailingListSettings
     public string PendingSubject { get; set; } = "";
     public string PendingBody { get; set; } = "";
     public int? PendingBookId { get; set; }
+    public int? PendingNewReleaseBookId { get; set; }
     public DateTime? DraftGeneratedAt { get; set; }
     public bool PendingApproved { get; set; }
     public DbUser? User { get; set; }
