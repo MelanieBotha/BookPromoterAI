@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Caching.Distributed;
+
 namespace BookPromoterAI;
 
 static class SocialAccountRoutes
@@ -85,9 +87,12 @@ static class SocialAccountRoutes
             HttpContext http,
             AppStoreDb store,
             AppSettings settings,
-            XService xService) =>
+            XService xService,
+            IDistributedCache cache) =>
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
+            var userId = store.GetCurrentDbUser()?.Id ?? 0;
+            if (userId == 0) return Results.Redirect("/start");
             var returnUrl = SocialConnectHelper.ResolveReturnUrl(request);
             var kind = SocialConnectHelper.ResolveAccountKind(returnUrl);
             if (SocialAccountKinds.IsBrand(kind) && !store.IsOwner) return Results.Redirect("/my-account");
@@ -109,7 +114,13 @@ static class SocialAccountRoutes
                 var appBaseUrl = PublicUrl.Base(request, settings);
                 var callbackUrl = XService.CallbackUrl(appBaseUrl);
                 var (authorizeUrl, state, verifier) = xService.BuildAuthorizationUrl(callbackUrl);
-                XOAuthSession.Save(http, state, verifier, returnUrl, kind);
+                await XOAuthStateStore.SaveAsync(cache, state, new XOAuthPending
+                {
+                    UserId = userId,
+                    ReturnUrl = returnUrl,
+                    Kind = kind,
+                    CodeVerifier = verifier
+                });
                 return Results.Redirect(authorizeUrl);
             }
 
@@ -124,19 +135,22 @@ static class SocialAccountRoutes
             HttpContext http,
             AppStoreDb store,
             AppSettings settings,
-            XService xService) =>
+            XService xService,
+            IDistributedCache cache) =>
         {
-            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
-
-            var (savedState, verifier, returnUrl, kind) = XOAuthSession.Load(http);
-            XOAuthSession.Clear(http);
-            returnUrl = SocialConnectHelper.IsAllowedReturnUrl(returnUrl) ? returnUrl! : "/my-account";
-            kind ??= SocialAccountKinds.Author;
-
-            if (SocialAccountKinds.IsBrand(kind) && !store.IsOwner) return Results.Redirect("/my-account");
-            if (store.CheckSocialAccountLimit(kind) is not null) return Results.Redirect(returnUrl);
-
             var error = request.Query["error"].ToString();
+            var code = request.Query["code"].ToString();
+            var state = request.Query["state"].ToString();
+            var pending = await XOAuthStateStore.TakeAsync(cache, state);
+            var returnUrl = XOAuthStateStore.BuildReturnUrl(
+                pending?.ReturnUrl ?? "/my-account",
+                pending?.Kind ?? SocialAccountKinds.Author);
+
+            if (pending is null)
+            {
+                return Results.Redirect($"/social-accounts/connect/X?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("X login expired. Try connecting again.")}");
+            }
+
             if (!string.IsNullOrWhiteSpace(error))
             {
                 var notice = error.Equals("access_denied", StringComparison.OrdinalIgnoreCase)
@@ -145,36 +159,41 @@ static class SocialAccountRoutes
                 return Results.Redirect($"/social-accounts/connect/X?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(notice)}");
             }
 
-            var code = request.Query["code"].ToString();
-            var state = request.Query["state"].ToString();
-            if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(state) || state != savedState || string.IsNullOrWhiteSpace(verifier))
+            if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(pending.CodeVerifier))
             {
                 return Results.Redirect($"/social-accounts/connect/X?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Invalid X login response. Try again.")}");
             }
 
+            if (SocialAccountKinds.IsBrand(pending.Kind) && !OwnerAccount.IsOwnerEmail(
+                    store.GetUserEmailById(pending.UserId)))
+            {
+                return Results.Redirect($"/social-accounts/connect/X?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Only the owner can connect brand accounts.")}");
+            }
+
             var callbackUrl = XService.CallbackUrl(PublicUrl.Base(request, settings));
-            var (ok, connectError, tokens, user) = await xService.CompleteAuthorizationAsync(code, callbackUrl, verifier);
+            var (ok, connectError, tokens, user) = await xService.CompleteAuthorizationAsync(
+                code, callbackUrl, pending.CodeVerifier);
             if (!ok || tokens is null || user is null)
             {
                 return Results.Redirect($"/social-accounts/connect/X?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(connectError)}");
             }
 
-            store.AddSocialAccount(new SocialAccount
+            store.AddSocialAccountForUser(pending.UserId, new SocialAccount
             {
                 Platform = "X",
                 DisplayName = string.IsNullOrWhiteSpace(user.Name)
-                    ? (SocialAccountKinds.IsBrand(kind) ? "BookPromoter AI" : "X Account")
+                    ? (SocialAccountKinds.IsBrand(pending.Kind) ? "BookPromoter AI" : "X Account")
                     : user.Name.Trim(),
                 Handle = user.Username,
                 IsConnected = true,
                 ConnectedViaOAuth = true,
-                AccountKind = kind,
+                AccountKind = pending.Kind,
                 AccessToken = tokens.AccessToken,
                 RefreshToken = tokens.RefreshToken,
                 ExternalAccountId = user.Id
-            }, kind);
-            if (SocialAccountKinds.IsAuthor(kind))
-                store.AddSchedule(new SocialSchedule { Platform = "X", PostsPerWeek = 1, RequiresApproval = true });
+            }, pending.Kind);
+            if (SocialAccountKinds.IsAuthor(pending.Kind))
+                store.AddScheduleForUser(pending.UserId, new SocialSchedule { Platform = "X", PostsPerWeek = 1, RequiresApproval = true });
             return Results.Redirect(returnUrl);
         });
 

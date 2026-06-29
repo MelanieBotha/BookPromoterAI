@@ -218,35 +218,3 @@ class XService
 record XTokenSet(string AccessToken, string RefreshToken, int ExpiresIn);
 
 record XUser(string Id, string Username, string Name);
-
-static class XOAuthSession
-{
-    public const string StateKey = "x_oauth_state";
-    public const string VerifierKey = "x_oauth_verifier";
-    public const string ReturnUrlKey = "x_oauth_return";
-    public const string KindKey = "x_oauth_kind";
-
-    public static void Save(HttpContext http, string state, string verifier, string returnUrl, string kind)
-    {
-        http.Session.SetString(StateKey, state);
-        http.Session.SetString(VerifierKey, verifier);
-        http.Session.SetString(ReturnUrlKey, returnUrl);
-        http.Session.SetString(KindKey, kind);
-    }
-
-    public static (string? State, string? Verifier, string? ReturnUrl, string? Kind) Load(HttpContext http) =>
-        (
-            http.Session.GetString(StateKey),
-            http.Session.GetString(VerifierKey),
-            http.Session.GetString(ReturnUrlKey),
-            http.Session.GetString(KindKey)
-        );
-
-    public static void Clear(HttpContext http)
-    {
-        http.Session.Remove(StateKey);
-        http.Session.Remove(VerifierKey);
-        http.Session.Remove(ReturnUrlKey);
-        http.Session.Remove(KindKey);
-    }
-}

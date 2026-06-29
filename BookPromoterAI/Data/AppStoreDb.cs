@@ -380,6 +380,38 @@ class AppStoreDb
         return account;
     }
 
+    public SocialAccount AddSocialAccountForUser(int userId, SocialAccount account, string? accountKind = null)
+    {
+        if (userId <= 0) throw new InvalidOperationException("Invalid user.");
+        var kind = accountKind ?? account.AccountKind;
+        if (string.IsNullOrWhiteSpace(kind)) kind = SocialAccountKinds.Author;
+
+        using var db = Db();
+        var user = db.Users.AsNoTracking().FirstOrDefault(u => u.Id == userId)
+            ?? throw new InvalidOperationException("User not found.");
+        if (SocialAccountKinds.IsBrand(kind) && !OwnerAccount.IsOwnerEmail(user.Email))
+            throw new InvalidOperationException("Only the owner can add BookPromoter AI brand accounts.");
+
+        var dbAcc = new DbSocialAccount
+        {
+            UserId = userId,
+            Platform = account.Platform,
+            DisplayName = account.DisplayName,
+            Handle = account.Handle,
+            IsConnected = account.IsConnected,
+            ConnectedViaOAuth = account.ConnectedViaOAuth,
+            AccountKind = kind,
+            AccessToken = account.AccessToken ?? account.SimulatedAccessToken,
+            RefreshToken = account.RefreshToken,
+            ExternalAccountId = account.ExternalAccountId
+        };
+        db.SocialAccounts.Add(dbAcc);
+        db.SaveChanges();
+        account.Id = dbAcc.Id;
+        account.AccountKind = kind;
+        return account;
+    }
+
     public void UpdateSocialAccount(SocialAccount account, string? accountKind = null)
     {
         var uid = CurrentUserId();
@@ -466,6 +498,32 @@ class AppStoreDb
         db.SocialSchedules.Add(new DbSocialSchedule
         {
             UserId = uid,
+            Platform = schedule.Platform,
+            PostsPerWeek = schedule.PostsPerWeek,
+            RequiresApproval = schedule.RequiresApproval,
+            AutoPostEnabled = schedule.AutoPostEnabled,
+            ScheduleKind = SocialScheduleKinds.Author
+        });
+        db.SaveChanges();
+    }
+
+    public string? GetUserEmailById(int userId)
+    {
+        if (userId <= 0) return null;
+        using var db = Db();
+        return db.Users.AsNoTracking().Where(u => u.Id == userId).Select(u => u.Email).FirstOrDefault();
+    }
+
+    public void AddScheduleForUser(int userId, SocialSchedule schedule)
+    {
+        if (userId <= 0) return;
+        using var db = Db();
+        if (db.SocialSchedules.Any(s => s.UserId == userId && s.Platform == schedule.Platform
+            && (s.ScheduleKind == SocialScheduleKinds.Author || s.ScheduleKind == "")))
+            return;
+        db.SocialSchedules.Add(new DbSocialSchedule
+        {
+            UserId = userId,
             Platform = schedule.Platform,
             PostsPerWeek = schedule.PostsPerWeek,
             RequiresApproval = schedule.RequiresApproval,
