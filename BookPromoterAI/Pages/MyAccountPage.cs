@@ -141,7 +141,7 @@ static class MyAccountPage
         var postingLogSection = $"""
             <section class="panel">
                 <h2>Posting Activity Log</h2>
-                <p class="muted small-text">Shows the most recent auto-posting attempts across all platforms.</p>
+                <p class="muted small-text">Shows recent auto-posting attempts for your <strong>author book promotions</strong> only (not BookPromoter AI brand posts).</p>
                 <div class="promo-table">
                     {logRows}
                 </div>

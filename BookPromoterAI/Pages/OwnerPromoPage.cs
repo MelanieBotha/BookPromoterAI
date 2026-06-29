@@ -91,6 +91,30 @@ static class OwnerPromoPage
                 """
             : "";
 
+        var brandLogRows = new StringBuilder();
+        foreach (var entry in store.OwnerBrandPostingLog.Take(20))
+        {
+            var statusClass = entry.Success ? "available" : "used";
+            var statusText = entry.Success ? "Posted" : "Failed";
+            brandLogRows.Append($"""
+                <div class="promo-row">
+                    <span>{H.Encode(entry.Platform)} &middot; {H.Encode(entry.BookTitle)}</span>
+                    <span>{entry.AttemptedAt:MMM d, HH:mm} UTC &middot; {H.Encode(entry.Message)}</span>
+                    <span class="status {statusClass}">{statusText}</span>
+                </div>
+                """);
+        }
+        if (store.OwnerBrandPostingLog.Count == 0)
+            brandLogRows.Append("""<p class="muted">No brand posting activity yet. Post manually below or enable Auto-post on a connected brand account.</p>""");
+
+        var brandPostingLogSection = $"""
+            <h3 style="margin-top:24px">Brand posting activity log</h3>
+            <p class="muted small-text">Recent BookPromoter AI brand posts (app promos and release updates). Author book posts appear on each user's My Account page.</p>
+            <div class="promo-table">
+                {brandLogRows}
+            </div>
+            """;
+
         var alreadyAdded = socialAccounts.Select(a => a.Platform).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var platformOptions = new StringBuilder();
         platformOptions.Append("""<option value="">Choose a platform...</option>""");
@@ -205,6 +229,7 @@ static class OwnerPromoPage
                         <button class="button" type="submit">Add account</button>
                     </form>
                     {brandScheduleSection}
+                    {brandPostingLogSection}
                 </div>
             </details>
 

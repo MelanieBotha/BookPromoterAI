@@ -219,6 +219,7 @@ class DbPostingLogEntry
     public bool Success { get; set; }
     public string Message { get; set; } = "";
     public DateTime AttemptedAt { get; set; }
+    public string LogKind { get; set; } = PostingLogKinds.Author;
     public DbUser? User { get; set; }
 }
 

@@ -247,6 +247,7 @@ class PostingLogEntry
     public bool Success { get; set; }
     public string Message { get; set; } = "";
     public DateTime AttemptedAt { get; set; }
+    public string LogKind { get; set; } = PostingLogKinds.Author;
 }
 
 record PromoRedeemResult(bool Success, string Message);

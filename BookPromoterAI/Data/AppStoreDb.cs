@@ -1269,7 +1269,33 @@ class AppStoreDb
             var uid = CurrentUserId();
             if (uid == 0) return [];
             using var db = Db();
-            return db.PostingLog.Where(l => l.UserId == uid).OrderByDescending(l => l.AttemptedAt).Take(50).AsNoTracking().ToList().Select(ToModel).ToList();
+            return db.PostingLog
+                .Where(l => l.UserId == uid && (l.LogKind == PostingLogKinds.Author || l.LogKind == ""))
+                .OrderByDescending(l => l.AttemptedAt)
+                .Take(50)
+                .AsNoTracking()
+                .ToList()
+                .Select(ToModel)
+                .ToList();
+        }
+    }
+
+    public List<PostingLogEntry> OwnerBrandPostingLog
+    {
+        get
+        {
+            if (!IsOwner) return [];
+            using var db = Db();
+            var owner = db.Users.AsNoTracking().FirstOrDefault(u => u.Email == OwnerAccount.NormalizedEmail);
+            if (owner is null) return [];
+            return db.PostingLog
+                .Where(l => l.UserId == owner.Id && l.LogKind == PostingLogKinds.Brand)
+                .OrderByDescending(l => l.AttemptedAt)
+                .Take(50)
+                .AsNoTracking()
+                .ToList()
+                .Select(ToModel)
+                .ToList();
         }
     }
 
@@ -2683,7 +2709,7 @@ class AppStoreDb
                     account.RefreshToken = outcome.RefreshToken;
             }
             var posted = ApplyGeneratedAdPostResult(candidate, result, now);
-            db.PostingLog.Add(new DbPostingLogEntry { UserId = schedule.UserId, GeneratedAdId = candidate.Id, Platform = schedule.Platform, BookTitle = candidate.BookTitle, Success = posted, Message = result.Message, AttemptedAt = now });
+            db.PostingLog.Add(new DbPostingLogEntry { UserId = schedule.UserId, GeneratedAdId = candidate.Id, Platform = schedule.Platform, BookTitle = candidate.BookTitle, Success = posted, Message = result.Message, AttemptedAt = now, LogKind = PostingLogKinds.Author });
             if (posted) { schedule.LastPostedAt = now; schedule.PostsSentThisWeek++; count++; }
         }
         await db.SaveChangesAsync();
@@ -2760,7 +2786,8 @@ class AppStoreDb
                 BookTitle = "BookPromoter AI",
                 Success = posted,
                 Message = posted ? "Auto-posted owner app promo." : result.Message,
-                AttemptedAt = now
+                AttemptedAt = now,
+                LogKind = PostingLogKinds.Brand
             });
             if (posted)
             {
@@ -2830,7 +2857,8 @@ class AppStoreDb
             BookTitle = ad.BookTitle,
             Success = posted,
             Message = posted ? "Posted now from Ad Library." : result.Message,
-            AttemptedAt = now
+            AttemptedAt = now,
+            LogKind = PostingLogKinds.Author
         });
 
         if (posted && schedule is not null)
@@ -3044,7 +3072,8 @@ class AppStoreDb
                 BookTitle = "BookPromoter AI",
                 Success = result.PostedToFeed,
                 Message = result.Message,
-                AttemptedAt = now
+                AttemptedAt = now,
+                LogKind = PostingLogKinds.Brand
             });
             if (result.PostedToFeed) posted++; else failed++;
         }
@@ -3135,7 +3164,8 @@ class AppStoreDb
                         BookTitle = $"Update v{version}",
                         Success = result.PostedToFeed,
                         Message = result.Message,
-                        AttemptedAt = DateTime.UtcNow
+                        AttemptedAt = DateTime.UtcNow,
+                        LogKind = PostingLogKinds.Brand
                     });
                     if (result.PostedToFeed) update.SocialPostsSent++;
                 }
@@ -3229,7 +3259,17 @@ class AppStoreDb
         WeekTrackerStart = s.WeekTrackerStart
     };
     static GeneratedAd ToModel(DbGeneratedAd a) => new() { Id = a.Id, BookId = a.BookId, BookTitle = a.BookTitle, CoverImageUrl = a.CoverImageUrl, Platform = a.Platform, PostText = a.PostText, GeneratedAt = a.GeneratedAt, WeekNumber = a.WeekNumber, WeekYear = a.WeekYear, WeekLabel = a.WeekLabel, PostStatus = a.PostStatus, PostedAt = a.PostedAt, PostError = a.PostError, ApprovedForPosting = a.ApprovedForPosting };
-    static PostingLogEntry ToModel(DbPostingLogEntry l) => new() { Id = l.Id, GeneratedAdId = l.GeneratedAdId, Platform = l.Platform, BookTitle = l.BookTitle, Success = l.Success, Message = l.Message, AttemptedAt = l.AttemptedAt };
+    static PostingLogEntry ToModel(DbPostingLogEntry l) => new()
+    {
+        Id = l.Id,
+        GeneratedAdId = l.GeneratedAdId,
+        Platform = l.Platform,
+        BookTitle = l.BookTitle,
+        Success = l.Success,
+        Message = l.Message,
+        AttemptedAt = l.AttemptedAt,
+        LogKind = l.LogKind
+    };
 
     static Dictionary<string, int> ParseClickHistory(string? json)
     {
