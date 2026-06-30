@@ -13,17 +13,30 @@ static class PublicUrl
 
     /// <summary>Current server URL — use for uploaded images and other local assets.</summary>
     public static string Local(HttpRequest request) =>
-        $"{request.Scheme}://{request.Host}";
+        $"{EffectiveScheme(request)}://{request.Host}";
 
     /// <summary>
-    /// Facebook OAuth callback base URL. Must match the host the user is browsing
-    /// (each host needs its own entry in Meta Valid OAuth Redirect URIs).
+    /// Facebook OAuth callback base URL. Must be HTTPS in production (Meta rejects http redirect_uri).
     /// </summary>
     public static string FacebookOAuthBase(HttpRequest request) =>
-        Local(request).TrimEnd('/');
+        $"{EffectiveScheme(request, forceHttps: true)}://{request.Host}".TrimEnd('/');
 
     public static string FacebookCallbackUrl(HttpRequest request) =>
         $"{FacebookOAuthBase(request)}{FacebookService.CallbackPath}";
+
+    static string EffectiveScheme(HttpRequest request, bool forceHttps = false)
+    {
+        if (request.IsHttps) return "https";
+        if (string.Equals(request.Headers["X-Forwarded-Proto"], "https", StringComparison.OrdinalIgnoreCase))
+            return "https";
+        if (forceHttps && IsProductionHost(request.Host.Host))
+            return "https";
+        return request.Scheme;
+    }
+
+    static bool IsProductionHost(string host) =>
+        host.Contains("railway.app", StringComparison.OrdinalIgnoreCase)
+        || host.Contains("bookpromoterai.us", StringComparison.OrdinalIgnoreCase);
 
     public static IEnumerable<string> FacebookCallbackUrlsForMeta(AppSettings settings)
     {
