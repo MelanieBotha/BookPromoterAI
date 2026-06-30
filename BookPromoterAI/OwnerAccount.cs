@@ -1,16 +1,25 @@
 namespace BookPromoterAI;
 
-/// <summary>Site owner credentials. Only this account sees Owner settings.</summary>
+/// <summary>Site owner credentials. Only these accounts see Owner settings.</summary>
 static class OwnerAccount
 {
     public const string Email = "bothamelanief@gmail.com";
     public const string Password = "Gwynneth@1";
 
-    public static string NormalizedEmail => Email.Trim().ToLowerInvariant();
+    /// <summary>All owner login emails (primary first — brand data is stored under the primary account).</summary>
+    public static readonly string[] Emails =
+    [
+        Email,
+        "bookpromoterai@gmail.com"
+    ];
+
+    public static string NormalizedEmail => Normalize(Email);
+
+    public static string Normalize(string email) => email.Trim().ToLowerInvariant();
 
     public static bool IsOwnerEmail(string? email) =>
         !string.IsNullOrWhiteSpace(email) &&
-        email.Trim().ToLowerInvariant() == NormalizedEmail;
+        Emails.Any(e => Normalize(e) == Normalize(email!));
 
     public static bool MatchesPassword(string? password) =>
         password == Password;

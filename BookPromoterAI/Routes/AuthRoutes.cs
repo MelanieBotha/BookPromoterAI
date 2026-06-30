@@ -8,6 +8,8 @@ static class AuthRoutes
         {
             if (!store.IsLoggedIn)
                 return Results.Content(H.RenderMarketingPage(http, "Start", AuthPages.StartLogin(""), store), "text/html");
+            if (store.IsOwner)
+                return Results.Redirect("/owner-promos");
             if (store.HasCustomerAccess)
                 return Results.Redirect("/dashboard");
             return Results.Content(H.RenderPage(http, "Start", $"""
@@ -58,6 +60,8 @@ static class AuthRoutes
                 return Results.Content(H.RenderMarketingPage(request.HttpContext, "Start", AuthPages.StartLogin($"""<div class="notice error">{H.Encode(result.Message)}</div>"""), store), "text/html");
             if (!store.HasAcceptedTerms)
                 return Results.Redirect("/accept-terms");
+            if (store.IsOwner)
+                return Results.Redirect("/owner-promos");
             return Results.Redirect(store.HasCustomerAccess ? "/dashboard" : "/start");
         });
 

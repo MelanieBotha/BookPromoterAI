@@ -149,7 +149,7 @@ class AppStoreDb
         }
     }
 
-    public bool HasCustomerAccess => GetCurrentUser()?.HasCustomerAccess ?? false;
+    public bool HasCustomerAccess => IsOwner || (GetCurrentUser()?.HasCustomerAccess ?? false);
     public string AccessType => GetCurrentUser()?.AccessType ?? "No Access Selected";
     public DateTime? AccessEndsAt => GetCurrentUser()?.AccessEndsAt;
     public string? CurrentPlanId => GetCurrentUser()?.CurrentPlanId;
@@ -1731,7 +1731,6 @@ class AppStoreDb
 
     public (List<OwnerPlanMember> Visible, int TotalCount) GetPlanMembersForDisplay(string planId)
     {
-        var ownerEmail = OwnerAccount.NormalizedEmail;
         using var db = Db();
         var paidUserIds = db.Subscriptions.AsNoTracking()
             .Where(s => s.PromoCodeUsed.StartsWith("Paid ("))
@@ -1742,11 +1741,10 @@ class AppStoreDb
         var members = db.Users.AsNoTracking()
             .Where(u => u.CurrentPlanId == planId
                 && u.HasCustomerAccess
-                && u.Email != ownerEmail
                 && u.AccessType != "Owner")
             .OrderByDescending(u => u.Id)
             .ToList()
-            .Where(u => IsPaidPlanMember(u, paidUserIds))
+            .Where(u => IsPaidPlanMember(u, paidUserIds) && !OwnerAccount.IsOwnerEmail(u.Email))
             .ToList();
 
         var total = members.Count;
@@ -1852,35 +1850,38 @@ class AppStoreDb
     public void SeedOwnerAccount()
     {
         using var db = Db();
-        var email = OwnerAccount.NormalizedEmail;
-        var user = db.Users.FirstOrDefault(u => u.Email == email);
-        if (user is null)
+        foreach (var email in OwnerAccount.Emails.Select(OwnerAccount.Normalize))
         {
-            user = new DbUser
+            var user = db.Users.FirstOrDefault(u => u.Email == email);
+            if (user is null)
             {
-                Email = email,
-                PasswordHash = PasswordHasher.Hash(OwnerAccount.Password),
-                UserCode = GenerateCode("BPA-"),
-                HasCustomerAccess = true,
-                AccessType = "Owner",
-                CurrentPlanId = "publisher",
-                TermsAcceptedAt = DateTime.UtcNow,
-                TermsAcceptedVersion = LegalConstants.CurrentTermsVersion
-            };
-            db.Users.Add(user);
-        }
-        else
-        {
-            user.PasswordHash = PasswordHasher.Hash(OwnerAccount.Password);
-            user.HasCustomerAccess = true;
-            if (string.IsNullOrWhiteSpace(user.AccessType) || user.AccessType == "No Access Selected")
-                user.AccessType = "Owner";
-            if (string.IsNullOrWhiteSpace(user.CurrentPlanId))
-                user.CurrentPlanId = "publisher";
+                user = new DbUser
+                {
+                    Email = email,
+                    PasswordHash = PasswordHasher.Hash(OwnerAccount.Password),
+                    UserCode = GenerateCode("BPA-"),
+                    HasCustomerAccess = true,
+                    AccessType = "Owner",
+                    CurrentPlanId = "publisher",
+                    TermsAcceptedAt = DateTime.UtcNow,
+                    TermsAcceptedVersion = LegalConstants.CurrentTermsVersion
+                };
+                db.Users.Add(user);
+            }
+            else
+            {
+                user.PasswordHash = PasswordHasher.Hash(OwnerAccount.Password);
+                user.HasCustomerAccess = true;
+                if (string.IsNullOrWhiteSpace(user.AccessType) || user.AccessType == "No Access Selected")
+                    user.AccessType = "Owner";
+                if (string.IsNullOrWhiteSpace(user.CurrentPlanId))
+                    user.CurrentPlanId = "publisher";
+            }
+
+            if (LoggedInEmail == email) ClearUserCache();
         }
 
         db.SaveChanges();
-        if (LoggedInEmail == email) ClearUserCache();
         SyncAllUsersToOwnerMailingList();
         EnsureMailingListUnsubscribeTokens();
     }
@@ -2030,7 +2031,7 @@ class AppStoreDb
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var added = 0;
-        foreach (var user in db.Users.Where(u => u.Email != OwnerAccount.NormalizedEmail))
+        foreach (var user in db.Users.AsEnumerable().Where(u => !OwnerAccount.IsOwnerEmail(u.Email)))
         {
             if (existing.Contains(user.Email)) continue;
             db.MailingListSubscribers.Add(new DbMailingListSubscriber
