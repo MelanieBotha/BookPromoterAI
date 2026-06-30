@@ -6,6 +6,12 @@ static class SocialAccountRoutes
 {
     public static void Map(WebApplication app)
     {
+        // Legacy underscore paths (old bookmarks) → canonical hyphen routes.
+        app.MapGet("/social_accounts/connect/{platform}", (HttpRequest request, string platform) =>
+            Results.Redirect($"/social-accounts/connect/{platform}{request.QueryString}"));
+        app.MapGet("/social_accounts/oauth_callback/facebook", (HttpRequest request) =>
+            Results.Redirect($"/social-accounts/oauth-callback/facebook{request.QueryString}"));
+
         app.MapGet("/social-accounts", () => Results.Redirect("/my-account"));
 
         app.MapGet("/social-accounts/edit/{id:int}", (int id, HttpRequest request, HttpContext http, AppStoreDb store) =>
@@ -154,7 +160,7 @@ static class SocialAccountRoutes
                 if (!settings.IsFacebookConfigured)
                 {
                     return Results.Content(
-                        H.RenderPage(http, "Connect Facebook", SocialConnectHelper.FacebookSetupPage(returnUrl, notice, settings), store),
+                        H.RenderPage(http, "Connect Facebook", SocialConnectHelper.FacebookSetupPage(returnUrl, notice, settings, request), store),
                         "text/html");
                 }
 
@@ -162,7 +168,7 @@ static class SocialAccountRoutes
                 {
                     return Results.Content(
                         H.RenderPage(http, "Connect Facebook", SocialConnectHelper.FacebookSetupPage(returnUrl,
-                            "Facebook Login Configuration ID is missing. Owner: add Facebook__LoginConfigId in Railway (see Owner → Facebook API).", settings), store),
+                            "Facebook Login Configuration ID is missing. Owner: add Facebook__LoginConfigId in Railway (see Owner → Facebook API).", settings, request), store),
                         "text/html");
                 }
 

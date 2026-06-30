@@ -242,7 +242,7 @@ static class SocialConnectHelper
             """;
     }
 
-    public static string FacebookSetupPage(string returnUrl, string notice, AppSettings? settings)
+    public static string FacebookSetupPage(string returnUrl, string notice, AppSettings? settings, HttpRequest? request = null)
     {
         var brandContext = IsBrandContext(returnUrl);
         var heading = brandContext
@@ -257,6 +257,9 @@ static class SocialConnectHelper
         var callbackUrls = settings is not null
             ? string.Join(" ", PublicUrl.FacebookCallbackUrlsForMeta(settings).Select(u => $"<code>{H.Encode(u)}</code>"))
             : $"<code>https://bookpromoterai.us{FacebookService.CallbackPath}</code>";
+        var activeCallback = request is not null
+            ? $"""<p class="notice">OAuth redirect for this session: <code>{H.Encode(PublicUrl.FacebookCallbackUrl(request))}</code> — must match Meta <em>exactly</em> (hyphens, not underscores).</p>"""
+            : "";
         var connectBlock = !configured
             ? """
                 <p class="notice error">Facebook API credentials are not configured yet. The app owner must add them in Railway before authors can connect.</p>
@@ -283,6 +286,7 @@ static class SocialConnectHelper
                 <h2>Live Facebook Page posting</h2>
                 <p class="muted">{intro}</p>
                 <p class="muted small-text">Add these OAuth redirect URLs in your Meta app (we use the host you are browsing): {callbackUrls}</p>
+                {activeCallback}
                 {noticeHtml}
                 {connectBlock}
             </section>
