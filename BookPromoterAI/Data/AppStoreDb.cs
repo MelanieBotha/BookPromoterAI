@@ -94,6 +94,12 @@ class AppStoreDb
     public bool IsXConfigured => _settings.IsXConfigured;
     public string XClientIdStatus => _settings.DescribeXClientId();
     public string XClientSecretStatus => _settings.DescribeXClientSecret();
+    public bool IsLinkedInConfigured => _settings.IsLinkedInConfigured;
+    public string LinkedInClientIdStatus => _settings.DescribeLinkedInClientId();
+    public string LinkedInClientSecretStatus => _settings.DescribeLinkedInClientSecret();
+    public bool IsFacebookConfigured => _settings.IsFacebookConfigured;
+    public string FacebookAppIdStatus => _settings.DescribeFacebookAppId();
+    public string FacebookAppSecretStatus => _settings.DescribeFacebookAppSecret();
 
     public DatabasePaths Database => _database;
 
@@ -2831,9 +2837,7 @@ class AppStoreDb
         var accountModel = ToModel(account);
         if (PostLimits.RequiresLiveConnection(ad.Platform) && !accountModel.IsLiveConnection)
         {
-            var reconnect = PostLimits.IsBluesky(ad.Platform)
-                ? "Bluesky is not connected for live posting. In My Account, remove your Bluesky account and reconnect with an app password."
-                : "X is not connected for live posting. In My Account, remove your X account and reconnect with Sign in with X.";
+            var reconnect = PostLimits.LiveReconnectHint(ad.Platform);
             return (false, reconnect);
         }
 

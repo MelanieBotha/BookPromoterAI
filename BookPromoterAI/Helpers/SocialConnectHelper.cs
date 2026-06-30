@@ -84,6 +84,12 @@ static class SocialConnectHelper
         if (PostLimits.IsX(platformName))
             return XSetupPage(returnUrl, notice, null);
 
+        if (PostLimits.IsLinkedIn(platformName))
+            return LinkedInSetupPage(returnUrl, notice, null);
+
+        if (PostLimits.IsFacebook(platformName))
+            return FacebookSetupPage(returnUrl, notice, null);
+
         if (IsPlatformDisabled(platformName))
         {
             return $"""
@@ -190,6 +196,86 @@ static class SocialConnectHelper
                 <h2>Live X posting</h2>
                 <p class="muted">{intro}</p>
                 <p class="muted small-text">OAuth callback URL for your X developer app: <code>{H.Encode(callbackExample)}</code></p>
+                {noticeHtml}
+                {connectBlock}
+            </section>
+            """;
+    }
+
+    public static string LinkedInSetupPage(string returnUrl, string notice, AppSettings? settings)
+    {
+        var brandContext = IsBrandContext(returnUrl);
+        var heading = brandContext
+            ? "Connect BookPromoter AI on LinkedIn"
+            : "Connect your LinkedIn account";
+        var intro = brandContext
+            ? "This account is for <strong>BookPromoter AI promotions only</strong>. It is separate from author accounts you use to promote your books."
+            : "Sign in with LinkedIn to auto-post book promotions from the Ad Library.";
+        var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<div class="notice error">{H.Encode(notice)}</div>""";
+        var configured = settings?.IsLinkedInConfigured == true;
+        var callbackExample = settings is not null && !string.IsNullOrWhiteSpace(settings.PublicBaseUrl)
+            ? LinkedInService.CallbackUrl(settings.PublicBaseUrl.TrimEnd('/'))
+            : $"https://bookpromoterai.us{LinkedInService.CallbackPath}";
+        var connectBlock = configured
+            ? $"""
+                <p class="muted">You will be redirected to LinkedIn to authorize BookPromoter AI.</p>
+                <div class="form-actions">
+                    <a class="button" href="/social-accounts/connect/LinkedIn?return={H.Encode(returnUrl)}" style="background:#0A66C2">Sign in with LinkedIn</a>
+                    <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
+                </div>
+                """
+            : """
+                <p class="notice error">LinkedIn API credentials are not configured yet. The app owner must add them in Railway before authors can connect.</p>
+                <p class="muted">Owner: open <strong>Owner → LinkedIn API</strong> for setup steps.</p>
+                <a class="button secondary" href="/my-account">Back</a>
+                """;
+        return $"""
+            <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>{heading}</h1></div></section>
+            <section class="panel oauth-panel">
+                <div class="oauth-platform-badge" style="background:#0A66C2">in</div>
+                <h2>Live LinkedIn posting</h2>
+                <p class="muted">{intro}</p>
+                <p class="muted small-text">OAuth redirect URL for your LinkedIn developer app: <code>{H.Encode(callbackExample)}</code></p>
+                {noticeHtml}
+                {connectBlock}
+            </section>
+            """;
+    }
+
+    public static string FacebookSetupPage(string returnUrl, string notice, AppSettings? settings)
+    {
+        var brandContext = IsBrandContext(returnUrl);
+        var heading = brandContext
+            ? "Connect Book Promoter AI on Facebook"
+            : "Connect your Facebook Page";
+        var intro = brandContext
+            ? "Sign in with Facebook to post to your <strong>Book Promoter AI</strong> Page for app promotions."
+            : "Sign in with Facebook to auto-post book promotions to a Facebook Page you manage.";
+        var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<div class="notice error">{H.Encode(notice)}</div>""";
+        var configured = settings?.IsFacebookConfigured == true;
+        var callbackExample = settings is not null && !string.IsNullOrWhiteSpace(settings.PublicBaseUrl)
+            ? FacebookService.CallbackUrl(settings.PublicBaseUrl.TrimEnd('/'))
+            : $"https://bookpromoterai.us{FacebookService.CallbackPath}";
+        var connectBlock = configured
+            ? $"""
+                <p class="muted">You will be redirected to Facebook to authorize BookPromoter AI. We post to a Page you admin (not your personal profile feed).</p>
+                <div class="form-actions">
+                    <a class="button" href="/social-accounts/connect/Facebook?return={H.Encode(returnUrl)}" style="background:#1877F2">Sign in with Facebook</a>
+                    <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
+                </div>
+                """
+            : """
+                <p class="notice error">Facebook API credentials are not configured yet. The app owner must add them in Railway before authors can connect.</p>
+                <p class="muted">Owner: open <strong>Owner → Facebook API</strong> for setup steps.</p>
+                <a class="button secondary" href="/my-account">Back</a>
+                """;
+        return $"""
+            <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>{heading}</h1></div></section>
+            <section class="panel oauth-panel">
+                <div class="oauth-platform-badge" style="background:#1877F2">f</div>
+                <h2>Live Facebook Page posting</h2>
+                <p class="muted">{intro}</p>
+                <p class="muted small-text">OAuth redirect URL for your Meta developer app: <code>{H.Encode(callbackExample)}</code></p>
                 {noticeHtml}
                 {connectBlock}
             </section>

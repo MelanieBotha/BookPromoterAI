@@ -68,6 +68,8 @@ builder.Services.AddSingleton<StripeBillingService>();
 
 builder.Services.AddBluesky();
 builder.Services.AddX();
+builder.Services.AddLinkedIn();
+builder.Services.AddFacebook();
 builder.Services.AddScoped<SocialPostingService>();
 
 var generator = new PostGenerator();

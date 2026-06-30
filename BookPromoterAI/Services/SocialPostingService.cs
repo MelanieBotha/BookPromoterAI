@@ -3,20 +3,30 @@ namespace BookPromoterAI;
 // =====================================================================
 // SOCIAL MEDIA POSTING SERVICE
 //
-// Bluesky uses live AT Protocol posting; X uses OAuth 2.0. Other platforms
+// Bluesky uses live AT Protocol posting; X, LinkedIn, and Facebook use OAuth. Other platforms
 // remain simulated until OAuth is wired up for each one.
 // =====================================================================
 class SocialPostingService
 {
     readonly BlueskyService _bluesky;
     readonly XService _x;
+    readonly LinkedInService _linkedIn;
+    readonly FacebookService _facebook;
     readonly HttpClient _http;
     readonly UploadPaths _uploads;
 
-    public SocialPostingService(BlueskyService bluesky, XService x, IHttpClientFactory httpFactory, UploadPaths uploads)
+    public SocialPostingService(
+        BlueskyService bluesky,
+        XService x,
+        LinkedInService linkedIn,
+        FacebookService facebook,
+        IHttpClientFactory httpFactory,
+        UploadPaths uploads)
     {
         _bluesky = bluesky;
         _x = x;
+        _linkedIn = linkedIn;
+        _facebook = facebook;
         _uploads = uploads;
         _http = httpFactory.CreateClient(nameof(SocialPostingService));
         _http.Timeout = TimeSpan.FromSeconds(30);
@@ -34,6 +44,12 @@ class SocialPostingService
 
         if (PostLimits.IsX(account.Platform) && account.IsLiveConnection)
             return await PostToXLive(account, postText, cancellationToken);
+
+        if (PostLimits.IsLinkedIn(account.Platform) && account.IsLiveConnection)
+            return await PostToLinkedInLive(account, postText, cancellationToken);
+
+        if (PostLimits.IsFacebook(account.Platform) && account.IsLiveConnection)
+            return await PostToFacebookLive(account, postText, cancellationToken);
 
         var result = account.Platform.ToLowerInvariant() switch
         {
@@ -131,6 +147,54 @@ class SocialPostingService
         };
     }
 
+    async Task<PostingOutcome> PostToLinkedInLive(
+        SocialAccount account,
+        string postText,
+        CancellationToken cancellationToken)
+    {
+        if (!PostLimits.IsWithinLimit(postText, account.Platform))
+        {
+            return new PostingOutcome
+            {
+                Result = PostingResult.Failure(
+                    $"Post exceeds LinkedIn's {PostLimits.LinkedInMaxGraphemes}-character limit ({PostLimits.GraphemeLength(postText)} graphemes). Regenerate or shorten the post.")
+            };
+        }
+
+        if (string.IsNullOrWhiteSpace(account.AccessToken) || string.IsNullOrWhiteSpace(account.ExternalAccountId))
+            return new PostingOutcome { Result = PostingResult.Failure("LinkedIn is not connected. Reconnect your account in My Account.") };
+
+        var tokens = new LinkedInTokenSet(account.AccessToken, account.RefreshToken ?? "", 0);
+        var (result, updated) = await _linkedIn.PostAsync(tokens, account.ExternalAccountId, postText, cancellationToken);
+        return new PostingOutcome
+        {
+            Result = result,
+            AccessToken = updated?.AccessToken,
+            RefreshToken = updated?.RefreshToken
+        };
+    }
+
+    async Task<PostingOutcome> PostToFacebookLive(
+        SocialAccount account,
+        string postText,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(account.AccessToken) || string.IsNullOrWhiteSpace(account.ExternalAccountId))
+            return new PostingOutcome { Result = PostingResult.Failure("Facebook is not connected. Reconnect your Page in My Account.") };
+
+        var connection = new FacebookPageConnection(
+            new FacebookPage(account.ExternalAccountId, account.DisplayName, account.Handle, account.AccessToken),
+            account.RefreshToken ?? "");
+
+        var (result, updated) = await _facebook.PostAsync(connection, postText, cancellationToken);
+        return new PostingOutcome
+        {
+            Result = result,
+            AccessToken = updated?.PageAccessToken,
+            RefreshToken = updated?.UserAccessToken
+        };
+    }
+
     static string ResolveBaseUrl(string? appBaseUrl)
     {
         var baseUrl = appBaseUrl?.TrimEnd('/');
@@ -140,7 +204,7 @@ class SocialPostingService
     async Task<PostingResult> PostToFacebook(SocialAccount account, string postText)
     {
         await Task.CompletedTask;
-        return PostingResult.SimulatedOk("(Simulated) Posted to Facebook Page.");
+        return PostingResult.Failure("Connect Facebook with OAuth in My Account for live Page posting.");
     }
 
     async Task<PostingResult> PostToInstagram(SocialAccount account, string postText)
@@ -169,8 +233,11 @@ class SocialPostingService
 
     async Task<PostingResult> PostToLinkedIn(SocialAccount account, string postText)
     {
+        if (!PostLimits.IsWithinLimit(postText, account.Platform))
+            return PostingResult.Failure($"Post exceeds LinkedIn's {PostLimits.LinkedInMaxGraphemes}-character limit ({PostLimits.GraphemeLength(postText)} graphemes). Regenerate or shorten the post.");
+
         await Task.CompletedTask;
-        return PostingResult.SimulatedOk("(Simulated) Posted to LinkedIn.");
+        return PostingResult.Failure("Connect LinkedIn with OAuth in My Account for live posting.");
     }
 
     async Task<PostingResult> PostToPinterest(SocialAccount account, string postText)

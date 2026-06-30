@@ -10,12 +10,16 @@ static class PostLimits
     /// <summary>X (Twitter) standard post limit.</summary>
     public const int XMaxGraphemes = 280;
 
+    /// <summary>LinkedIn feed post limit.</summary>
+    public const int LinkedInMaxGraphemes = 3000;
+
     static readonly Dictionary<string, int> Limits = new(StringComparer.OrdinalIgnoreCase)
     {
         ["Bluesky"] = BlueskyMaxGraphemes,
         ["X"] = XMaxGraphemes,
         ["X (Twitter)"] = XMaxGraphemes,
         ["Twitter"] = XMaxGraphemes,
+        ["LinkedIn"] = LinkedInMaxGraphemes,
     };
 
     public static int? GetMaxGraphemes(string platform)
@@ -114,13 +118,47 @@ static class PostLimits
         platform.Equals("Twitter", StringComparison.OrdinalIgnoreCase) ||
         platform.StartsWith("X (", StringComparison.OrdinalIgnoreCase);
 
+    public static bool IsLinkedIn(string platform) =>
+        platform.Equals("LinkedIn", StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsFacebook(string platform) =>
+        platform.Equals("Facebook", StringComparison.OrdinalIgnoreCase);
+
     public static bool RequiresLiveConnection(string platform) =>
-        IsBluesky(platform) || IsX(platform);
+        IsBluesky(platform) || IsX(platform) || IsLinkedIn(platform) || IsFacebook(platform);
+
+    public static string LiveReconnectHint(string platform)
+    {
+        if (IsBluesky(platform))
+            return "Bluesky is not connected for live posting. In My Account, remove your Bluesky account and reconnect with an app password.";
+        if (IsX(platform))
+            return "X is not connected for live posting. In My Account, remove your X account and reconnect with Sign in with X.";
+        if (IsLinkedIn(platform))
+            return "LinkedIn is not connected for live posting. In My Account, remove your LinkedIn account and reconnect with Sign in with LinkedIn.";
+        if (IsFacebook(platform))
+            return "Facebook is not connected for live posting. In My Account, remove your Facebook account and reconnect with Sign in with Facebook.";
+        return $"Connect {platform} for live posting in My Account.";
+    }
+
+    public static string LivePostNowHint(string platform)
+    {
+        if (IsBluesky(platform))
+            return "Reconnect Bluesky with an app password in My Account to use Post now.";
+        if (IsX(platform))
+            return "Reconnect X with Sign in with X in My Account to use Post now.";
+        if (IsLinkedIn(platform))
+            return "Reconnect LinkedIn with Sign in with LinkedIn in My Account to use Post now.";
+        if (IsFacebook(platform))
+            return "Reconnect Facebook with Sign in with Facebook in My Account to use Post now.";
+        return $"Reconnect {platform} in My Account to use Post now.";
+    }
 
     public static bool PlatformsMatch(string? a, string? b)
     {
         if (string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b)) return false;
         if (a.Equals(b, StringComparison.OrdinalIgnoreCase)) return true;
-        return IsX(a) && IsX(b);
+        if (IsX(a) && IsX(b)) return true;
+        if (IsLinkedIn(a) && IsLinkedIn(b)) return true;
+        return IsFacebook(a) && IsFacebook(b);
     }
 }

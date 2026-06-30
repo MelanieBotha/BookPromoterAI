@@ -16,6 +16,12 @@ class AppSettings
     public string XClientId { get; init; } = "";
     public string XClientSecret { get; init; } = "";
 
+    public string LinkedInClientId { get; init; } = "";
+    public string LinkedInClientSecret { get; init; } = "";
+
+    public string FacebookAppId { get; init; } = "";
+    public string FacebookAppSecret { get; init; } = "";
+
     public bool IsSendGridConfigured =>
         !string.IsNullOrWhiteSpace(SendGridApiKey) &&
         SendGridApiKey != "YOUR_SENDGRID_API_KEY_HERE" &&
@@ -33,6 +39,18 @@ class AppSettings
         XClientId != "YOUR_X_CLIENT_ID" &&
         !string.IsNullOrWhiteSpace(XClientSecret) &&
         XClientSecret != "YOUR_X_CLIENT_SECRET";
+
+    public bool IsLinkedInConfigured =>
+        !string.IsNullOrWhiteSpace(LinkedInClientId) &&
+        LinkedInClientId != "YOUR_LINKEDIN_CLIENT_ID" &&
+        !string.IsNullOrWhiteSpace(LinkedInClientSecret) &&
+        LinkedInClientSecret != "YOUR_LINKEDIN_CLIENT_SECRET";
+
+    public bool IsFacebookConfigured =>
+        !string.IsNullOrWhiteSpace(FacebookAppId) &&
+        FacebookAppId != "YOUR_FACEBOOK_APP_ID" &&
+        !string.IsNullOrWhiteSpace(FacebookAppSecret) &&
+        FacebookAppSecret != "YOUR_FACEBOOK_APP_SECRET";
 
     public bool IsStripeWebhookConfigured =>
         !string.IsNullOrWhiteSpace(StripeWebhookSecret) &&
@@ -120,6 +138,34 @@ class AppSettings
         return "OK - detected.";
     }
 
+    public string DescribeLinkedInClientId()
+    {
+        if (string.IsNullOrWhiteSpace(LinkedInClientId) || LinkedInClientId == "YOUR_LINKEDIN_CLIENT_ID")
+            return "Missing - add LinkedIn__ClientId in Railway (from linkedin.com/developers).";
+        return "OK - detected.";
+    }
+
+    public string DescribeLinkedInClientSecret()
+    {
+        if (string.IsNullOrWhiteSpace(LinkedInClientSecret) || LinkedInClientSecret == "YOUR_LINKEDIN_CLIENT_SECRET")
+            return "Missing - add LinkedIn__ClientSecret in Railway.";
+        return "OK - detected.";
+    }
+
+    public string DescribeFacebookAppId()
+    {
+        if (string.IsNullOrWhiteSpace(FacebookAppId) || FacebookAppId == "YOUR_FACEBOOK_APP_ID")
+            return "Missing - add Facebook__AppId in Railway (from developers.facebook.com).";
+        return "OK - detected.";
+    }
+
+    public string DescribeFacebookAppSecret()
+    {
+        if (string.IsNullOrWhiteSpace(FacebookAppSecret) || FacebookAppSecret == "YOUR_FACEBOOK_APP_SECRET")
+            return "Missing - add Facebook__AppSecret in Railway.";
+        return "OK - detected.";
+    }
+
     public string DescribePublicBaseUrl()
     {
         if (string.IsNullOrWhiteSpace(PublicBaseUrl))
@@ -151,7 +197,11 @@ class AppSettings
             StripePublishableKey = CleanSecret(config["Stripe:PublishableKey"]),
             StripeWebhookSecret = CleanSecret(config["Stripe:WebhookSecret"]),
             XClientId = CleanSecret(config["X:ClientId"]),
-            XClientSecret = CleanSecret(config["X:ClientSecret"])
+            XClientSecret = CleanSecret(config["X:ClientSecret"]),
+            LinkedInClientId = CleanSecret(config["LinkedIn:ClientId"]),
+            LinkedInClientSecret = CleanSecret(config["LinkedIn:ClientSecret"]),
+            FacebookAppId = CleanSecret(config["Facebook:AppId"]),
+            FacebookAppSecret = CleanSecret(config["Facebook:AppSecret"])
         };
     }
 

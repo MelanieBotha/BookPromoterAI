@@ -69,7 +69,9 @@ class SocialAccount
         && !string.IsNullOrWhiteSpace(AccessToken)
         && !AccessToken.StartsWith("SIMULATED-", StringComparison.Ordinal)
         && (!PostLimits.IsBluesky(Platform) || !string.IsNullOrWhiteSpace(ExternalAccountId))
-        && (!PostLimits.IsX(Platform) || !string.IsNullOrWhiteSpace(ExternalAccountId));
+        && (!PostLimits.IsX(Platform) || !string.IsNullOrWhiteSpace(ExternalAccountId))
+        && (!PostLimits.IsLinkedIn(Platform) || !string.IsNullOrWhiteSpace(ExternalAccountId))
+        && (!PostLimits.IsFacebook(Platform) || !string.IsNullOrWhiteSpace(ExternalAccountId));
 }
 
 class PromoCode

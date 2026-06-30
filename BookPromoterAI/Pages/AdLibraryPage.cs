@@ -196,9 +196,7 @@ static class AdLibraryPage
             && !platformNotLive
             && ad.PostStatus is "Pending" or "Failed"
             && (!needsApproval || ad.ApprovedForPosting);
-        var reconnectHint = PostLimits.IsBluesky(ad.Platform)
-            ? "Reconnect Bluesky with an app password in My Account to use Post now."
-            : "Reconnect X with Sign in with X in My Account to use Post now.";
+        var reconnectHint = PostLimits.LivePostNowHint(ad.Platform);
         var postNowButton = canPostNow
             ? $"""<form method="post" action="/ad-library/post-now/{ad.Id}">{searchField}<button class="button small" type="submit">Post now</button></form>"""
             : platformNotLive && ad.PostStatus is "Pending" or "Failed"

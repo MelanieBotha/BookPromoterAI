@@ -88,6 +88,8 @@ static class SocialAccountRoutes
             AppStoreDb store,
             AppSettings settings,
             XService xService,
+            LinkedInService linkedInService,
+            FacebookService facebookService,
             IDistributedCache cache) =>
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
@@ -120,6 +122,50 @@ static class SocialAccountRoutes
                     ReturnUrl = returnUrl,
                     Kind = kind,
                     CodeVerifier = verifier
+                });
+                return Results.Redirect(authorizeUrl);
+            }
+
+            if (PostLimits.IsLinkedIn(platformName))
+            {
+                var notice = request.Query["notice"].ToString();
+                if (!settings.IsLinkedInConfigured)
+                {
+                    return Results.Content(
+                        H.RenderPage(http, "Connect LinkedIn", SocialConnectHelper.LinkedInSetupPage(returnUrl, notice, settings), store),
+                        "text/html");
+                }
+
+                var appBaseUrl = PublicUrl.Base(request, settings);
+                var callbackUrl = LinkedInService.CallbackUrl(appBaseUrl);
+                var (authorizeUrl, state) = linkedInService.BuildAuthorizationUrl(callbackUrl);
+                await LinkedInOAuthStateStore.SaveAsync(cache, state, new LinkedInOAuthPending
+                {
+                    UserId = userId,
+                    ReturnUrl = returnUrl,
+                    Kind = kind
+                });
+                return Results.Redirect(authorizeUrl);
+            }
+
+            if (PostLimits.IsFacebook(platformName))
+            {
+                var notice = request.Query["notice"].ToString();
+                if (!settings.IsFacebookConfigured)
+                {
+                    return Results.Content(
+                        H.RenderPage(http, "Connect Facebook", SocialConnectHelper.FacebookSetupPage(returnUrl, notice, settings), store),
+                        "text/html");
+                }
+
+                var appBaseUrl = PublicUrl.Base(request, settings);
+                var callbackUrl = FacebookService.CallbackUrl(appBaseUrl);
+                var (authorizeUrl, state) = facebookService.BuildAuthorizationUrl(callbackUrl);
+                await FacebookOAuthStateStore.SaveAsync(cache, state, new FacebookOAuthPending
+                {
+                    UserId = userId,
+                    ReturnUrl = returnUrl,
+                    Kind = kind
                 });
                 return Results.Redirect(authorizeUrl);
             }
@@ -197,6 +243,142 @@ static class SocialAccountRoutes
             return Results.Redirect(returnUrl);
         });
 
+        app.MapGet(LinkedInService.CallbackPath, async (
+            HttpRequest request,
+            HttpContext http,
+            AppStoreDb store,
+            AppSettings settings,
+            LinkedInService linkedInService,
+            IDistributedCache cache) =>
+        {
+            var error = request.Query["error"].ToString();
+            var code = request.Query["code"].ToString();
+            var state = request.Query["state"].ToString();
+            var pending = await LinkedInOAuthStateStore.TakeAsync(cache, state);
+            var returnUrl = LinkedInOAuthStateStore.BuildReturnUrl(
+                pending?.ReturnUrl ?? "/my-account",
+                pending?.Kind ?? SocialAccountKinds.Author);
+
+            if (pending is null)
+            {
+                return Results.Redirect($"/social-accounts/connect/LinkedIn?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("LinkedIn login expired. Try connecting again.")}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(error))
+            {
+                var notice = error.Equals("user_cancelled_authorize", StringComparison.OrdinalIgnoreCase) ||
+                             error.Equals("access_denied", StringComparison.OrdinalIgnoreCase)
+                    ? "LinkedIn authorization was cancelled."
+                    : "LinkedIn authorization failed. Try again.";
+                return Results.Redirect($"/social-accounts/connect/LinkedIn?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(notice)}");
+            }
+
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                return Results.Redirect($"/social-accounts/connect/LinkedIn?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Invalid LinkedIn login response. Try again.")}");
+            }
+
+            if (SocialAccountKinds.IsBrand(pending.Kind) && !OwnerAccount.IsOwnerEmail(
+                    store.GetUserEmailById(pending.UserId)))
+            {
+                return Results.Redirect($"/social-accounts/connect/LinkedIn?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Only the owner can connect brand accounts.")}");
+            }
+
+            var callbackUrl = LinkedInService.CallbackUrl(PublicUrl.Base(request, settings));
+            var (ok, connectError, tokens, user) = await linkedInService.CompleteAuthorizationAsync(code, callbackUrl);
+            if (!ok || tokens is null || user is null)
+            {
+                return Results.Redirect($"/social-accounts/connect/LinkedIn?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(connectError)}");
+            }
+
+            store.AddSocialAccountForUser(pending.UserId, new SocialAccount
+            {
+                Platform = "LinkedIn",
+                DisplayName = string.IsNullOrWhiteSpace(user.Name)
+                    ? (SocialAccountKinds.IsBrand(pending.Kind) ? "BookPromoter AI" : "LinkedIn Account")
+                    : user.Name.Trim(),
+                Handle = user.Handle,
+                IsConnected = true,
+                ConnectedViaOAuth = true,
+                AccountKind = pending.Kind,
+                AccessToken = tokens.AccessToken,
+                RefreshToken = tokens.RefreshToken,
+                ExternalAccountId = user.Id
+            }, pending.Kind);
+            if (SocialAccountKinds.IsAuthor(pending.Kind))
+                store.AddScheduleForUser(pending.UserId, new SocialSchedule { Platform = "LinkedIn", PostsPerWeek = 1, RequiresApproval = true });
+            return Results.Redirect(returnUrl);
+        });
+
+        app.MapGet(FacebookService.CallbackPath, async (
+            HttpRequest request,
+            HttpContext http,
+            AppStoreDb store,
+            AppSettings settings,
+            FacebookService facebookService,
+            IDistributedCache cache) =>
+        {
+            var error = request.Query["error"].ToString();
+            var errorDescription = request.Query["error_description"].ToString();
+            var code = request.Query["code"].ToString();
+            var state = request.Query["state"].ToString();
+            var pending = await FacebookOAuthStateStore.TakeAsync(cache, state);
+            var returnUrl = FacebookOAuthStateStore.BuildReturnUrl(
+                pending?.ReturnUrl ?? "/my-account",
+                pending?.Kind ?? SocialAccountKinds.Author);
+
+            if (pending is null)
+            {
+                return Results.Redirect($"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Facebook login expired. Try connecting again.")}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(error))
+            {
+                var notice = error.Equals("access_denied", StringComparison.OrdinalIgnoreCase)
+                    ? "Facebook authorization was cancelled."
+                    : string.IsNullOrWhiteSpace(errorDescription)
+                        ? "Facebook authorization failed. Try again."
+                        : errorDescription;
+                return Results.Redirect($"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(notice)}");
+            }
+
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                return Results.Redirect($"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Invalid Facebook login response. Try again.")}");
+            }
+
+            if (SocialAccountKinds.IsBrand(pending.Kind) && !OwnerAccount.IsOwnerEmail(
+                    store.GetUserEmailById(pending.UserId)))
+            {
+                return Results.Redirect($"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Only the owner can connect brand accounts.")}");
+            }
+
+            var callbackUrl = FacebookService.CallbackUrl(PublicUrl.Base(request, settings));
+            var brandContext = SocialAccountKinds.IsBrand(pending.Kind);
+            var (ok, connectError, connection) = await facebookService.CompleteAuthorizationAsync(
+                code, callbackUrl, brandContext);
+            if (!ok || connection is null)
+            {
+                return Results.Redirect($"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(connectError)}");
+            }
+
+            store.AddSocialAccountForUser(pending.UserId, new SocialAccount
+            {
+                Platform = "Facebook",
+                DisplayName = connection.Page.Name,
+                Handle = connection.Page.Handle,
+                IsConnected = true,
+                ConnectedViaOAuth = true,
+                AccountKind = pending.Kind,
+                AccessToken = connection.Page.AccessToken,
+                RefreshToken = connection.UserAccessToken,
+                ExternalAccountId = connection.Page.Id
+            }, pending.Kind);
+            if (SocialAccountKinds.IsAuthor(pending.Kind))
+                store.AddScheduleForUser(pending.UserId, new SocialSchedule { Platform = "Facebook", PostsPerWeek = 1, RequiresApproval = true });
+            return Results.Redirect(returnUrl);
+        });
+
         app.MapPost("/social-accounts/oauth-callback/{platform}", async (string platform, HttpRequest request, HttpContext http, AppStoreDb store, BlueskyService bluesky) =>
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
@@ -243,6 +425,18 @@ static class SocialAccountRoutes
             if (PostLimits.IsX(platformName))
             {
                 var connectUrl = $"/social-accounts/connect/X?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Use the Connect X button to sign in with X.")}";
+                return Results.Redirect(connectUrl);
+            }
+
+            if (PostLimits.IsLinkedIn(platformName))
+            {
+                var connectUrl = $"/social-accounts/connect/LinkedIn?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Use the Connect LinkedIn button to sign in with LinkedIn.")}";
+                return Results.Redirect(connectUrl);
+            }
+
+            if (PostLimits.IsFacebook(platformName))
+            {
+                var connectUrl = $"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Use the Connect Facebook button to sign in with Facebook.")}";
                 return Results.Redirect(connectUrl);
             }
 

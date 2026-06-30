@@ -240,6 +240,64 @@ static class OwnerPage
                 </div>
             </details>
 
+            <details class="owner-collapsible" id="owner-section-linkedin-api"{open("linkedin-api")}>
+                <summary class="owner-collapsible-heading">LinkedIn API</summary>
+                <div class="panel owner-settings">
+                    {(store.IsLinkedInConfigured
+                        ? """<p class="notice success">LinkedIn API: Connected. Authors and owner can use Sign in with LinkedIn for live posting.</p>"""
+                        : $"""
+                            <p class="notice error">LinkedIn is not configured yet. Authors cannot connect LinkedIn until these Railway variables are set.</p>
+                            <ul class="plan-features">
+                                <li><strong>Client ID:</strong> {H.Encode(store.LinkedInClientIdStatus)}</li>
+                                <li><strong>Client secret:</strong> {H.Encode(store.LinkedInClientSecretStatus)}</li>
+                            </ul>
+                            """)}
+                    <p class="muted">Create an app at <a href="https://www.linkedin.com/developers/apps" target="_blank" rel="noopener">linkedin.com/developers</a> and enable these products:</p>
+                    <ul class="plan-features">
+                        <li><strong>Sign In with LinkedIn using OpenID Connect</strong></li>
+                        <li><strong>Share on LinkedIn</strong> (required for posting)</li>
+                    </ul>
+                    <p class="muted">Under <strong>Auth</strong> → <strong>OAuth 2.0 settings</strong>, add this redirect URL:</p>
+                    <ul class="plan-features">
+                        <li><code>{H.Encode(LinkedInService.CallbackUrl(appBaseUrl.TrimEnd('/')))}</code></li>
+                    </ul>
+                    <p class="muted">Requested scopes: <code>{H.Encode(LinkedInService.Scopes)}</code></p>
+                    <p class="muted">Add Railway variables, then redeploy:</p>
+                    <ul class="plan-features">
+                        <li><code>LinkedIn__ClientId</code></li>
+                        <li><code>LinkedIn__ClientSecret</code></li>
+                    </ul>
+                    <p class="muted">LinkedIn may require app review before <code>w_member_social</code> works in production. Test from <strong>My Account → Connect LinkedIn</strong> after deploy.</p>
+                </div>
+            </details>
+
+            <details class="owner-collapsible" id="owner-section-facebook-api"{open("facebook-api")}>
+                <summary class="owner-collapsible-heading">Facebook API</summary>
+                <div class="panel owner-settings">
+                    {(store.IsFacebookConfigured
+                        ? """<p class="notice success">Facebook API: Connected. Authors and owner can use Sign in with Facebook for live Page posting.</p>"""
+                        : $"""
+                            <p class="notice error">Facebook is not configured yet. Authors cannot connect Facebook until these Railway variables are set.</p>
+                            <ul class="plan-features">
+                                <li><strong>App ID:</strong> {H.Encode(store.FacebookAppIdStatus)}</li>
+                                <li><strong>App secret:</strong> {H.Encode(store.FacebookAppSecretStatus)}</li>
+                            </ul>
+                            """)}
+                    <p class="muted">Create an app at <a href="https://developers.facebook.com" target="_blank" rel="noopener">developers.facebook.com</a> with use case <strong>Manage everything on your Page</strong> (includes Facebook Login for Business).</p>
+                    <ul class="plan-features">
+                        <li><strong>Meta app name:</strong> use <em>AuthorPromoter AI</em> (Meta blocks &ldquo;Book&rdquo; in app names)</li>
+                        <li><strong>Redirect URI:</strong> <code>{H.Encode(FacebookService.CallbackUrl(appBaseUrl.TrimEnd('/')))}</code></li>
+                        <li><strong>Scopes:</strong> <code>{H.Encode(FacebookService.Scopes)}</code></li>
+                    </ul>
+                    <p class="muted">Add Railway variables, then redeploy:</p>
+                    <ul class="plan-features">
+                        <li><code>Facebook__AppId</code></li>
+                        <li><code>Facebook__AppSecret</code></li>
+                    </ul>
+                    <p class="muted">App stays <strong>Unpublished</strong> for testing as admin. Test brand posting from <strong>Owner → Brand Social → Connect Facebook</strong>.</p>
+                </div>
+            </details>
+
             <details class="owner-collapsible" id="owner-section-railway-cleanup"{open("railway-cleanup")}>
                 <summary class="owner-collapsible-heading">Railway Cleanup (Unused Services)</summary>
                 <div class="panel owner-settings">
