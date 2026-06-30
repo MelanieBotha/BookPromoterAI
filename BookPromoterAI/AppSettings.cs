@@ -55,8 +55,12 @@ class AppSettings
 
     public bool IsFacebookOAuthReady =>
         IsFacebookConfigured &&
-        !string.IsNullOrWhiteSpace(FacebookLoginConfigId) &&
-        FacebookLoginConfigId != "YOUR_FACEBOOK_LOGIN_CONFIG_ID";
+        IsValidFacebookLoginConfigId(FacebookLoginConfigId);
+
+    static bool IsValidFacebookLoginConfigId(string? value) =>
+        !string.IsNullOrWhiteSpace(value) &&
+        value != "YOUR_FACEBOOK_LOGIN_CONFIG_ID" &&
+        value.All(char.IsDigit);
 
     public bool IsStripeWebhookConfigured =>
         !string.IsNullOrWhiteSpace(StripeWebhookSecret) &&
@@ -176,6 +180,8 @@ class AppSettings
     {
         if (string.IsNullOrWhiteSpace(FacebookLoginConfigId) || FacebookLoginConfigId == "YOUR_FACEBOOK_LOGIN_CONFIG_ID")
             return "Missing - create a Login Configuration in Meta and add Facebook__LoginConfigId in Railway.";
+        if (!IsValidFacebookLoginConfigId(FacebookLoginConfigId))
+            return "Invalid - must be digits only (copy Configuration ID from Meta, e.g. 2248127616030753).";
         return "OK - detected.";
     }
 

@@ -302,7 +302,7 @@ static class OwnerPage
                     </ol>
                     <ul class="plan-features">
                         <li><strong>Meta app name:</strong> use <em>AuthorPromoter AI</em> (Meta blocks &ldquo;Book&rdquo; in app names)</li>
-                        <li><strong>Redirect URI:</strong> <code>{H.Encode(FacebookService.CallbackUrl(appBaseUrl.TrimEnd('/')))}</code></li>
+                        <li><strong>Redirect URI:</strong> <code>{H.Encode(FacebookService.CallbackUrl(appBaseUrl.TrimEnd('/')))}</code> (add exactly this in Meta Valid OAuth Redirect URIs)</li>
                     </ul>
                     <p class="muted">Add Railway variables, then redeploy:</p>
                     <ul class="plan-features">

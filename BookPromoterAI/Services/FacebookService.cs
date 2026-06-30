@@ -6,7 +6,7 @@ namespace BookPromoterAI;
 /// <summary>Meta Graph API — Facebook Login for Business + Page feed posting.</summary>
 class FacebookService
 {
-    public const string CallbackPath = "/social-accounts/oauth-callback/Facebook";
+    public const string CallbackPath = "/social-accounts/oauth-callback/facebook";
     public const string Scopes = "pages_show_list,pages_manage_posts,pages_read_engagement,public_profile";
     /// <summary>Permissions to enable on the Meta Login Configuration (not passed in OAuth URL).</summary>
     public static readonly string[] LoginConfigurationPermissions =
