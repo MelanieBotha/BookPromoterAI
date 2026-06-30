@@ -39,9 +39,7 @@ class FacebookService
             ["client_id"] = _settings.FacebookAppId,
             ["redirect_uri"] = redirectUri,
             ["config_id"] = _settings.FacebookLoginConfigId,
-            ["state"] = state,
-            ["response_type"] = "code",
-            ["override_default_response_type"] = "true"
+            ["state"] = state
         };
         var url = $"https://www.facebook.com/{GraphVersion}/dialog/oauth?" +
                   string.Join("&", query.Select(kv =>
