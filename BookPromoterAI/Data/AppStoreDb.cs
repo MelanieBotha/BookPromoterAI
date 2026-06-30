@@ -98,8 +98,10 @@ class AppStoreDb
     public string LinkedInClientIdStatus => _settings.DescribeLinkedInClientId();
     public string LinkedInClientSecretStatus => _settings.DescribeLinkedInClientSecret();
     public bool IsFacebookConfigured => _settings.IsFacebookConfigured;
+    public bool IsFacebookOAuthReady => _settings.IsFacebookOAuthReady;
     public string FacebookAppIdStatus => _settings.DescribeFacebookAppId();
     public string FacebookAppSecretStatus => _settings.DescribeFacebookAppSecret();
+    public string FacebookLoginConfigIdStatus => _settings.DescribeFacebookLoginConfigId();
 
     public DatabasePaths Database => _database;
 

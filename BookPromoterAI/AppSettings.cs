@@ -21,6 +21,7 @@ class AppSettings
 
     public string FacebookAppId { get; init; } = "";
     public string FacebookAppSecret { get; init; } = "";
+    public string FacebookLoginConfigId { get; init; } = "";
 
     public bool IsSendGridConfigured =>
         !string.IsNullOrWhiteSpace(SendGridApiKey) &&
@@ -51,6 +52,11 @@ class AppSettings
         FacebookAppId != "YOUR_FACEBOOK_APP_ID" &&
         !string.IsNullOrWhiteSpace(FacebookAppSecret) &&
         FacebookAppSecret != "YOUR_FACEBOOK_APP_SECRET";
+
+    public bool IsFacebookOAuthReady =>
+        IsFacebookConfigured &&
+        !string.IsNullOrWhiteSpace(FacebookLoginConfigId) &&
+        FacebookLoginConfigId != "YOUR_FACEBOOK_LOGIN_CONFIG_ID";
 
     public bool IsStripeWebhookConfigured =>
         !string.IsNullOrWhiteSpace(StripeWebhookSecret) &&
@@ -166,6 +172,13 @@ class AppSettings
         return "OK - detected.";
     }
 
+    public string DescribeFacebookLoginConfigId()
+    {
+        if (string.IsNullOrWhiteSpace(FacebookLoginConfigId) || FacebookLoginConfigId == "YOUR_FACEBOOK_LOGIN_CONFIG_ID")
+            return "Missing - create a Login Configuration in Meta and add Facebook__LoginConfigId in Railway.";
+        return "OK - detected.";
+    }
+
     public string DescribePublicBaseUrl()
     {
         if (string.IsNullOrWhiteSpace(PublicBaseUrl))
@@ -201,7 +214,8 @@ class AppSettings
             LinkedInClientId = CleanSecret(config["LinkedIn:ClientId"]),
             LinkedInClientSecret = CleanSecret(config["LinkedIn:ClientSecret"]),
             FacebookAppId = CleanSecret(config["Facebook:AppId"]),
-            FacebookAppSecret = CleanSecret(config["Facebook:AppSecret"])
+            FacebookAppSecret = CleanSecret(config["Facebook:AppSecret"]),
+            FacebookLoginConfigId = CleanSecret(config["Facebook:LoginConfigId"])
         };
     }
 

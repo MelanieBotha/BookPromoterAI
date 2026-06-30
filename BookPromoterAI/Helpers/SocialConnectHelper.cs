@@ -253,21 +253,28 @@ static class SocialConnectHelper
             : "Sign in with Facebook to auto-post book promotions to a Facebook Page you manage.";
         var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<div class="notice error">{H.Encode(notice)}</div>""";
         var configured = settings?.IsFacebookConfigured == true;
+        var oauthReady = settings?.IsFacebookOAuthReady == true;
         var callbackExample = settings is not null && !string.IsNullOrWhiteSpace(settings.PublicBaseUrl)
             ? FacebookService.CallbackUrl(settings.PublicBaseUrl.TrimEnd('/'))
             : $"https://bookpromoterai.us{FacebookService.CallbackPath}";
-        var connectBlock = configured
-            ? $"""
+        var connectBlock = !configured
+            ? """
+                <p class="notice error">Facebook API credentials are not configured yet. The app owner must add them in Railway before authors can connect.</p>
+                <p class="muted">Owner: open <strong>Owner → Facebook API</strong> for setup steps.</p>
+                <a class="button secondary" href="/my-account">Back</a>
+                """
+            : !oauthReady
+                ? """
+                    <p class="notice error">Facebook App ID and secret are set, but the Login Configuration ID is missing.</p>
+                    <p class="muted">Owner: Meta app → <strong>Facebook Login for Business → Configurations</strong> → create a config, then add <code>Facebook__LoginConfigId</code> in Railway and redeploy.</p>
+                    <a class="button secondary" href="/my-account">Back</a>
+                    """
+                : $"""
                 <p class="muted">You will be redirected to Facebook to authorize BookPromoter AI. We post to a Page you admin (not your personal profile feed).</p>
                 <div class="form-actions">
                     <a class="button" href="/social-accounts/connect/Facebook?return={H.Encode(returnUrl)}" style="background:#1877F2">Sign in with Facebook</a>
                     <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
                 </div>
-                """
-            : """
-                <p class="notice error">Facebook API credentials are not configured yet. The app owner must add them in Railway before authors can connect.</p>
-                <p class="muted">Owner: open <strong>Owner → Facebook API</strong> for setup steps.</p>
-                <a class="button secondary" href="/my-account">Back</a>
                 """;
         return $"""
             <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>{heading}</h1></div></section>

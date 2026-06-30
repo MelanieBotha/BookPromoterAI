@@ -8,6 +8,9 @@ class FacebookService
 {
     public const string CallbackPath = "/social-accounts/oauth-callback/Facebook";
     public const string Scopes = "pages_show_list,pages_manage_posts,pages_read_engagement,public_profile";
+    /// <summary>Permissions to enable on the Meta Login Configuration (not passed in OAuth URL).</summary>
+    public static readonly string[] LoginConfigurationPermissions =
+        ["pages_show_list", "pages_manage_posts", "pages_read_engagement", "public_profile"];
     public const string GraphVersion = "v21.0";
 
     readonly HttpClient _http;
@@ -27,12 +30,15 @@ class FacebookService
 
     public (string AuthorizeUrl, string State) BuildAuthorizationUrl(string redirectUri)
     {
+        if (string.IsNullOrWhiteSpace(_settings.FacebookLoginConfigId))
+            throw new InvalidOperationException("Facebook Login Config ID is not configured.");
+
         var state = Guid.NewGuid().ToString("N");
         var query = new Dictionary<string, string>
         {
             ["client_id"] = _settings.FacebookAppId,
             ["redirect_uri"] = redirectUri,
-            ["scope"] = Scopes,
+            ["config_id"] = _settings.FacebookLoginConfigId,
             ["state"] = state,
             ["response_type"] = "code"
         };

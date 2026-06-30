@@ -274,25 +274,41 @@ static class OwnerPage
             <details class="owner-collapsible" id="owner-section-facebook-api"{open("facebook-api")}>
                 <summary class="owner-collapsible-heading">Facebook API</summary>
                 <div class="panel owner-settings">
-                    {(store.IsFacebookConfigured
-                        ? """<p class="notice success">Facebook API: Connected. Authors and owner can use Sign in with Facebook for live Page posting.</p>"""
-                        : $"""
+                    {(store.IsFacebookOAuthReady
+                        ? """<p class="notice success">Facebook API: Ready. Authors and owner can use Sign in with Facebook for live Page posting.</p>"""
+                        : store.IsFacebookConfigured
+                            ? $"""
+                                <p class="notice error">Facebook credentials are set but Login Configuration ID is missing.</p>
+                                <ul class="plan-features">
+                                    <li><strong>Login config ID:</strong> {H.Encode(store.FacebookLoginConfigIdStatus)}</li>
+                                </ul>
+                                """
+                            : $"""
                             <p class="notice error">Facebook is not configured yet. Authors cannot connect Facebook until these Railway variables are set.</p>
                             <ul class="plan-features">
                                 <li><strong>App ID:</strong> {H.Encode(store.FacebookAppIdStatus)}</li>
                                 <li><strong>App secret:</strong> {H.Encode(store.FacebookAppSecretStatus)}</li>
+                                <li><strong>Login config ID:</strong> {H.Encode(store.FacebookLoginConfigIdStatus)}</li>
                             </ul>
                             """)}
                     <p class="muted">Create an app at <a href="https://developers.facebook.com" target="_blank" rel="noopener">developers.facebook.com</a> with use case <strong>Manage everything on your Page</strong> (includes Facebook Login for Business).</p>
+                    <p class="muted"><strong>Important:</strong> Do not use the old <code>scope=</code> OAuth URL. Create a Login Configuration instead:</p>
+                    <ol class="plan-features">
+                        <li>Meta app → <strong>Facebook Login for Business</strong> → <strong>Configurations</strong> → <strong>Create configuration</strong></li>
+                        <li><strong>Token type:</strong> User access token</li>
+                        <li><strong>Assets:</strong> Pages</li>
+                        <li><strong>Permissions:</strong> {string.Join(", ", FacebookService.LoginConfigurationPermissions)} (each must be <em>Ready for testing</em> under Use cases → Customize)</li>
+                        <li>Copy the <strong>Configuration ID</strong> → Railway variable <code>Facebook__LoginConfigId</code></li>
+                    </ol>
                     <ul class="plan-features">
                         <li><strong>Meta app name:</strong> use <em>AuthorPromoter AI</em> (Meta blocks &ldquo;Book&rdquo; in app names)</li>
                         <li><strong>Redirect URI:</strong> <code>{H.Encode(FacebookService.CallbackUrl(appBaseUrl.TrimEnd('/')))}</code></li>
-                        <li><strong>Scopes:</strong> <code>{H.Encode(FacebookService.Scopes)}</code></li>
                     </ul>
                     <p class="muted">Add Railway variables, then redeploy:</p>
                     <ul class="plan-features">
                         <li><code>Facebook__AppId</code></li>
                         <li><code>Facebook__AppSecret</code></li>
+                        <li><code>Facebook__LoginConfigId</code></li>
                     </ul>
                     <p class="muted">App stays <strong>Unpublished</strong> for testing as admin. Test brand posting from <strong>Owner → Brand Social → Connect Facebook</strong>.</p>
                 </div>

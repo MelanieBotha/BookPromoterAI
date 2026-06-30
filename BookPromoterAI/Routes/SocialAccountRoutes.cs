@@ -158,6 +158,14 @@ static class SocialAccountRoutes
                         "text/html");
                 }
 
+                if (!settings.IsFacebookOAuthReady)
+                {
+                    return Results.Content(
+                        H.RenderPage(http, "Connect Facebook", SocialConnectHelper.FacebookSetupPage(returnUrl,
+                            "Facebook Login Configuration ID is missing. Owner: add Facebook__LoginConfigId in Railway (see Owner → Facebook API).", settings), store),
+                        "text/html");
+                }
+
                 var appBaseUrl = PublicUrl.Base(request, settings);
                 var callbackUrl = FacebookService.CallbackUrl(appBaseUrl);
                 var (authorizeUrl, state) = facebookService.BuildAuthorizationUrl(callbackUrl);
