@@ -10,7 +10,7 @@ class FacebookService
     public const string Scopes = "pages_show_list,pages_manage_posts,pages_read_engagement,public_profile";
     /// <summary>Permissions to enable on the Meta Login Configuration (not passed in OAuth URL).</summary>
     public static readonly string[] LoginConfigurationPermissions =
-        ["pages_show_list", "pages_manage_posts", "pages_read_engagement", "public_profile"];
+        ["pages_show_list", "pages_manage_posts", "pages_read_engagement", "business_management", "public_profile"];
     public const string GraphVersion = "v21.0";
 
     readonly HttpClient _http;

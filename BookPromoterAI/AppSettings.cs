@@ -182,7 +182,9 @@ class AppSettings
             return "Missing - create a Login Configuration in Meta and add Facebook__LoginConfigId in Railway.";
         if (!IsValidFacebookLoginConfigId(FacebookLoginConfigId))
             return "Invalid - must be digits only (copy Configuration ID from Meta, e.g. 2248127616030753).";
-        return "OK - detected.";
+        var id = FacebookLoginConfigId.Trim();
+        var masked = id.Length > 8 ? $"{id[..6]}...{id[^4..]}" : id;
+        return $"OK - {masked} ({id.Length} digits). Must match Meta → Facebook Login for Business → Configurations.";
     }
 
     public string DescribePublicBaseUrl()

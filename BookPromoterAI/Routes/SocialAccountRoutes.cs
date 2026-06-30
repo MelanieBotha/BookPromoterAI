@@ -166,8 +166,7 @@ static class SocialAccountRoutes
                         "text/html");
                 }
 
-                var appBaseUrl = PublicUrl.Base(request, settings);
-                var callbackUrl = FacebookService.CallbackUrl(appBaseUrl);
+                var callbackUrl = PublicUrl.FacebookCallbackUrl(request);
                 var (authorizeUrl, state) = facebookService.BuildAuthorizationUrl(callbackUrl);
                 await FacebookOAuthStateStore.SaveAsync(cache, state, new FacebookOAuthPending
                 {
@@ -361,7 +360,7 @@ static class SocialAccountRoutes
                 return Results.Redirect($"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Only the owner can connect brand accounts.")}");
             }
 
-            var callbackUrl = FacebookService.CallbackUrl(PublicUrl.Base(request, settings));
+            var callbackUrl = PublicUrl.FacebookCallbackUrl(request);
             var brandContext = SocialAccountKinds.IsBrand(pending.Kind);
             var (ok, connectError, connection) = await facebookService.CompleteAuthorizationAsync(
                 code, callbackUrl, brandContext);

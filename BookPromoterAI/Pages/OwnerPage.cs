@@ -302,8 +302,25 @@ static class OwnerPage
                     </ol>
                     <ul class="plan-features">
                         <li><strong>Meta app name:</strong> use <em>AuthorPromoter AI</em> (Meta blocks &ldquo;Book&rdquo; in app names)</li>
-                        <li><strong>Redirect URI:</strong> <code>{H.Encode(FacebookService.CallbackUrl(appBaseUrl.TrimEnd('/')))}</code> (add exactly this in Meta Valid OAuth Redirect URIs)</li>
+                        <li><strong>App ID:</strong> {H.Encode(store.FacebookAppIdStatus)} (must be <code>1820670845576321</code> in Meta)</li>
+                        <li><strong>Login config ID:</strong> {H.Encode(store.FacebookLoginConfigIdStatus)}</li>
+                        <li><strong>Redirect URIs</strong> — OAuth uses the site URL you are browsing; add <em>all</em> of these in Meta under <strong>Facebook Login for Business → Settings → Valid OAuth Redirect URIs</strong>:
+                            <ul class="plan-features">
+                                {string.Concat(PublicUrl.FacebookCallbackUrlsForMeta(store.Settings).Select(u => $"<li><code>{H.Encode(u)}</code></li>"))}
+                            </ul>
+                        </li>
+                        <li><strong>App domains</strong> (Settings → Basic): <code>bookpromoterai.us</code></li>
+                        <li><strong>Privacy policy URL</strong> (Settings → Basic): <code>https://bookpromoterai.us/privacy</code></li>
                     </ul>
+                    <p class="muted"><strong>If Facebook shows &ldquo;Sorry, something went wrong&rdquo;</strong> (before any login screen), check in order:</p>
+                    <ol class="plan-features">
+                        <li><strong>App roles:</strong> App is Unpublished — only users listed under <strong>App roles → Administrators/Developers</strong> can connect. Add the Facebook account you use when authorizing (the one that admins the Book Promoter AI Page).</li>
+                        <li><strong>Redirect URI:</strong> Paste <em>every</em> URI listed above into Meta, click <strong>Save changes</strong>, wait 2–3 minutes, retry in a private window.</li>
+                        <li><strong>Go Live:</strong> Facebook Login for Business often fails in Development mode — switch app to <strong>Live</strong> in Meta (App Dashboard → publish) after basic settings are correct.</li>
+                        <li><strong>Login configuration:</strong> Token type = <strong>User access token</strong> (not System user). Assets = <strong>Pages</strong>. Config ID in Railway must match Meta exactly.</li>
+                        <li><strong>Permissions:</strong> Under <strong>Use cases → Customize</strong>, each permission must show <em>Ready for testing</em> (not &ldquo;Not added&rdquo;).</li>
+                        <li><strong>Facebook account:</strong> Log into facebook.com as the Page admin with an app role — not a different personal account.</li>
+                    </ol>
                     <p class="muted">Add Railway variables, then redeploy:</p>
                     <ul class="plan-features">
                         <li><code>Facebook__AppId</code></li>
