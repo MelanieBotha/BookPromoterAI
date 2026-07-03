@@ -331,7 +331,56 @@ static class OwnerPage
                         <li><code>Facebook__AppSecret</code></li>
                         <li><code>Facebook__LoginConfigId</code></li>
                     </ul>
-                    <p class="muted">App stays <strong>Unpublished</strong> for testing as admin. Test brand posting from <strong>Owner → Brand Social → Connect Facebook</strong> or <strong>Connect Instagram</strong>. Instagram requires a Business or Creator profile linked to your Facebook Page in Meta Business Suite.</p>
+                    <p class="muted">App stays <strong>Unpublished</strong> for testing as admin. Test brand posting from <strong>Owner → Brand Social → Connect Facebook</strong> or <strong>Connect Instagram</strong>. See <strong>Instagram API</strong> below for IG setup.</p>
+                </div>
+            </details>
+
+            <details class="owner-collapsible" id="owner-section-instagram-api"{open("instagram-api")}>
+                <summary class="owner-collapsible-heading">Instagram API</summary>
+                <div class="panel owner-settings">
+                    {(store.IsFacebookOAuthReady
+                        ? """<p class="notice success">Meta credentials ready — Instagram uses the same app as Facebook.</p>"""
+                        : """<p class="notice error">Set Facebook App ID and secret in Railway first (see Facebook API above). Instagram shares those credentials.</p>""")}
+                    <p class="muted">Instagram posts through the <strong>Instagram Graph API</strong>. Your IG account must be a <strong>Business or Creator</strong> profile linked to your <strong>Book Promoter AI</strong> Facebook Page (the same Page you use for Facebook posting).</p>
+
+                    <h3 style="margin-top:16px">Step 1 — Instagram account (one-time)</h3>
+                    <ol class="plan-features">
+                        <li>In the Instagram app: <strong>Settings → Account type and tools → Switch to professional account</strong> (Business or Creator).</li>
+                        <li>Create or use an Instagram account for Book Promoter AI (e.g. <code>@bookpromoterai</code>).</li>
+                    </ol>
+
+                    <h3 style="margin-top:16px">Step 2 — Link IG to your Facebook Page</h3>
+                    <ol class="plan-features">
+                        <li>Open <a href="https://business.facebook.com/settings/instagram-account-v2" target="_blank" rel="noopener">Meta Business Suite → Settings → Instagram accounts</a>.</li>
+                        <li>Click <strong>Add</strong> and connect your Instagram account to the <strong>Book Promoter AI</strong> Facebook Page.</li>
+                        <li>Or from your Facebook Page: <strong>Settings → Linked accounts → Instagram → Connect</strong>.</li>
+                        <li>Confirm the Page shows <strong>Boost Instagram post</strong> in the left menu (means IG is linked).</li>
+                    </ol>
+
+                    <h3 style="margin-top:16px">Step 3 — Meta developer app</h3>
+                    <ol class="plan-features">
+                        <li>Open <a href="https://developers.facebook.com/apps/1820670845576321" target="_blank" rel="noopener">AuthorPromoter AI</a> in Meta Developers.</li>
+                        <li>Under <strong>Use cases</strong>, ensure <strong>Instagram API</strong> (or Manage messaging &amp; content on Instagram) is added.</li>
+                        <li><strong>Use cases → Customize</strong> — add and set to <em>Ready for testing</em>:
+                            <code>instagram_basic</code>, <code>instagram_content_publish</code>, <code>pages_show_list</code>, <code>pages_read_engagement</code></li>
+                        <li><strong>Facebook Login for Business → Settings → Valid OAuth Redirect URIs</strong> — add every Instagram callback (same list as Facebook API):
+                            <ul class="plan-features">
+                                {string.Concat(PublicUrl.InstagramCallbackUrlsForMeta(store.Settings).Select(u => $"<li><code>{H.Encode(u)}</code></li>"))}
+                            </ul>
+                        </li>
+                        <li><strong>App roles:</strong> your Facebook account must be Administrator or Developer on the app.</li>
+                    </ol>
+
+                    <h3 style="margin-top:16px">Step 4 — Connect in BookPromoter AI</h3>
+                    <ol class="plan-features">
+                        <li><a href="/owner-promos?section=owner-social">Owner → BookPromoter AI Brand Social Accounts</a></li>
+                        <li>Click <strong>Connect</strong> next to <strong>Instagram</strong> (or open <a href="/social-accounts/connect/Instagram?return={Uri.EscapeDataString(SocialConnectHelper.OwnerReturnPath)}">Connect Instagram</a>)</li>
+                        <li>Sign in with Facebook as the Page admin, approve permissions, pick the IG account linked to Book Promoter AI Page.</li>
+                        <li>Test: <a href="/owner-promos?section=promote-app">Promote BookPromoter AI</a> → <strong>Post</strong> on Instagram (logo + caption).</li>
+                    </ol>
+
+                    <p class="muted"><strong>Note:</strong> Personal Instagram accounts cannot use the API. Authors connect their own IG the same way from <strong>My Account → Connect Instagram</strong> (linked to their author Facebook Page, not BookPromoter&apos;s).</p>
+                    <p class="muted"><strong>App review:</strong> While the app is in Development mode, only app admins can connect. For public author use, submit <code>instagram_content_publish</code> for Meta App Review when ready.</p>
                 </div>
             </details>
 

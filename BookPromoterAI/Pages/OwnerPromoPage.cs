@@ -217,7 +217,7 @@ static class OwnerPromoPage
                         {connectedRows}
                     </div>
                     <h3 style="margin-top:20px">Connect a brand platform</h3>
-                    <p class="muted small-text">Bluesky, X, LinkedIn, and Facebook support live posting when connected. Other platforms are simulated until OAuth is configured.</p>
+                    <p class="muted small-text">Bluesky, X, LinkedIn, Facebook, and Instagram support live posting when connected. Other platforms are simulated until OAuth is configured.</p>
                     <div class="connect-buttons">
                         {SocialConnectHelper.ConnectButtons(returnPath)}
                     </div>

@@ -4,7 +4,7 @@ namespace BookPromoterAI;
 
 static class SocialConnectHelper
 {
-    public const string OwnerReturnPath = "/owner-promos";
+    public const string OwnerReturnPath = "/owner-promos?section=owner-social";
 
     public static readonly string[] DefaultPlatforms =
         ["Facebook", "X", "Instagram", "LinkedIn", "Pinterest", "TikTok", "Bluesky"];
@@ -36,13 +36,13 @@ static class SocialConnectHelper
     }
 
     public static bool IsAllowedReturnUrl(string? url) =>
-        url == OwnerReturnPath || url == "/my-account";
+        url == OwnerReturnPath || url.StartsWith("/owner-promos", StringComparison.OrdinalIgnoreCase) || url == "/my-account";
 
     public static string ResolveAccountKind(string? returnUrl) =>
-        returnUrl == OwnerReturnPath ? SocialAccountKinds.Brand : SocialAccountKinds.Author;
+        returnUrl.StartsWith("/owner-promos", StringComparison.OrdinalIgnoreCase) ? SocialAccountKinds.Brand : SocialAccountKinds.Author;
 
     public static bool IsBrandContext(string? returnUrl) =>
-        returnUrl == OwnerReturnPath;
+        returnUrl.StartsWith("/owner-promos", StringComparison.OrdinalIgnoreCase);
 
     public static string ConnectButtons(string returnUrl)
     {
@@ -357,7 +357,13 @@ static class SocialConnectHelper
                     <a class="button secondary" href="/my-account">Back</a>
                     """
                 : $"""
-                <p class="muted">Instagram posting uses the same Meta app as Facebook. Your Instagram must be a <strong>Business or Creator</strong> profile linked to a Facebook Page — personal Instagram accounts cannot be connected via the API.</p>
+                <p class="muted">Complete these steps before connecting:</p>
+                <ol class="plan-features">
+                    <li>Switch Instagram to a <strong>Business or Creator</strong> account.</li>
+                    <li>In <a href="https://business.facebook.com/settings/instagram-account-v2" target="_blank" rel="noopener">Meta Business Suite</a>, link IG to your Facebook Page.</li>
+                    <li>Owner: add Instagram redirect URIs in Meta (see <strong>Owner → Instagram API</strong>).</li>
+                </ol>
+                <p class="muted">Instagram posting uses the same Meta app as Facebook. Personal Instagram accounts cannot be connected via the API.</p>
                 <div class="form-actions">
                     <a class="button" href="/social-accounts/connect/Instagram?return={H.Encode(returnUrl)}" style="background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)">Sign in with Facebook for Instagram</a>
                     <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
