@@ -257,8 +257,8 @@ static class SocialConnectHelper
         var callbackUrls = settings is not null
             ? string.Join(" ", PublicUrl.FacebookCallbackUrlsForMeta(settings).Select(u => $"<code>{H.Encode(u)}</code>"))
             : $"<code>https://bookpromoterai.us{FacebookService.CallbackPath}</code>";
-        var activeCallback = request is not null
-            ? $"""<p class="notice">OAuth redirect for this session: <code>{H.Encode(PublicUrl.FacebookCallbackUrl(request))}</code> — must match Meta <em>exactly</em> (hyphens, not underscores).</p>"""
+        var activeCallback = request is not null && settings is not null
+            ? $"""<p class="notice">OAuth mode: <strong>{H.Encode(settings.FacebookUsesConfigLogin ? "config_id (Login for Business)" : "scope (Page permissions)")}</strong>. Redirect URI: <code>{H.Encode(PublicUrl.FacebookCallbackUrl(request, settings))}</code></p>"""
             : "";
         var connectBlock = !configured
             ? """
@@ -268,8 +268,8 @@ static class SocialConnectHelper
                 """
             : !oauthReady
                 ? """
-                    <p class="notice error">Facebook App ID and secret are set, but the Login Configuration ID is missing.</p>
-                    <p class="muted">Owner: Meta app → <strong>Facebook Login for Business → Configurations</strong> → create a config, then add <code>Facebook__LoginConfigId</code> in Railway and redeploy.</p>
+                    <p class="notice error">Facebook App ID and secret are set, but OAuth is not ready.</p>
+                    <p class="muted">Scope mode (default) only needs App ID + secret. Config mode also needs <code>Facebook__LoginConfigId</code> in Railway.</p>
                     <a class="button secondary" href="/my-account">Back</a>
                     """
                 : $"""

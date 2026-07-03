@@ -3,15 +3,15 @@ using System.Text.Json.Serialization;
 
 namespace BookPromoterAI;
 
-/// <summary>Meta Graph API — Facebook Login for Business + Page feed posting.</summary>
+/// <summary>Meta Graph API — Facebook Login + Page feed posting.</summary>
 class FacebookService
 {
     public const string CallbackPath = "/social-accounts/oauth-callback/facebook";
     public const string Scopes = "pages_show_list,pages_manage_posts,pages_read_engagement,public_profile";
-    /// <summary>Permissions to enable on the Meta Login Configuration (not passed in OAuth URL).</summary>
+    /// <summary>Permissions to enable on the Meta Login Configuration (config mode only).</summary>
     public static readonly string[] LoginConfigurationPermissions =
         ["pages_show_list", "pages_manage_posts", "pages_read_engagement", "business_management", "public_profile"];
-    public const string GraphVersion = "v21.0";
+    public const string GraphVersion = "v22.0";
 
     readonly HttpClient _http;
     readonly AppSettings _settings;
@@ -30,17 +30,24 @@ class FacebookService
 
     public (string AuthorizeUrl, string State) BuildAuthorizationUrl(string redirectUri)
     {
-        if (string.IsNullOrWhiteSpace(_settings.FacebookLoginConfigId))
-            throw new InvalidOperationException("Facebook Login Config ID is not configured.");
-
         var state = Guid.NewGuid().ToString("N");
         var query = new Dictionary<string, string>
         {
             ["client_id"] = _settings.FacebookAppId,
             ["redirect_uri"] = redirectUri,
-            ["config_id"] = _settings.FacebookLoginConfigId,
-            ["state"] = state
+            ["state"] = state,
+            ["response_type"] = "code"
         };
+
+        if (_settings.FacebookUsesConfigLogin)
+        {
+            if (string.IsNullOrWhiteSpace(_settings.FacebookLoginConfigId))
+                throw new InvalidOperationException("Facebook Login Config ID is not configured.");
+            query["config_id"] = _settings.FacebookLoginConfigId;
+        }
+        else
+            query["scope"] = Scopes;
+
         var url = $"https://www.facebook.com/{GraphVersion}/dialog/oauth?" +
                   string.Join("&", query.Select(kv =>
                       $"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(kv.Value)}"));
@@ -50,9 +57,9 @@ class FacebookService
     public async Task<(bool Ok, string Error, FacebookPageConnection? Connection)> CompleteAuthorizationAsync(
         string code, string redirectUri, bool brandContext, CancellationToken cancellationToken = default)
     {
-        var shortLived = await ExchangeCodeAsync(code, redirectUri, cancellationToken);
+        var (shortLived, exchangeError) = await ExchangeCodeAsync(code, redirectUri, cancellationToken);
         if (shortLived is null)
-            return (false, "Facebook did not return an access token. Try connecting again.", null);
+            return (false, exchangeError ?? "Facebook did not return an access token. Try connecting again.", null);
 
         var userToken = await ExchangeForLongLivedUserTokenAsync(shortLived, cancellationToken);
         if (string.IsNullOrWhiteSpace(userToken))
@@ -97,7 +104,7 @@ class FacebookService
             new FacebookTokenUpdate(refreshedPage.AccessToken, connection.UserAccessToken));
     }
 
-    async Task<string?> ExchangeCodeAsync(string code, string redirectUri, CancellationToken cancellationToken)
+    async Task<(string? Token, string? Error)> ExchangeCodeAsync(string code, string redirectUri, CancellationToken cancellationToken)
     {
         var url = GraphUrl("oauth/access_token") +
                   $"?client_id={Uri.EscapeDataString(_settings.FacebookAppId)}" +
@@ -106,11 +113,14 @@ class FacebookService
                   $"&code={Uri.EscapeDataString(code)}";
 
         var response = await _http.GetAsync(url, cancellationToken);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
         if (!response.IsSuccessStatusCode)
-            return null;
+            return (null, DescribeGraphError(body, "Facebook token exchange failed."));
 
-        var payload = await response.Content.ReadFromJsonAsync<FacebookTokenResponse>(cancellationToken: cancellationToken);
-        return string.IsNullOrWhiteSpace(payload?.AccessToken) ? null : payload.AccessToken;
+        var payload = System.Text.Json.JsonSerializer.Deserialize<FacebookTokenResponse>(body);
+        return string.IsNullOrWhiteSpace(payload?.AccessToken)
+            ? (null, "Facebook did not return an access token.")
+            : (payload.AccessToken, null);
     }
 
     async Task<string?> ExchangeForLongLivedUserTokenAsync(string shortLivedToken, CancellationToken cancellationToken)
@@ -188,6 +198,18 @@ class FacebookService
         return pages[0];
     }
 
+    static string DescribeGraphError(string body, string fallback)
+    {
+        try
+        {
+            var err = System.Text.Json.JsonSerializer.Deserialize<FacebookGraphErrorResponse>(body);
+            if (!string.IsNullOrWhiteSpace(err?.Error?.Message))
+                return err.Error.Message;
+        }
+        catch { /* ignore parse errors */ }
+        return fallback;
+    }
+
     static string DescribePostError(System.Net.HttpStatusCode status, string detail)
     {
         if (detail.Contains("duplicate", StringComparison.OrdinalIgnoreCase))
@@ -211,6 +233,18 @@ class FacebookService
         [JsonPropertyName("name")] public string? Name { get; set; }
         [JsonPropertyName("username")] public string? Username { get; set; }
         [JsonPropertyName("access_token")] public string? AccessToken { get; set; }
+    }
+
+    sealed class FacebookGraphErrorResponse
+    {
+        [JsonPropertyName("error")] public FacebookGraphError? Error { get; set; }
+    }
+
+    sealed class FacebookGraphError
+    {
+        [JsonPropertyName("message")] public string? Message { get; set; }
+        [JsonPropertyName("type")] public string? Type { get; set; }
+        [JsonPropertyName("code")] public int? Code { get; set; }
     }
 }
 

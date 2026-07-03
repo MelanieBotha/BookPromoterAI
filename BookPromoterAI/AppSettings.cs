@@ -22,6 +22,8 @@ class AppSettings
     public string FacebookAppId { get; init; } = "";
     public string FacebookAppSecret { get; init; } = "";
     public string FacebookLoginConfigId { get; init; } = "";
+    /// <summary>OAuth mode: "scope" (default, standard Page permissions) or "config" (Login for Business config_id).</summary>
+    public string FacebookOAuthMode { get; init; } = "scope";
 
     public bool IsSendGridConfigured =>
         !string.IsNullOrWhiteSpace(SendGridApiKey) &&
@@ -55,7 +57,10 @@ class AppSettings
 
     public bool IsFacebookOAuthReady =>
         IsFacebookConfigured &&
-        IsValidFacebookLoginConfigId(FacebookLoginConfigId);
+        (!FacebookUsesConfigLogin || IsValidFacebookLoginConfigId(FacebookLoginConfigId));
+
+    public bool FacebookUsesConfigLogin =>
+        string.Equals(FacebookOAuthMode, "config", StringComparison.OrdinalIgnoreCase);
 
     static bool IsValidFacebookLoginConfigId(string? value) =>
         !string.IsNullOrWhiteSpace(value) &&
@@ -223,7 +228,8 @@ class AppSettings
             LinkedInClientSecret = CleanSecret(config["LinkedIn:ClientSecret"]),
             FacebookAppId = CleanSecret(config["Facebook:AppId"]),
             FacebookAppSecret = CleanSecret(config["Facebook:AppSecret"]),
-            FacebookLoginConfigId = CleanSecret(config["Facebook:LoginConfigId"])
+            FacebookLoginConfigId = CleanSecret(config["Facebook:LoginConfigId"]),
+            FacebookOAuthMode = (config["Facebook:OAuthMode"] ?? "scope").Trim().ToLowerInvariant()
         };
     }
 

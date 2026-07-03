@@ -275,11 +275,12 @@ static class OwnerPage
                 <summary class="owner-collapsible-heading">Facebook API</summary>
                 <div class="panel owner-settings">
                     {(store.IsFacebookOAuthReady
-                        ? """<p class="notice success">Facebook API: Ready. Authors and owner can use Sign in with Facebook for live Page posting.</p>"""
+                        ? $"""<p class="notice success">Facebook API: Ready ({(store.Settings.FacebookUsesConfigLogin ? "config_id" : "scope")} OAuth mode).</p>"""
                         : store.IsFacebookConfigured
                             ? $"""
-                                <p class="notice error">Facebook credentials are set but Login Configuration ID is missing.</p>
+                                <p class="notice error">Facebook credentials are set but OAuth is not ready.</p>
                                 <ul class="plan-features">
+                                    <li><strong>OAuth mode:</strong> {H.Encode(store.Settings.FacebookOAuthMode)} (scope = default; config needs Login Configuration ID)</li>
                                     <li><strong>Login config ID:</strong> {H.Encode(store.FacebookLoginConfigIdStatus)}</li>
                                 </ul>
                                 """
@@ -288,13 +289,14 @@ static class OwnerPage
                             <ul class="plan-features">
                                 <li><strong>App ID:</strong> {H.Encode(store.FacebookAppIdStatus)}</li>
                                 <li><strong>App secret:</strong> {H.Encode(store.FacebookAppSecretStatus)}</li>
-                                <li><strong>Login config ID:</strong> {H.Encode(store.FacebookLoginConfigIdStatus)}</li>
+                                <li><strong>OAuth mode:</strong> scope (default) or config</li>
                             </ul>
                             """)}
-                    <p class="muted">Create an app at <a href="https://developers.facebook.com" target="_blank" rel="noopener">developers.facebook.com</a> with use case <strong>Manage everything on your Page</strong> (includes Facebook Login for Business).</p>
-                    <p class="muted"><strong>Important:</strong> Do not use the old <code>scope=</code> OAuth URL. Create a Login Configuration instead:</p>
+                    <p class="muted">Create an app at <a href="https://developers.facebook.com" target="_blank" rel="noopener">developers.facebook.com</a> with use case <strong>Manage everything on your Page</strong>.</p>
+                    <p class="muted"><strong>OAuth mode:</strong> Default <code>scope</code> uses Page permissions directly (recommended). Use <code>config</code> only if Login for Business configuration is fully set up.</p>
                     <ol class="plan-features">
-                        <li>Meta app → <strong>Facebook Login for Business</strong> → <strong>Configurations</strong> → <strong>Create configuration</strong></li>
+                        <li>Railway: <code>Facebook__OAuthMode=scope</code> (default) or <code>config</code></li>
+                        <li>Config mode only: Meta → <strong>Facebook Login for Business</strong> → <strong>Configurations</strong></li>
                         <li><strong>Token type:</strong> User access token</li>
                         <li><strong>Assets:</strong> Pages</li>
                         <li><strong>Permissions:</strong> {string.Join(", ", FacebookService.LoginConfigurationPermissions)} (each must be <em>Ready for testing</em> under Use cases → Customize)</li>

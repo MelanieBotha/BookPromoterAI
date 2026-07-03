@@ -21,8 +21,12 @@ static class PublicUrl
     public static string FacebookOAuthBase(HttpRequest request) =>
         $"{EffectiveScheme(request, forceHttps: true)}://{request.Host}".TrimEnd('/');
 
-    public static string FacebookCallbackUrl(HttpRequest request) =>
-        $"{FacebookOAuthBase(request)}{FacebookService.CallbackPath}";
+    public static string FacebookCallbackUrl(HttpRequest request, AppSettings? settings = null)
+    {
+        if (settings is not null && !string.IsNullOrWhiteSpace(settings.PublicBaseUrl))
+            return FacebookService.CallbackUrl(settings.PublicBaseUrl.TrimEnd('/'));
+        return $"{FacebookOAuthBase(request)}{FacebookService.CallbackPath}";
+    }
 
     static string EffectiveScheme(HttpRequest request, bool forceHttps = false)
     {
