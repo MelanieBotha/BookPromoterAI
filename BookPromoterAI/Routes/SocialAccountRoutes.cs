@@ -105,6 +105,8 @@ static class SocialAccountRoutes
             var kind = SocialConnectHelper.ResolveAccountKind(returnUrl);
             if (SocialAccountKinds.IsBrand(kind) && !store.IsOwner) return Results.Redirect("/my-account");
             if (store.CheckSocialAccountLimit(kind) is not null) return Results.Redirect(returnUrl);
+            var saveUserId = SocialAccountKinds.IsBrand(kind) ? store.PrimaryOwnerUserId() : userId;
+            if (saveUserId == 0) return Results.Redirect("/start");
             var platformName = Uri.UnescapeDataString(platform);
             if (SocialConnectHelper.IsPlatformDisabled(platformName))
                 return Results.Redirect(returnUrl);
@@ -124,7 +126,7 @@ static class SocialAccountRoutes
                 var (authorizeUrl, state, verifier) = xService.BuildAuthorizationUrl(callbackUrl);
                 await XOAuthStateStore.SaveAsync(cache, state, new XOAuthPending
                 {
-                    UserId = userId,
+                    UserId = saveUserId,
                     ReturnUrl = returnUrl,
                     Kind = kind,
                     CodeVerifier = verifier
@@ -147,7 +149,7 @@ static class SocialAccountRoutes
                 var (authorizeUrl, state) = linkedInService.BuildAuthorizationUrl(callbackUrl);
                 await LinkedInOAuthStateStore.SaveAsync(cache, state, new LinkedInOAuthPending
                 {
-                    UserId = userId,
+                    UserId = saveUserId,
                     ReturnUrl = returnUrl,
                     Kind = kind
                 });
@@ -173,10 +175,11 @@ static class SocialAccountRoutes
                 }
 
                 var callbackUrl = PublicUrl.FacebookCallbackUrl(request, settings);
-                var (authorizeUrl, state) = facebookService.BuildAuthorizationUrl(callbackUrl);
+                var brandOAuth = SocialAccountKinds.IsBrand(kind);
+                var (authorizeUrl, state) = facebookService.BuildAuthorizationUrl(callbackUrl, brandOAuth);
                 await FacebookOAuthStateStore.SaveAsync(cache, state, new FacebookOAuthPending
                 {
-                    UserId = userId,
+                    UserId = saveUserId,
                     ReturnUrl = returnUrl,
                     Kind = kind
                 });
@@ -368,13 +371,36 @@ static class SocialAccountRoutes
 
             var callbackUrl = PublicUrl.FacebookCallbackUrl(request, settings);
             var brandContext = SocialAccountKinds.IsBrand(pending.Kind);
-            var (ok, connectError, connection) = await facebookService.CompleteAuthorizationAsync(
+            var outcome = await facebookService.CompleteAuthorizationAsync(
                 code, callbackUrl, brandContext);
-            if (!ok || connection is null)
+            if (outcome.Status == FacebookAuthStatus.NeedsPageSelection &&
+                outcome.PagesToSelect is not null &&
+                !string.IsNullOrWhiteSpace(outcome.UserAccessToken))
             {
-                return Results.Redirect($"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(connectError)}");
+                var pickToken = Guid.NewGuid().ToString("N");
+                await FacebookPagePickStateStore.SaveAsync(cache, pickToken, new FacebookPagePickPending
+                {
+                    UserId = pending.UserId,
+                    ReturnUrl = returnUrl,
+                    Kind = pending.Kind,
+                    UserAccessToken = outcome.UserAccessToken,
+                    Pages = outcome.PagesToSelect.Select(p => new FacebookPageOption
+                    {
+                        Id = p.Id,
+                        Name = p.Name,
+                        Handle = p.Handle,
+                        AccessToken = p.AccessToken
+                    }).ToList()
+                });
+                return Results.Redirect($"/social-accounts/connect/Facebook/select-page?token={Uri.EscapeDataString(pickToken)}");
             }
 
+            if (outcome.Status != FacebookAuthStatus.Connected || outcome.Connection is null)
+            {
+                return Results.Redirect($"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(outcome.Error ?? "Facebook authorization failed. Try again.")}");
+            }
+
+            var connection = outcome.Connection;
             store.AddSocialAccountForUser(pending.UserId, new SocialAccount
             {
                 Platform = "Facebook",
@@ -386,6 +412,66 @@ static class SocialAccountRoutes
                 AccessToken = connection.Page.AccessToken,
                 RefreshToken = connection.UserAccessToken,
                 ExternalAccountId = connection.Page.Id
+            }, pending.Kind);
+            if (SocialAccountKinds.IsAuthor(pending.Kind))
+                store.AddScheduleForUser(pending.UserId, new SocialSchedule { Platform = "Facebook", PostsPerWeek = 1, RequiresApproval = true });
+            return Results.Redirect(returnUrl);
+        });
+
+        app.MapGet("/social-accounts/connect/Facebook/select-page", async (
+            HttpRequest request,
+            HttpContext http,
+            AppStoreDb store,
+            IDistributedCache cache) =>
+        {
+            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
+            var token = request.Query["token"].ToString();
+            var notice = request.Query["notice"].ToString();
+            var pending = await FacebookPagePickStateStore.PeekAsync(cache, token);
+            if (pending is null)
+            {
+                return Results.Redirect($"/social-accounts/connect/Facebook?return=/my-account&notice={Uri.EscapeDataString("Page selection expired. Try connecting again.")}");
+            }
+
+            return Results.Content(
+                H.RenderPage(http, "Choose Facebook Page", SocialConnectHelper.FacebookPagePickPage(pending, token, notice), store),
+                "text/html");
+        });
+
+        app.MapPost("/social-accounts/connect/Facebook/select-page", async (
+            HttpRequest request,
+            AppStoreDb store,
+            IDistributedCache cache) =>
+        {
+            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
+            var form = await request.ReadFormAsync();
+            var token = form["token"].ToString();
+            var pageId = form["pageId"].ToString();
+            var pending = await FacebookPagePickStateStore.PeekAsync(cache, token);
+            var returnUrl = pending?.ReturnUrl ?? "/my-account";
+            if (pending is null)
+            {
+                return Results.Redirect($"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Page selection expired. Try connecting again.")}");
+            }
+
+            var page = pending.Pages.FirstOrDefault(p => p.Id == pageId);
+            if (page is null)
+            {
+                return Results.Redirect($"/social-accounts/connect/Facebook/select-page?token={Uri.EscapeDataString(token)}&notice={Uri.EscapeDataString("Choose a Facebook Page.")}");
+            }
+
+            await FacebookPagePickStateStore.TakeAsync(cache, token);
+            store.AddSocialAccountForUser(pending.UserId, new SocialAccount
+            {
+                Platform = "Facebook",
+                DisplayName = page.Name,
+                Handle = page.Handle,
+                IsConnected = true,
+                ConnectedViaOAuth = true,
+                AccountKind = pending.Kind,
+                AccessToken = page.AccessToken,
+                RefreshToken = pending.UserAccessToken,
+                ExternalAccountId = page.Id
             }, pending.Kind);
             if (SocialAccountKinds.IsAuthor(pending.Kind))
                 store.AddScheduleForUser(pending.UserId, new SocialSchedule { Platform = "Facebook", PostsPerWeek = 1, RequiresApproval = true });

@@ -28,7 +28,7 @@ class FacebookService
     static string GraphUrl(string path) =>
         $"https://graph.facebook.com/{GraphVersion}/{path.TrimStart('/')}";
 
-    public (string AuthorizeUrl, string State) BuildAuthorizationUrl(string redirectUri)
+    public (string AuthorizeUrl, string State) BuildAuthorizationUrl(string redirectUri, bool brandContext = false)
     {
         var state = Guid.NewGuid().ToString("N");
         var query = new Dictionary<string, string>
@@ -39,14 +39,18 @@ class FacebookService
             ["response_type"] = "code"
         };
 
-        if (_settings.FacebookUsesConfigLogin)
+        if (_settings.FacebookUsesConfigLogin && brandContext)
         {
             if (string.IsNullOrWhiteSpace(_settings.FacebookLoginConfigId))
                 throw new InvalidOperationException("Facebook Login Config ID is not configured.");
             query["config_id"] = _settings.FacebookLoginConfigId;
         }
         else
+        {
             query["scope"] = Scopes;
+            if (!brandContext)
+                query["auth_type"] = "rerequest";
+        }
 
         var url = $"https://www.facebook.com/{GraphVersion}/dialog/oauth?" +
                   string.Join("&", query.Select(kv =>
@@ -54,26 +58,37 @@ class FacebookService
         return (url, state);
     }
 
-    public async Task<(bool Ok, string Error, FacebookPageConnection? Connection)> CompleteAuthorizationAsync(
+    public async Task<FacebookAuthOutcome> CompleteAuthorizationAsync(
         string code, string redirectUri, bool brandContext, CancellationToken cancellationToken = default)
     {
         var (shortLived, exchangeError) = await ExchangeCodeAsync(code, redirectUri, cancellationToken);
         if (shortLived is null)
-            return (false, exchangeError ?? "Facebook did not return an access token. Try connecting again.", null);
+            return FacebookAuthOutcome.Failed(exchangeError ?? "Facebook did not return an access token. Try connecting again.");
 
         var userToken = await ExchangeForLongLivedUserTokenAsync(shortLived, cancellationToken);
         if (string.IsNullOrWhiteSpace(userToken))
-            return (false, "Facebook connected but the session could not be extended. Try again.", null);
+            return FacebookAuthOutcome.Failed("Facebook connected but the session could not be extended. Try again.");
 
         var pages = await GetManagedPagesAsync(userToken, cancellationToken);
         if (pages.Count == 0)
-            return (false, "No Facebook Pages found. Create a Page and make sure you are an admin, then try again.", null);
+            return FacebookAuthOutcome.Failed("No Facebook Pages found. Create a Page for your author brand and make sure you are an admin, then try again.");
 
-        var page = PickPage(pages, brandContext);
-        if (page is null)
-            return (false, "Could not select a Facebook Page to connect.", null);
+        if (brandContext)
+        {
+            var page = PickBrandPage(pages);
+            return page is null
+                ? FacebookAuthOutcome.Failed("Could not select a Facebook Page to connect.")
+                : FacebookAuthOutcome.Connected(new FacebookPageConnection(page, userToken));
+        }
 
-        return (true, "", new FacebookPageConnection(page, userToken));
+        var authorPages = pages.Where(p => !IsBookPromoterBrandPage(p)).ToList();
+        if (authorPages.Count == 0)
+            return FacebookAuthOutcome.Failed("No author Facebook Pages found (only the BookPromoter AI business Page was detected). Create your own author Page on Facebook, or click Edit settings on the Facebook dialog to choose a different Page.");
+
+        if (authorPages.Count == 1)
+            return FacebookAuthOutcome.Connected(new FacebookPageConnection(authorPages[0], userToken));
+
+        return FacebookAuthOutcome.NeedsPageSelection(authorPages, userToken);
     }
 
     public async Task<(PostingResult Result, FacebookTokenUpdate? Updated)> PostAsync(
@@ -185,18 +200,16 @@ class FacebookService
         return (false, false, DescribePostError(response.StatusCode, body));
     }
 
-    static FacebookPage? PickPage(IReadOnlyList<FacebookPage> pages, bool brandContext)
+    static FacebookPage? PickBrandPage(IReadOnlyList<FacebookPage> pages)
     {
         if (pages.Count == 0) return null;
-        if (brandContext)
-        {
-            var brand = pages.FirstOrDefault(p =>
-                p.Name.Contains("Book Promoter", StringComparison.OrdinalIgnoreCase) ||
-                p.Name.Contains("BookPromoter", StringComparison.OrdinalIgnoreCase));
-            if (brand is not null) return brand;
-        }
-        return pages[0];
+        var brand = pages.FirstOrDefault(IsBookPromoterBrandPage);
+        return brand ?? pages[0];
     }
+
+    public static bool IsBookPromoterBrandPage(FacebookPage page) =>
+        page.Name.Contains("Book Promoter", StringComparison.OrdinalIgnoreCase) ||
+        page.Name.Contains("BookPromoter", StringComparison.OrdinalIgnoreCase);
 
     static string DescribeGraphError(string body, string fallback)
     {
@@ -253,3 +266,22 @@ record FacebookPage(string Id, string Name, string Handle, string AccessToken);
 record FacebookPageConnection(FacebookPage Page, string UserAccessToken);
 
 record FacebookTokenUpdate(string PageAccessToken, string UserAccessToken);
+
+enum FacebookAuthStatus { Failed, Connected, NeedsPageSelection }
+
+record FacebookAuthOutcome(
+    FacebookAuthStatus Status,
+    string? Error,
+    FacebookPageConnection? Connection,
+    IReadOnlyList<FacebookPage>? PagesToSelect,
+    string? UserAccessToken)
+{
+    public static FacebookAuthOutcome Failed(string error) =>
+        new(FacebookAuthStatus.Failed, error, null, null, null);
+
+    public static FacebookAuthOutcome Connected(FacebookPageConnection connection) =>
+        new(FacebookAuthStatus.Connected, null, connection, null, connection.UserAccessToken);
+
+    public static FacebookAuthOutcome NeedsPageSelection(IReadOnlyList<FacebookPage> pages, string userAccessToken) =>
+        new(FacebookAuthStatus.NeedsPageSelection, null, null, pages, userAccessToken);
+}

@@ -250,7 +250,7 @@ static class SocialConnectHelper
             : "Connect your Facebook Page";
         var intro = brandContext
             ? "Sign in with Facebook to post to your <strong>Book Promoter AI</strong> Page for app promotions."
-            : "Sign in with Facebook to auto-post book promotions to a Facebook Page you manage.";
+            : "Sign in with your personal Facebook account, then choose an <strong>author Facebook Page</strong> you manage. Meta does not allow apps to post to personal profile timelines — only to Pages.";
         var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<div class="notice error">{H.Encode(notice)}</div>""";
         var configured = settings?.IsFacebookConfigured == true;
         var oauthReady = settings?.IsFacebookOAuthReady == true;
@@ -273,7 +273,7 @@ static class SocialConnectHelper
                     <a class="button secondary" href="/my-account">Back</a>
                     """
                 : $"""
-                <p class="muted">You will be redirected to Facebook to authorize BookPromoter AI. We post to a Page you admin (not your personal profile feed).</p>
+                <p class="muted">You will sign in with Facebook as yourself, then connect a <strong>Facebook Page</strong> for your author brand (not your personal news feed). If Facebook shows a previous connection, click <strong>Edit settings</strong> and pick your author Page — not the BookPromoter AI business Page.</p>
                 <div class="form-actions">
                     <a class="button" href="/social-accounts/connect/Facebook?return={H.Encode(returnUrl)}" style="background:#1877F2">Sign in with Facebook</a>
                     <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
@@ -289,6 +289,40 @@ static class SocialConnectHelper
                 {activeCallback}
                 {noticeHtml}
                 {connectBlock}
+            </section>
+            """;
+    }
+
+    public static string FacebookPagePickPage(FacebookPagePickPending pending, string token, string? notice = null)
+    {
+        var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<div class="notice error">{H.Encode(notice)}</div>""";
+        var options = new StringBuilder();
+        foreach (var page in pending.Pages)
+        {
+            options.Append($"""
+                <label class="plan-option">
+                    <input type="radio" name="pageId" value="{H.Encode(page.Id)}" required>
+                    <span>
+                        <strong>{H.Encode(page.Name)}</strong>
+                        <span class="muted"> @{H.Encode(page.Handle)}</span>
+                    </span>
+                </label>
+                """);
+        }
+
+        return $"""
+            <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>Choose your author Facebook Page</h1></div></section>
+            <section class="panel oauth-panel">
+                <p class="muted">BookPromoter AI posts to a Facebook <strong>Page</strong>, not your personal profile. Pick the Page you use for your author brand.</p>
+                {noticeHtml}
+                <form method="post" action="/social-accounts/connect/Facebook/select-page" class="stacked-form">
+                    <input type="hidden" name="token" value="{H.Encode(token)}">
+                    <fieldset class="plan-options">{options}</fieldset>
+                    <div class="form-actions">
+                        <button class="button" type="submit" style="background:#1877F2">Connect this Page</button>
+                        <a class="button secondary" href="{H.Encode(pending.ReturnUrl)}">Cancel</a>
+                    </div>
+                </form>
             </section>
             """;
     }

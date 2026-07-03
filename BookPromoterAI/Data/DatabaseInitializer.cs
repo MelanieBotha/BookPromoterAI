@@ -204,7 +204,94 @@ static class DatabaseInitializer
         db.Database.ExecuteSqlRaw("""UPDATE "PostingLog" SET "LogKind" = 'Author' WHERE "LogKind" IS NULL OR "LogKind" = ''""");
         db.Database.ExecuteSqlRaw("""UPDATE "PostingLog" SET "LogKind" = 'Brand' WHERE "BookTitle" = 'BookPromoter AI' OR "BookTitle" LIKE 'Update v%'""");
         MigrateOwnerBrandMailingListSubscribers(db);
+        MigrateOwnerBrandSocialAccounts(db);
+        PruneOrphanedGeneratedAds(db);
         RepairMailingListSettingsIndex(db);
+    }
+
+    static void PruneOrphanedGeneratedAds(AppDbContext db)
+    {
+        if (!TableExists(db, "GeneratedAds") || !TableExists(db, "Books")) return;
+
+        var bookOrphans = db.GeneratedAds.AsEnumerable()
+            .Where(a => !db.Books.Any(b => b.Id == a.BookId && b.UserId == a.UserId))
+            .ToList();
+        if (bookOrphans.Count > 0)
+            db.GeneratedAds.RemoveRange(bookOrphans);
+
+        foreach (var userId in db.GeneratedAds.Select(a => a.UserId).Distinct().ToList())
+        {
+            var connectedPlatforms = db.SocialAccounts
+                .Where(a => a.UserId == userId && a.IsConnected
+                    && (a.AccountKind == SocialAccountKinds.Author || a.AccountKind == ""))
+                .Select(a => a.Platform)
+                .ToList();
+            var scheduledPlatforms = db.SocialSchedules
+                .Where(s => s.UserId == userId && s.PostsPerWeek > 0
+                    && (s.ScheduleKind == SocialScheduleKinds.Author || s.ScheduleKind == ""))
+                .Select(s => s.Platform)
+                .ToList();
+
+            var platformOrphans = db.GeneratedAds.Where(a => a.UserId == userId).AsEnumerable()
+                .Where(a =>
+                    !connectedPlatforms.Any(p => PostLimits.PlatformsMatch(p, a.Platform)) &&
+                    !scheduledPlatforms.Any(p => PostLimits.PlatformsMatch(p, a.Platform)))
+                .ToList();
+            if (platformOrphans.Count > 0)
+                db.GeneratedAds.RemoveRange(platformOrphans);
+        }
+
+        db.SaveChanges();
+    }
+
+    static void MigrateOwnerBrandSocialAccounts(AppDbContext db)
+    {
+        var primary = db.Users.FirstOrDefault(u => u.Email == OwnerAccount.NormalizedEmail);
+        if (primary is null) return;
+
+        var secondaryOwnerIds = db.Users.AsEnumerable()
+            .Where(u => u.Id != primary.Id && OwnerAccount.IsOwnerEmail(u.Email))
+            .Select(u => u.Id)
+            .ToList();
+        if (secondaryOwnerIds.Count == 0) return;
+
+        var primaryPlatforms = db.SocialAccounts
+            .Where(a => a.UserId == primary.Id && a.AccountKind == SocialAccountKinds.Brand)
+            .Select(a => a.Platform.ToLower())
+            .ToHashSet();
+
+        foreach (var acc in db.SocialAccounts
+            .Where(a => secondaryOwnerIds.Contains(a.UserId) && a.AccountKind == SocialAccountKinds.Brand)
+            .ToList())
+        {
+            if (primaryPlatforms.Contains(acc.Platform.ToLower()))
+                db.SocialAccounts.Remove(acc);
+            else
+            {
+                acc.UserId = primary.Id;
+                primaryPlatforms.Add(acc.Platform.ToLower());
+            }
+        }
+
+        var primarySchedulePlatforms = db.SocialSchedules
+            .Where(s => s.UserId == primary.Id && s.ScheduleKind == SocialScheduleKinds.Brand)
+            .Select(s => s.Platform.ToLower())
+            .ToHashSet();
+
+        foreach (var schedule in db.SocialSchedules
+            .Where(s => secondaryOwnerIds.Contains(s.UserId) && s.ScheduleKind == SocialScheduleKinds.Brand)
+            .ToList())
+        {
+            if (primarySchedulePlatforms.Contains(schedule.Platform.ToLower()))
+                db.SocialSchedules.Remove(schedule);
+            else
+            {
+                schedule.UserId = primary.Id;
+                primarySchedulePlatforms.Add(schedule.Platform.ToLower());
+            }
+        }
+
+        db.SaveChanges();
     }
 
     static void MigrateOwnerBrandMailingListSubscribers(AppDbContext db)

@@ -299,7 +299,10 @@ class AppStoreDb
         var uid = CurrentUserId();
         using var db = Db();
         var book = db.Books.FirstOrDefault(b => b.Id == id && b.UserId == uid);
-        if (book is not null) { db.Books.Remove(book); db.SaveChanges(); }
+        if (book is null) return;
+        DeleteGeneratedAdsForBook(db, uid, id);
+        db.Books.Remove(book);
+        db.SaveChanges();
     }
 
     public Book? FindBook(int id)
@@ -359,13 +362,29 @@ class AppStoreDb
         }
     }
 
+    /// <summary>User id for BookPromoter AI brand data (always the primary owner account).</summary>
+    public int PrimaryOwnerUserId()
+    {
+        using var db = Db();
+        return db.Users.AsNoTracking()
+            .Where(u => u.Email == OwnerAccount.NormalizedEmail)
+            .Select(u => u.Id)
+            .FirstOrDefault();
+    }
+
+    int BrandDataUserId()
+    {
+        var primaryId = PrimaryOwnerUserId();
+        return primaryId > 0 ? primaryId : CurrentUserId();
+    }
+
     public SocialAccount AddSocialAccount(SocialAccount account, string? accountKind = null)
     {
-        var uid = CurrentUserId();
         var kind = accountKind ?? account.AccountKind;
         if (string.IsNullOrWhiteSpace(kind)) kind = SocialAccountKinds.Author;
         if (SocialAccountKinds.IsBrand(kind) && !IsOwner)
             throw new InvalidOperationException("Only the owner can add BookPromoter AI brand accounts.");
+        var uid = SocialAccountKinds.IsBrand(kind) ? BrandDataUserId() : CurrentUserId();
 
         using var db = Db();
         var dbAcc = new DbSocialAccount
@@ -400,9 +419,10 @@ class AppStoreDb
         if (SocialAccountKinds.IsBrand(kind) && !OwnerAccount.IsOwnerEmail(user.Email))
             throw new InvalidOperationException("Only the owner can add BookPromoter AI brand accounts.");
 
+        var saveUserId = SocialAccountKinds.IsBrand(kind) ? BrandDataUserId() : userId;
         var dbAcc = new DbSocialAccount
         {
-            UserId = userId,
+            UserId = saveUserId,
             Platform = account.Platform,
             DisplayName = account.DisplayName,
             Handle = account.Handle,
@@ -422,8 +442,8 @@ class AppStoreDb
 
     public void UpdateSocialAccount(SocialAccount account, string? accountKind = null)
     {
-        var uid = CurrentUserId();
         var kind = accountKind ?? account.AccountKind;
+        var uid = SocialAccountKinds.IsBrand(kind) && IsOwner ? BrandDataUserId() : CurrentUserId();
         using var db = Db();
         var existing = db.SocialAccounts.FirstOrDefault(a => a.Id == account.Id && a.UserId == uid);
         if (existing is null) return;
@@ -437,7 +457,9 @@ class AppStoreDb
 
     public SocialAccount? FindSocialAccount(int id, string? accountKind = null)
     {
-        var uid = CurrentUserId();
+        var uid = !string.IsNullOrWhiteSpace(accountKind) && SocialAccountKinds.IsBrand(accountKind) && IsOwner
+            ? BrandDataUserId()
+            : CurrentUserId();
         using var db = Db();
         var query = db.SocialAccounts.Where(x => x.Id == id && x.UserId == uid);
         if (!string.IsNullOrWhiteSpace(accountKind))
@@ -448,7 +470,9 @@ class AppStoreDb
 
     public void RemoveSocialAccount(int id, string? accountKind = null)
     {
-        var uid = CurrentUserId();
+        var uid = !string.IsNullOrWhiteSpace(accountKind) && SocialAccountKinds.IsBrand(accountKind) && IsOwner
+            ? BrandDataUserId()
+            : CurrentUserId();
         using var db = Db();
         var query = db.SocialAccounts.Where(a => a.Id == id && a.UserId == uid);
         if (!string.IsNullOrWhiteSpace(accountKind))
@@ -456,7 +480,14 @@ class AppStoreDb
         var acc = query.FirstOrDefault();
         if (acc is null) return;
         if (SocialAccountKinds.IsBrand(acc.AccountKind) && !IsOwner) return;
+        var platform = acc.Platform;
         db.SocialAccounts.Remove(acc);
+        DeleteGeneratedAdsForPlatform(db, uid, platform);
+        var schedule = db.SocialSchedules.FirstOrDefault(x => x.UserId == uid
+            && x.Platform.ToLower() == platform.ToLower()
+            && (x.ScheduleKind == SocialScheduleKinds.Author || x.ScheduleKind == ""));
+        if (schedule is not null)
+            db.SocialSchedules.Remove(schedule);
         db.SaveChanges();
     }
 
@@ -487,7 +518,7 @@ class AppStoreDb
         get
         {
             if (!IsOwner) return [];
-            var uid = CurrentUserId();
+            var uid = BrandDataUserId();
             if (uid == 0) return [];
             using var db = Db();
             return db.SocialSchedules
@@ -574,7 +605,7 @@ class AppStoreDb
     public void SaveBrandSchedules(List<SocialSchedule> schedules)
     {
         if (!IsOwner) return;
-        var uid = CurrentUserId();
+        var uid = BrandDataUserId();
         using var db = Db();
         foreach (var s in schedules)
         {
@@ -608,7 +639,24 @@ class AppStoreDb
         using var db = Db();
         var s = db.SocialSchedules.FirstOrDefault(x => x.UserId == uid && x.Platform.ToLower() == platform.ToLower()
             && (x.ScheduleKind == SocialScheduleKinds.Author || x.ScheduleKind == ""));
-        if (s is not null) { db.SocialSchedules.Remove(s); db.SaveChanges(); }
+        if (s is not null)
+        {
+            DeleteGeneratedAdsForPlatform(db, uid, platform);
+            db.SocialSchedules.Remove(s);
+            db.SaveChanges();
+        }
+    }
+
+    static void DeleteGeneratedAdsForBook(AppDbContext db, int userId, int bookId) =>
+        db.GeneratedAds.RemoveRange(db.GeneratedAds.Where(a => a.UserId == userId && a.BookId == bookId));
+
+    static void DeleteGeneratedAdsForPlatform(AppDbContext db, int userId, string platform)
+    {
+        var ads = db.GeneratedAds.Where(a => a.UserId == userId).AsEnumerable()
+            .Where(a => PostLimits.PlatformsMatch(a.Platform, platform))
+            .ToList();
+        if (ads.Count > 0)
+            db.GeneratedAds.RemoveRange(ads);
     }
 
     // ── Generated Ads ──────────────────────────────────────────────────
@@ -619,7 +667,14 @@ class AppStoreDb
             var uid = CurrentUserId();
             if (uid == 0) return [];
             using var db = Db();
-            return db.GeneratedAds.Where(a => a.UserId == uid).OrderByDescending(a => a.GeneratedAt).AsNoTracking().ToList().Select(ToModel).ToList();
+            return db.GeneratedAds
+                .Where(a => a.UserId == uid)
+                .Where(a => db.Books.Any(b => b.Id == a.BookId && b.UserId == uid))
+                .OrderByDescending(a => a.GeneratedAt)
+                .AsNoTracking()
+                .ToList()
+                .Select(ToModel)
+                .ToList();
         }
     }
 
@@ -1199,6 +1254,13 @@ class AppStoreDb
         var weekAds = db.GeneratedAds
             .Where(a => a.UserId == uid && a.WeekNumber == currentWeek && a.WeekYear == currentYear)
             .ToList();
+
+        foreach (var ad in weekAds.ToList())
+        {
+            if (booksById.ContainsKey(ad.BookId)) continue;
+            db.GeneratedAds.Remove(ad);
+            weekAds.Remove(ad);
+        }
 
         foreach (var ad in weekAds)
         {
@@ -1882,8 +1944,59 @@ class AppStoreDb
         }
 
         db.SaveChanges();
+        ConsolidateOwnerBrandData(db);
         SyncAllUsersToOwnerMailingList();
         EnsureMailingListUnsubscribeTokens();
+    }
+
+    static void ConsolidateOwnerBrandData(AppDbContext db)
+    {
+        var primary = db.Users.FirstOrDefault(u => u.Email == OwnerAccount.NormalizedEmail);
+        if (primary is null) return;
+
+        var secondaryOwnerIds = db.Users.AsEnumerable()
+            .Where(u => u.Id != primary.Id && OwnerAccount.IsOwnerEmail(u.Email))
+            .Select(u => u.Id)
+            .ToList();
+        if (secondaryOwnerIds.Count == 0) return;
+
+        var primaryPlatforms = db.SocialAccounts
+            .Where(a => a.UserId == primary.Id && a.AccountKind == SocialAccountKinds.Brand)
+            .Select(a => a.Platform.ToLower())
+            .ToHashSet();
+
+        foreach (var acc in db.SocialAccounts
+            .Where(a => secondaryOwnerIds.Contains(a.UserId) && a.AccountKind == SocialAccountKinds.Brand)
+            .ToList())
+        {
+            if (primaryPlatforms.Contains(acc.Platform.ToLower()))
+                db.SocialAccounts.Remove(acc);
+            else
+            {
+                acc.UserId = primary.Id;
+                primaryPlatforms.Add(acc.Platform.ToLower());
+            }
+        }
+
+        var primarySchedulePlatforms = db.SocialSchedules
+            .Where(s => s.UserId == primary.Id && s.ScheduleKind == SocialScheduleKinds.Brand)
+            .Select(s => s.Platform.ToLower())
+            .ToHashSet();
+
+        foreach (var schedule in db.SocialSchedules
+            .Where(s => secondaryOwnerIds.Contains(s.UserId) && s.ScheduleKind == SocialScheduleKinds.Brand)
+            .ToList())
+        {
+            if (primarySchedulePlatforms.Contains(schedule.Platform.ToLower()))
+                db.SocialSchedules.Remove(schedule);
+            else
+            {
+                schedule.UserId = primary.Id;
+                primarySchedulePlatforms.Add(schedule.Platform.ToLower());
+            }
+        }
+
+        db.SaveChanges();
     }
 
     public PromoCode GenerateAccessCode(string? email = null)

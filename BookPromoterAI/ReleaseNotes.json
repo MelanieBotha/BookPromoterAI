@@ -1,4 +1,28 @@
 {
+  "1.9.37": {
+    "title": "BookPromoter AI v1.9.37 — What's new",
+    "updated": [
+      "Ad Library removes posts immediately when a book or social account is deleted"
+    ],
+    "new": [],
+    "added": []
+  },
+  "1.9.36": {
+    "title": "BookPromoter AI v1.9.36 — What's new",
+    "updated": [
+      "Author Facebook connect: choose your own author Page instead of the BookPromoter business Page; page picker when you manage multiple Pages"
+    ],
+    "new": [],
+    "added": []
+  },
+  "1.9.35": {
+    "title": "BookPromoter AI v1.9.35 — What's new",
+    "updated": [],
+    "new": [],
+    "added": [
+      "Fix owner brand social accounts (e.g. Facebook) not appearing when connected while logged in as a secondary owner email"
+    ]
+  },
   "1.9.19": {
     "title": "BookPromoter AI v1.9.19 — What's new",
     "updated": [
