@@ -67,7 +67,7 @@ static class OwnerPromoPage
                 <article class="book-row account-schedule-row">
                     <div>
                         <strong>{H.Encode(account.Platform)}</strong>
-                        <p class="muted small-text">Auto-post BookPromoter AI promos with logo on Bluesky, Facebook, and Instagram.</p>
+                        <p class="muted small-text">Auto-post BookPromoter AI promos with logo on all connected platforms.</p>
                         {autoHint}
                     </div>
                     <input type="hidden" name="platform" value="{H.Encode(account.Platform)}">
@@ -85,7 +85,7 @@ static class OwnerPromoPage
         var brandScheduleSection = socialAccounts.Count > 0
             ? $"""
                 <h3 style="margin-top:24px">Brand auto-post schedule</h3>
-                <p class="muted small-text">Promotes BookPromoter AI on a schedule (checks every 5 minutes). Set <strong>posts/week</strong> above 0 and check <strong>Auto-post</strong>. Posts include the BookPromoter AI logo on Bluesky, Facebook, and Instagram.</p>
+                <p class="muted small-text">Promotes BookPromoter AI on a schedule (checks every 5 minutes). Set <strong>posts/week</strong> above 0 and check <strong>Auto-post</strong>. Posts include the BookPromoter AI logo on all live platforms.</p>
                 <form method="post" action="/owner/brand-schedule" class="schedule-list">
                     {brandScheduleRows}
                     <button class="button" type="submit">Save brand schedule</button>
@@ -133,7 +133,7 @@ static class OwnerPromoPage
         {
             var text = promoPosts[platform];
             var copyId = $"app-promo-{platform.Replace(" ", "").ToLowerInvariant()}";
-            var showsLogo = PostLimits.IsBluesky(platform) || PostLimits.IsFacebook(platform) || PostLimits.IsInstagram(platform);
+            var showsLogo = true;
             var logoBlock = showsLogo
                 ? $"""<img src="{H.Encode(logoPreviewUrl)}" alt="BookPromoter AI logo" class="promo-logo-thumb">"""
                 : "";
@@ -249,7 +249,7 @@ static class OwnerPromoPage
                     <p class="muted">Generate ready-to-share posts that promote BookPromoter AI. Each preview uses a random caption — refresh the page or click <strong>Shuffle previews</strong> for a new variation. Copy, post manually, enable <strong>Auto-post</strong> under Brand Social Accounts, or email registered users on the <strong>brand mailing list</strong> ({brandSubscriberCount} subscriber(s) — separate from author reader lists).</p>
                     {accountNote}
                     {sendGridNote}
-                    <p class="muted small-text">Bluesky, Facebook, and Instagram posts attach the BookPromoter AI logo image automatically.</p>
+                    <p class="muted small-text">All brand posts attach the BookPromoter AI logo image automatically on live platforms.</p>
                     <div class="promo-table">
                         <div class="promo-header">
                             <strong>Platform</strong>

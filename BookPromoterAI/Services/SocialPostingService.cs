@@ -46,10 +46,10 @@ class SocialPostingService
             return await PostToBlueskyLive(account, postText, media, brandMedia, cancellationToken);
 
         if (PostLimits.IsX(account.Platform) && account.IsLiveConnection)
-            return await PostToXLive(account, postText, cancellationToken);
+            return await PostToXLive(account, postText, brandMedia, cancellationToken);
 
         if (PostLimits.IsLinkedIn(account.Platform) && account.IsLiveConnection)
-            return await PostToLinkedInLive(account, postText, cancellationToken);
+            return await PostToLinkedInLive(account, postText, brandMedia, cancellationToken);
 
         if (PostLimits.IsFacebook(account.Platform) && account.IsLiveConnection)
             return await PostToFacebookLive(account, postText, media, brandMedia, cancellationToken);
@@ -129,6 +129,7 @@ class SocialPostingService
     async Task<PostingOutcome> PostToXLive(
         SocialAccount account,
         string postText,
+        BrandPostMedia? brandMedia,
         CancellationToken cancellationToken)
     {
         if (!PostLimits.IsWithinLimit(postText, account.Platform))
@@ -143,8 +144,21 @@ class SocialPostingService
         if (string.IsNullOrWhiteSpace(account.AccessToken) || string.IsNullOrWhiteSpace(account.ExternalAccountId))
             return new PostingOutcome { Result = PostingResult.Failure("X is not connected. Reconnect your account in My Account.") };
 
+        byte[]? imageBytes = null;
+        string? imageMime = null;
+        if (brandMedia is not null)
+        {
+            var logo = await BrandLogoLoader.TryLoadAsync(
+                _http, ResolveBaseUrl(brandMedia.AppBaseUrl), cancellationToken);
+            if (logo is not null)
+            {
+                imageBytes = logo.Data;
+                imageMime = logo.MimeType;
+            }
+        }
+
         var tokens = new XTokenSet(account.AccessToken, account.RefreshToken ?? "", 0);
-        var (result, updated) = await _x.PostAsync(tokens, postText, cancellationToken);
+        var (result, updated) = await _x.PostAsync(tokens, postText, imageBytes, imageMime, cancellationToken);
         return new PostingOutcome
         {
             Result = result,
@@ -156,6 +170,7 @@ class SocialPostingService
     async Task<PostingOutcome> PostToLinkedInLive(
         SocialAccount account,
         string postText,
+        BrandPostMedia? brandMedia,
         CancellationToken cancellationToken)
     {
         if (!PostLimits.IsWithinLimit(postText, account.Platform))
@@ -170,8 +185,22 @@ class SocialPostingService
         if (string.IsNullOrWhiteSpace(account.AccessToken) || string.IsNullOrWhiteSpace(account.ExternalAccountId))
             return new PostingOutcome { Result = PostingResult.Failure("LinkedIn is not connected. Reconnect your account in My Account.") };
 
+        byte[]? imageBytes = null;
+        string? imageMime = null;
+        if (brandMedia is not null)
+        {
+            var logo = await BrandLogoLoader.TryLoadAsync(
+                _http, ResolveBaseUrl(brandMedia.AppBaseUrl), cancellationToken);
+            if (logo is not null)
+            {
+                imageBytes = logo.Data;
+                imageMime = logo.MimeType;
+            }
+        }
+
         var tokens = new LinkedInTokenSet(account.AccessToken, account.RefreshToken ?? "", 0);
-        var (result, updated) = await _linkedIn.PostAsync(tokens, account.ExternalAccountId, postText, cancellationToken);
+        var (result, updated) = await _linkedIn.PostAsync(
+            tokens, account.ExternalAccountId, postText, imageBytes, imageMime, cancellationToken);
         return new PostingOutcome
         {
             Result = result,

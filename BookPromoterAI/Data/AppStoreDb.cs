@@ -3326,7 +3326,7 @@ class AppStoreDb
 
         await db.SaveChangesAsync();
         var message = failed == 0
-            ? $"Posted to {posted} connected account(s). Logo attached on Bluesky, Facebook, and Instagram."
+            ? $"Posted to {posted} connected account(s). Logo attached on live platforms."
             : $"Posted to {posted} account(s). {failed} failed.";
         return (posted, failed, message);
     }

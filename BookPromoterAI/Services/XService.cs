@@ -62,11 +62,23 @@ class XService
     public async Task<(PostingResult Result, XTokenSet? UpdatedTokens)> PostAsync(
         XTokenSet tokens,
         string postText,
+        byte[]? imageBytes = null,
+        string? imageMime = null,
         CancellationToken cancellationToken = default)
     {
-        var first = await TryPostTweetAsync(tokens.AccessToken, postText, cancellationToken);
+        string? mediaId = null;
+        if (imageBytes is { Length: > 0 })
+        {
+            mediaId = await UploadMediaAsync(tokens.AccessToken, imageBytes, imageMime ?? "image/png", cancellationToken);
+            if (mediaId is null)
+                return (PostingResult.Failure("Could not upload the image to X. Try again."), null);
+        }
+
+        var first = await TryPostTweetAsync(tokens.AccessToken, postText, mediaId, cancellationToken);
         if (first.Success)
-            return (PostingResult.LiveOk("Posted to X."), null);
+            return (PostingResult.LiveOk(imageBytes is { Length: > 0 }
+                ? "Posted to X with logo."
+                : "Posted to X."), null);
 
         if (!first.NeedsRefresh || string.IsNullOrWhiteSpace(tokens.RefreshToken))
             return (PostingResult.Failure(first.Error), null);
@@ -75,11 +87,41 @@ class XService
         if (refreshed is null)
             return (PostingResult.Failure("X session expired. Reconnect your X account in My Account."), null);
 
-        var retry = await TryPostTweetAsync(refreshed.AccessToken, postText, cancellationToken);
+        if (imageBytes is { Length: > 0 })
+        {
+            mediaId = await UploadMediaAsync(refreshed.AccessToken, imageBytes, imageMime ?? "image/png", cancellationToken);
+            if (mediaId is null)
+                return (PostingResult.Failure("Could not upload the image to X after refresh. Try again."), refreshed);
+        }
+
+        var retry = await TryPostTweetAsync(refreshed.AccessToken, postText, mediaId, cancellationToken);
         if (retry.Success)
-            return (PostingResult.LiveOk("Posted to X."), refreshed);
+            return (PostingResult.LiveOk(imageBytes is { Length: > 0 }
+                ? "Posted to X with logo."
+                : "Posted to X."), refreshed);
 
         return (PostingResult.Failure(retry.Error), refreshed);
+    }
+
+    async Task<string?> UploadMediaAsync(
+        string accessToken, byte[] imageBytes, string mimeType, CancellationToken cancellationToken)
+    {
+        using var form = new MultipartFormDataContent();
+        form.Add(new StringContent("tweet_image"), "media_category");
+        var imageContent = new ByteArrayContent(imageBytes);
+        imageContent.Headers.ContentType = new MediaTypeHeaderValue(mimeType);
+        form.Add(imageContent, "media", "logo.png");
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "https://upload.twitter.com/1.1/media/upload.json");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        request.Content = form;
+
+        var response = await _http.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        var payload = await response.Content.ReadFromJsonAsync<XMediaUploadResponse>(cancellationToken: cancellationToken);
+        return string.IsNullOrWhiteSpace(payload?.MediaIdString) ? null : payload.MediaIdString;
     }
 
     async Task<XTokenSet?> ExchangeCodeAsync(
@@ -140,11 +182,13 @@ class XService
     }
 
     async Task<(bool Success, bool NeedsRefresh, string Error)> TryPostTweetAsync(
-        string accessToken, string postText, CancellationToken cancellationToken)
+        string accessToken, string postText, string? mediaId, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "/2/tweets");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        request.Content = JsonContent.Create(new { text = postText });
+        request.Content = string.IsNullOrWhiteSpace(mediaId)
+            ? JsonContent.Create(new { text = postText })
+            : JsonContent.Create(new { text = postText, media = new { media_ids = new[] { mediaId } } });
 
         var response = await _http.SendAsync(request, cancellationToken);
         if (response.IsSuccessStatusCode)
@@ -212,6 +256,11 @@ class XService
         [JsonPropertyName("id")] public string? Id { get; set; }
         [JsonPropertyName("username")] public string? Username { get; set; }
         [JsonPropertyName("name")] public string? Name { get; set; }
+    }
+
+    sealed class XMediaUploadResponse
+    {
+        [JsonPropertyName("media_id_string")] public string? MediaIdString { get; set; }
     }
 }
 

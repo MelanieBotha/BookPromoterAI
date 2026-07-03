@@ -62,11 +62,23 @@ class LinkedInService
         LinkedInTokenSet tokens,
         string personId,
         string postText,
+        byte[]? imageBytes = null,
+        string? imageMime = null,
         CancellationToken cancellationToken = default)
     {
-        var first = await TryPostAsync(tokens.AccessToken, personId, postText, cancellationToken);
+        string? imageAssetUrn = null;
+        if (imageBytes is { Length: > 0 })
+        {
+            imageAssetUrn = await UploadImageAssetAsync(tokens.AccessToken, personId, imageBytes, imageMime ?? "image/png", cancellationToken);
+            if (imageAssetUrn is null)
+                return (PostingResult.Failure("Could not upload the image to LinkedIn. Try again."), null);
+        }
+
+        var first = await TryPostAsync(tokens.AccessToken, personId, postText, imageAssetUrn, cancellationToken);
         if (first.Success)
-            return (PostingResult.LiveOk("Posted to LinkedIn."), null);
+            return (PostingResult.LiveOk(imageBytes is { Length: > 0 }
+                ? "Posted to LinkedIn with logo."
+                : "Posted to LinkedIn."), null);
 
         if (!first.NeedsRefresh || string.IsNullOrWhiteSpace(tokens.RefreshToken))
             return (PostingResult.Failure(first.Error), null);
@@ -75,11 +87,68 @@ class LinkedInService
         if (refreshed is null)
             return (PostingResult.Failure("LinkedIn session expired. Reconnect your LinkedIn account in My Account."), null);
 
-        var retry = await TryPostAsync(refreshed.AccessToken, personId, postText, cancellationToken);
+        if (imageBytes is { Length: > 0 })
+        {
+            imageAssetUrn = await UploadImageAssetAsync(refreshed.AccessToken, personId, imageBytes, imageMime ?? "image/png", cancellationToken);
+            if (imageAssetUrn is null)
+                return (PostingResult.Failure("Could not upload the image to LinkedIn after refresh. Try again."), refreshed);
+        }
+
+        var retry = await TryPostAsync(refreshed.AccessToken, personId, postText, imageAssetUrn, cancellationToken);
         if (retry.Success)
-            return (PostingResult.LiveOk("Posted to LinkedIn."), refreshed);
+            return (PostingResult.LiveOk(imageBytes is { Length: > 0 }
+                ? "Posted to LinkedIn with logo."
+                : "Posted to LinkedIn."), refreshed);
 
         return (PostingResult.Failure(retry.Error), refreshed);
+    }
+
+    async Task<string?> UploadImageAssetAsync(
+        string accessToken, string personId, byte[] imageBytes, string mimeType, CancellationToken cancellationToken)
+    {
+        using var registerRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.linkedin.com/v2/assets?action=registerUpload");
+        registerRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        registerRequest.Headers.Add("X-Restli-Protocol-Version", "2.0.0");
+        registerRequest.Content = JsonContent.Create(new
+        {
+            registerUploadRequest = new
+            {
+                recipes = new[] { "urn:li:digitalmediaRecipe:feedshare-image" },
+                owner = $"urn:li:person:{personId}",
+                serviceRelationships = new[]
+                {
+                    new
+                    {
+                        relationshipType = "OWNER",
+                        identifier = "urn:li:userGeneratedContent"
+                    }
+                }
+            }
+        });
+
+        var registerResponse = await _http.SendAsync(registerRequest, cancellationToken);
+        if (!registerResponse.IsSuccessStatusCode)
+            return null;
+
+        var registerJson = await registerResponse.Content.ReadAsStringAsync(cancellationToken);
+        using var doc = System.Text.Json.JsonDocument.Parse(registerJson);
+        var value = doc.RootElement.GetProperty("value");
+        var assetUrn = value.GetProperty("asset").GetString();
+        var uploadUrl = value
+            .GetProperty("uploadMechanism")
+            .GetProperty("com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest")
+            .GetProperty("uploadUrl")
+            .GetString();
+        if (string.IsNullOrWhiteSpace(assetUrn) || string.IsNullOrWhiteSpace(uploadUrl))
+            return null;
+
+        using var uploadRequest = new HttpRequestMessage(HttpMethod.Put, uploadUrl);
+        uploadRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        uploadRequest.Content = new ByteArrayContent(imageBytes);
+        uploadRequest.Content.Headers.ContentType = new MediaTypeHeaderValue(mimeType);
+
+        var uploadResponse = await _http.SendAsync(uploadRequest, cancellationToken);
+        return uploadResponse.IsSuccessStatusCode ? assetUrn : null;
     }
 
     async Task<LinkedInTokenSet?> ExchangeCodeAsync(string code, string redirectUri, CancellationToken cancellationToken)
@@ -145,22 +214,41 @@ class LinkedInService
     }
 
     async Task<(bool Success, bool NeedsRefresh, string Error)> TryPostAsync(
-        string accessToken, string personId, string postText, CancellationToken cancellationToken)
+        string accessToken, string personId, string postText, string? imageAssetUrn, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, UgcPostsUrl);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         request.Headers.Add("X-Restli-Protocol-Version", "2.0.0");
+
+        object shareContent = string.IsNullOrWhiteSpace(imageAssetUrn)
+            ? new
+            {
+                shareCommentary = new { text = postText },
+                shareMediaCategory = "NONE"
+            }
+            : new
+            {
+                shareCommentary = new { text = postText },
+                shareMediaCategory = "IMAGE",
+                media = new[]
+                {
+                    new
+                    {
+                        status = "READY",
+                        description = new { text = "BookPromoter AI" },
+                        media = imageAssetUrn,
+                        title = new { text = "BookPromoter AI" }
+                    }
+                }
+            };
+
         request.Content = JsonContent.Create(new
         {
             author = $"urn:li:person:{personId}",
             lifecycleState = "PUBLISHED",
             specificContent = new Dictionary<string, object>
             {
-                ["com.linkedin.ugc.ShareContent"] = new
-                {
-                    shareCommentary = new { text = postText },
-                    shareMediaCategory = "NONE"
-                }
+                ["com.linkedin.ugc.ShareContent"] = shareContent
             },
             visibility = new Dictionary<string, object>
             {
