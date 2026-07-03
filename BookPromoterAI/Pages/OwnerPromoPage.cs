@@ -17,7 +17,9 @@ static class OwnerPromoPage
                 ? $"""<p class="notice success">Draft loaded automatically from <code>ReleaseNotes.json</code> for v{H.Encode(version)}. Review and click Publish update.</p>"""
                 : $"""<p class="notice error">No release notes found for v{H.Encode(version)}. Add an entry to <code>ReleaseNotes.json</code> when you bump the version.</p>""";
 
-        var promoPosts = AppPromoGenerator.GeneratePromoPosts(appBaseUrl);
+        var promoSeed = Environment.TickCount ^ Random.Shared.Next();
+        var promoPosts = AppPromoGenerator.GeneratePromoPosts(appBaseUrl, promoSeed);
+        var logoPreviewUrl = PostBranding.LogoUrlForSite(appBaseUrl);
         var socialAccounts = store.OwnerSocialAccounts;
         var accountNote = socialAccounts.Count > 0
             ? $"""<p class="notice success">{socialAccounts.Count} BookPromoter AI brand account(s) connected: {H.Encode(string.Join(", ", socialAccounts.Select(a => a.Platform)))}.</p>"""
@@ -65,7 +67,7 @@ static class OwnerPromoPage
                 <article class="book-row account-schedule-row">
                     <div>
                         <strong>{H.Encode(account.Platform)}</strong>
-                        <p class="muted small-text">Auto-post BookPromoter AI promos with logo on Bluesky.</p>
+                        <p class="muted small-text">Auto-post BookPromoter AI promos with logo on Bluesky, Facebook, and Instagram.</p>
                         {autoHint}
                     </div>
                     <input type="hidden" name="platform" value="{H.Encode(account.Platform)}">
@@ -83,7 +85,7 @@ static class OwnerPromoPage
         var brandScheduleSection = socialAccounts.Count > 0
             ? $"""
                 <h3 style="margin-top:24px">Brand auto-post schedule</h3>
-                <p class="muted small-text">Promotes BookPromoter AI on a schedule (checks every 5 minutes). Set <strong>posts/week</strong> above 0 and check <strong>Auto-post</strong>. Bluesky posts include the logo.</p>
+                <p class="muted small-text">Promotes BookPromoter AI on a schedule (checks every 5 minutes). Set <strong>posts/week</strong> above 0 and check <strong>Auto-post</strong>. Posts include the BookPromoter AI logo on Bluesky, Facebook, and Instagram.</p>
                 <form method="post" action="/owner/brand-schedule" class="schedule-list">
                     {brandScheduleRows}
                     <button class="button" type="submit">Save brand schedule</button>
@@ -131,11 +133,19 @@ static class OwnerPromoPage
         {
             var text = promoPosts[platform];
             var copyId = $"app-promo-{platform.Replace(" ", "").ToLowerInvariant()}";
+            var showsLogo = PostLimits.IsBluesky(platform) || PostLimits.IsFacebook(platform) || PostLimits.IsInstagram(platform);
+            var logoBlock = showsLogo
+                ? $"""<img src="{H.Encode(logoPreviewUrl)}" alt="BookPromoter AI logo" class="promo-logo-thumb">"""
+                : "";
             promoCards.Append($"""
                 <div class="promo-row plan-row">
                     <span>{H.Encode(platform)}</span>
-                    <span><textarea id="{copyId}" class="copy-source" readonly>{H.Encode(text)}</textarea>
-                        <pre class="post-preview">{H.Encode(text)}</pre>
+                    <span>
+                        <div class="promo-preview-with-image">
+                            {logoBlock}
+                            <pre class="post-preview">{H.Encode(text)}</pre>
+                        </div>
+                        <textarea id="{copyId}" class="copy-source" readonly>{H.Encode(text)}</textarea>
                     </span>
                     <span>
                         <button class="button secondary small copy-button" type="button" onclick="copyPromoText('{copyId}', this)">Copy</button>
@@ -236,9 +246,10 @@ static class OwnerPromoPage
             <details class="owner-collapsible" id="owner-section-promote-app"{open("promote-app")}>
                 <summary class="owner-collapsible-heading">Promote BookPromoter AI (Social &amp; Email)</summary>
                 <div class="panel owner-settings">
-                    <p class="muted">Generate ready-to-share posts that promote BookPromoter AI. Copy, post manually, enable <strong>Auto-post</strong> under Brand Social Accounts, or email registered users on the <strong>brand mailing list</strong> ({brandSubscriberCount} subscriber(s) — separate from author reader lists).</p>
+                    <p class="muted">Generate ready-to-share posts that promote BookPromoter AI. Each preview uses a random caption — refresh the page or click <strong>Shuffle previews</strong> for a new variation. Copy, post manually, enable <strong>Auto-post</strong> under Brand Social Accounts, or email registered users on the <strong>brand mailing list</strong> ({brandSubscriberCount} subscriber(s) — separate from author reader lists).</p>
                     {accountNote}
                     {sendGridNote}
+                    <p class="muted small-text">Bluesky, Facebook, and Instagram posts attach the BookPromoter AI logo image automatically.</p>
                     <div class="promo-table">
                         <div class="promo-header">
                             <strong>Platform</strong>
@@ -246,6 +257,9 @@ static class OwnerPromoPage
                             <strong>Actions</strong>
                         </div>
                         {promoCards}
+                    </div>
+                    <div class="form-actions" style="margin-top:12px">
+                        <a class="button secondary" href="/owner-promos?section=promote-app&amp;shuffle=1">Shuffle previews</a>
                     </div>
                     <form method="post" action="/owner/app-promo/post-social" class="inline-form" style="margin-top:12px">
                         <button class="button secondary" type="submit">Post to all connected accounts</button>

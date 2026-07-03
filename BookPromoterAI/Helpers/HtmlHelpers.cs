@@ -480,6 +480,9 @@ textarea{min-height:120px}
 .email-body-view{margin-top:12px;padding:16px;background:var(--soft);border:1px solid var(--line);border-radius:8px;white-space:pre-line;line-height:1.6}
 .promo-header{background:var(--soft)}.promo-row{border-top:1px solid var(--line)}
 .post-preview{white-space:pre-wrap;font-size:13px;color:var(--ink);background:var(--soft);padding:10px;border-radius:8px;margin:0;max-height:160px;overflow:auto}
+.promo-preview-with-image{display:flex;gap:12px;align-items:flex-start;margin-bottom:8px}
+.promo-logo-thumb{width:72px;height:72px;object-fit:contain;border-radius:8px;background:#fff;border:1px solid var(--line);flex-shrink:0}
+.promo-preview-with-image .post-preview{flex:1;min-width:0}
 .checkbox-label{display:flex;align-items:flex-start;gap:10px;font-weight:500;margin:8px 0;max-width:100%}
 .checkbox-label input[type=checkbox]{width:auto;min-width:16px;flex:0 0 auto;margin-top:2px}
 .checkbox-label span{color:var(--muted);font-size:13px;line-height:1.5}

@@ -115,6 +115,9 @@ static class PostBranding
     public static string AbsoluteLogoUrl(string appBaseUrl) =>
         $"{appBaseUrl.TrimEnd('/')}{LogoPath}";
 
+    public static string LogoUrlForSite(string? appBaseUrl) =>
+        string.IsNullOrWhiteSpace(appBaseUrl) ? LogoPath : AbsoluteLogoUrl(appBaseUrl.TrimEnd('/'));
+
     public static string AbsoluteImageUrl(string appBaseUrl, string? imageUrl)
     {
         if (string.IsNullOrWhiteSpace(imageUrl)) return "";

@@ -50,6 +50,11 @@ static class BrandLogoLoader
         }
     }
 
+    public static string PublicLogoUrl(string appBaseUrl) =>
+        PostBranding.AbsoluteLogoUrl(string.IsNullOrWhiteSpace(appBaseUrl)
+            ? "https://bookpromoterai.us"
+            : appBaseUrl.TrimEnd('/'));
+
     static IEnumerable<string> CandidateLogoPaths()
     {
         yield return Path.Combine(AppContext.BaseDirectory, "wwwroot", "images", LogoFileName);

@@ -52,10 +52,10 @@ class SocialPostingService
             return await PostToLinkedInLive(account, postText, cancellationToken);
 
         if (PostLimits.IsFacebook(account.Platform) && account.IsLiveConnection)
-            return await PostToFacebookLive(account, postText, media, cancellationToken);
+            return await PostToFacebookLive(account, postText, media, brandMedia, cancellationToken);
 
         if (PostLimits.IsInstagram(account.Platform) && account.IsLiveConnection)
-            return await PostToInstagramLive(account, postText, media, cancellationToken);
+            return await PostToInstagramLive(account, postText, media, brandMedia, cancellationToken);
 
         var result = account.Platform.ToLowerInvariant() switch
         {
@@ -184,6 +184,7 @@ class SocialPostingService
         SocialAccount account,
         string postText,
         BookPostMedia? media,
+        BrandPostMedia? brandMedia,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(account.AccessToken) || string.IsNullOrWhiteSpace(account.ExternalAccountId))
@@ -214,6 +215,17 @@ class SocialPostingService
                 photoMime = image.MimeType;
             }
         }
+        else if (brandMedia is not null)
+        {
+            var baseUrl = ResolveBaseUrl(brandMedia.AppBaseUrl);
+            photoUrl = BrandLogoLoader.PublicLogoUrl(baseUrl);
+            var logo = await BrandLogoLoader.TryLoadAsync(_http, baseUrl, cancellationToken);
+            if (logo is not null)
+            {
+                photoBytes = logo.Data;
+                photoMime = logo.MimeType;
+            }
+        }
 
         var connection = new FacebookPageConnection(
             new FacebookPage(account.ExternalAccountId, account.DisplayName, account.Handle, account.AccessToken),
@@ -233,6 +245,7 @@ class SocialPostingService
         SocialAccount account,
         string postText,
         BookPostMedia? media,
+        BrandPostMedia? brandMedia,
         CancellationToken cancellationToken)
     {
         if (!PostLimits.IsWithinLimit(postText, account.Platform))
@@ -256,9 +269,13 @@ class SocialPostingService
             else if (!string.IsNullOrWhiteSpace(media.CoverImageUrl))
                 imageUrl = PostBranding.AbsoluteImageUrl(baseUrl, media.CoverImageUrl);
         }
+        else if (brandMedia is not null)
+        {
+            imageUrl = BrandLogoLoader.PublicLogoUrl(ResolveBaseUrl(brandMedia.AppBaseUrl));
+        }
 
         if (string.IsNullOrWhiteSpace(imageUrl))
-            return new PostingOutcome { Result = PostingResult.Failure("Instagram requires a book cover image. Add a cover to your book and try again.") };
+            return new PostingOutcome { Result = PostingResult.Failure("Instagram requires an image. Book posts need a cover; brand posts use the BookPromoter AI logo.") };
 
         var page = new FacebookPage("instagram", account.DisplayName, account.Handle, account.AccessToken);
         var ig = new InstagramBusinessAccount(account.ExternalAccountId, account.Handle.TrimStart('@'), account.DisplayName);

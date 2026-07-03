@@ -7,7 +7,19 @@ static class AppPromoGenerator
         "Authors: promote your books with AI-generated social posts, click tracking, and a weekly Ad Library.",
         "Stop writing posts from scratch — BookPromoter AI creates platform-ready captions for your books.",
         "One dashboard for books, social posts, scheduling, and reader mailing lists. Built for indie authors.",
-        "Your next book deserves better marketing. BookPromoter AI helps you post consistently without the grind."
+        "Your next book deserves better marketing. BookPromoter AI helps you post consistently without the grind.",
+        "Schedule book promos across Facebook, Instagram, X, and more — with covers attached automatically.",
+        "Turn your backlist into a steady stream of social posts. BookPromoter AI does the heavy lifting.",
+        "Indie authors: AI captions, book covers in every post, and click tracking in one place.",
+        "Marketing your books shouldn't eat your writing time. Let BookPromoter AI handle the posts."
+    ];
+
+    static readonly string[] Tags =
+    [
+        "#Authors #BookMarketing #IndieAuthor",
+        "#IndieAuthor #BookPromo #WritingCommunity",
+        "#Authors #Books #BookMarketing",
+        "#IndieAuthors #AmWriting #BookPromo"
     ];
 
     static readonly string[] Platforms = ["Facebook", "Instagram", "X", "LinkedIn", "Bluesky"];
@@ -16,15 +28,24 @@ static class AppPromoGenerator
 
     public static Dictionary<string, string> GeneratePromoPosts(string appBaseUrl, int seed = 0)
     {
+        var baseSeed = seed == 0 ? Random.Shared.Next() : seed;
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < Platforms.Length; i++)
+            result[Platforms[i]] = GeneratePromoPost(Platforms[i], appBaseUrl, baseSeed + i * 7919);
+        return result;
+    }
+
+    public static string GeneratePromoPost(string platform, string appBaseUrl, int? seed = null)
+    {
+        var s = Math.Abs(seed ?? Random.Shared.Next());
         var url = appBaseUrl.TrimEnd('/');
         var startUrl = $"{url}/start";
         var trialUrl = $"{url}/trial";
-        var hook = Hooks[Math.Abs(seed) % Hooks.Length];
+        var hook = Hooks[s % Hooks.Length];
+        var tags = Tags[(s / Hooks.Length) % Tags.Length];
+        var useTrialCta = s % 3 != 0;
 
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var platform in Platforms)
-            result[platform] = GeneratePost(platform, hook, startUrl, trialUrl);
-        return result;
+        return GeneratePost(platform, hook, startUrl, trialUrl, tags, useTrialCta);
     }
 
     public static string GenerateUpdatePost(string platform, ProductUpdate update, string appBaseUrl)
@@ -62,9 +83,10 @@ static class AppPromoGenerator
 
     public static (string Subject, string Body) GeneratePromoEmail(string appBaseUrl, int seed = 0)
     {
+        var s = seed == 0 ? Random.Shared.Next() : seed;
         var url = appBaseUrl.TrimEnd('/');
-        var hook = Hooks[Math.Abs(seed) % Hooks.Length];
-        var subject = Math.Abs(seed) % 2 == 0
+        var hook = Hooks[Math.Abs(s) % Hooks.Length];
+        var subject = Math.Abs(s) % 2 == 0
             ? "Promote your books smarter with BookPromoter AI"
             : "BookPromoter AI — tips for promoting your books";
         var body = $"""
@@ -80,22 +102,32 @@ static class AppPromoGenerator
         return (subject, body.Trim());
     }
 
-    static string GeneratePost(string platform, string hook, string startUrl, string trialUrl)
+    static string GeneratePost(string platform, string hook, string startUrl, string trialUrl, string tags, bool useTrialCta)
     {
         if (PostLimits.IsX(platform))
-            return PostLimits.Enforce($"{hook} {startUrl} #Authors #BookMarketing #IndieAuthor", platform);
+        {
+            var cta = useTrialCta ? trialUrl : startUrl;
+            return PostLimits.Enforce($"{hook} {cta} {tags}", platform);
+        }
 
         if (PostLimits.IsBluesky(platform))
-            return PostLimits.Enforce($"{hook}\n{startUrl}\n#Books #Authors", platform);
+        {
+            var cta = useTrialCta ? $"Free access code: {trialUrl}" : $"Get started: {startUrl}";
+            return PostLimits.Enforce($"{hook}\n{cta}\n#Books #Authors", platform);
+        }
 
         if (platform.Equals("Instagram", StringComparison.OrdinalIgnoreCase))
-            return PostLimits.Enforce(
-                $"{hook}\n\nStart free with an access code:\n{trialUrl}\n\n#Bookstagram #Authors #IndieAuthor #BookMarketing",
-                platform);
+        {
+            var cta = useTrialCta
+                ? $"Start free with an access code:\n{trialUrl}"
+                : $"Create your account:\n{startUrl}";
+            return PostLimits.Enforce($"{hook}\n\n{cta}\n\n#Bookstagram #Authors #IndieAuthor #BookMarketing", platform);
+        }
 
-        return PostLimits.Enforce(
-            $"{hook}\n\nCreate your account: {startUrl}\nFree access code: {trialUrl}\n\n— BookPromoter AI",
-            platform);
+        var bodyCta = useTrialCta
+            ? $"Free access code: {trialUrl}\nCreate your account: {startUrl}"
+            : $"Create your account: {startUrl}\nFree access code: {trialUrl}";
+        return PostLimits.Enforce($"{hook}\n\n{bodyCta}\n\n— BookPromoter AI", platform);
     }
 
     public static List<string> ParseLines(string? text) =>

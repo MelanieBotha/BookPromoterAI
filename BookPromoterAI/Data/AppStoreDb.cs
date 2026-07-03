@@ -2984,7 +2984,6 @@ class AppStoreDb
         var count = 0;
         var now = DateTime.UtcNow;
         var currentWeek = System.Globalization.ISOWeek.GetWeekOfYear(now);
-        var promoPosts = AppPromoGenerator.GeneratePromoPosts(baseUrl);
 
         var schedules = await db.SocialSchedules
             .Where(s => s.UserId == owner.Id
@@ -3013,9 +3012,8 @@ class AppStoreDb
                 .FirstOrDefault(a => PostLimits.PlatformsMatch(a.Platform, schedule.Platform));
             if (account is null) continue;
 
-            var postText = promoPosts.GetValueOrDefault(schedule.Platform)
-                ?? promoPosts.Values.FirstOrDefault()
-                ?? "";
+            var promoSeed = now.DayOfYear * 37 + schedule.PostsSentThisWeek * 13 + schedule.Platform.Length;
+            var postText = AppPromoGenerator.GeneratePromoPost(schedule.Platform, baseUrl, promoSeed);
             if (string.IsNullOrWhiteSpace(postText)) continue;
 
             var outcome = await postingService.PostAsync(
@@ -3292,16 +3290,14 @@ class AppStoreDb
         if (accounts.Count == 0)
             return (0, 0, "Connect BookPromoter AI brand accounts under Owner → Owner Social Media Accounts, then try again.");
 
-        var promoPosts = AppPromoGenerator.GeneratePromoPosts(appBaseUrl);
         var posted = 0;
         var failed = 0;
         var now = DateTime.UtcNow;
 
         foreach (var account in accounts)
         {
-            var postText = promoPosts.GetValueOrDefault(account.Platform)
-                ?? promoPosts.Values.FirstOrDefault()
-                ?? "";
+            var promoSeed = now.Ticks.GetHashCode() ^ account.Id * 17;
+            var postText = AppPromoGenerator.GeneratePromoPost(account.Platform, appBaseUrl, promoSeed);
             if (string.IsNullOrWhiteSpace(postText)) continue;
 
             var outcome = await postingService.PostAsync(
@@ -3330,7 +3326,7 @@ class AppStoreDb
 
         await db.SaveChangesAsync();
         var message = failed == 0
-            ? $"Posted to {posted} connected account(s). Bluesky posts live when connected with an app password."
+            ? $"Posted to {posted} connected account(s). Logo attached on Bluesky, Facebook, and Instagram."
             : $"Posted to {posted} account(s). {failed} failed.";
         return (posted, failed, message);
     }
