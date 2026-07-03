@@ -241,6 +241,7 @@ static class SocialAccountRoutes
             HttpContext http,
             AppStoreDb store,
             AppSettings settings,
+            FacebookService facebookService,
             InstagramService instagramService) =>
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
@@ -256,13 +257,9 @@ static class SocialAccountRoutes
             }
 
             var brandContext = SocialAccountKinds.IsBrand(kind);
-            var outcome = await instagramService.CompleteAuthorizationFromConnectedFacebookAsync(
-                fbAccount.ExternalAccountId,
-                fbAccount.AccessToken,
-                fbAccount.DisplayName,
-                fbAccount.Handle,
-                fbAccount.RefreshToken,
-                brandContext);
+            var outcome = await TryLinkInstagramFromFacebookAsync(
+                store, facebookService, instagramService, fbAccount, brandContext, kind);
+
             if (outcome.Status == InstagramAuthStatus.Connected && outcome.Connection is not null)
             {
                 var connection = outcome.Connection;
@@ -844,6 +841,45 @@ static class SocialAccountRoutes
         if (SocialAccountKinds.IsAuthor(pending.Kind))
             store.AddScheduleForUser(pending.UserId, new SocialSchedule { Platform = "Instagram", PostsPerWeek = 1, RequiresApproval = true });
         return Results.Redirect(returnUrl);
+    }
+
+    static async Task<InstagramAuthOutcome> TryLinkInstagramFromFacebookAsync(
+        AppStoreDb store,
+        FacebookService facebookService,
+        InstagramService instagramService,
+        SocialAccount fbAccount,
+        bool brandContext,
+        string kind)
+    {
+        var outcome = await instagramService.CompleteAuthorizationFromConnectedFacebookAsync(
+            fbAccount.ExternalAccountId!,
+            fbAccount.AccessToken!,
+            fbAccount.DisplayName,
+            fbAccount.Handle,
+            fbAccount.RefreshToken,
+            brandContext);
+
+        if (outcome.Status == InstagramAuthStatus.Connected || string.IsNullOrWhiteSpace(fbAccount.RefreshToken))
+            return outcome;
+
+        var pages = await facebookService.GetManagedPagesAsync(fbAccount.RefreshToken);
+        var refreshed = pages.FirstOrDefault(p => p.Id == fbAccount.ExternalAccountId);
+        if (refreshed is null)
+        {
+            return InstagramAuthOutcome.Failed(
+                "Facebook session expired. In Brand Social Accounts, disconnect and reconnect Facebook, then try Link from Facebook again.");
+        }
+
+        fbAccount.AccessToken = refreshed.AccessToken;
+        store.UpdateSocialAccount(fbAccount, kind);
+
+        return await instagramService.CompleteAuthorizationFromConnectedFacebookAsync(
+            refreshed.Id,
+            refreshed.AccessToken,
+            refreshed.Name,
+            refreshed.Handle,
+            fbAccount.RefreshToken,
+            brandContext);
     }
 
     static SocialAccount? FindFacebookAccountForLink(AppStoreDb store, string kind)

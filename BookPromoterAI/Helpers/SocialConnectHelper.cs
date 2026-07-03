@@ -389,6 +389,7 @@ static class SocialConnectHelper
                 <p class="muted">{intro}</p>
                 <p class="muted small-text">Add these OAuth redirect URLs in your Meta app: {callbackUrls}</p>
                 {activeCallback}
+                <p class="muted small-text">App version <strong>v{AppVersion.Display}</strong> — need v1.9.50+ for Link from Facebook.</p>
                 {noticeHtml}
                 {connectBlock}
             </section>

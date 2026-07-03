@@ -1,4 +1,12 @@
 {
+  "1.9.51": {
+    "title": "BookPromoter AI v1.9.51 — What's new",
+    "updated": [
+      "Instagram link-from-Facebook refreshes Page token on failure and shows clearer Meta API errors"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.9.50": {
     "title": "BookPromoter AI v1.9.50 — What's new",
     "updated": [
