@@ -300,6 +300,7 @@ static class OwnerPage
                         <li><strong>Token type:</strong> User access token</li>
                         <li><strong>Assets:</strong> Pages</li>
                         <li><strong>Permissions:</strong> {string.Join(", ", FacebookService.LoginConfigurationPermissions)} (each must be <em>Ready for testing</em> under Use cases → Customize)</li>
+                        <li><strong>Instagram permissions</strong> (for Instagram connect): <code>instagram_basic</code>, <code>instagram_content_publish</code></li>
                         <li>Copy the <strong>Configuration ID</strong> → Railway variable <code>Facebook__LoginConfigId</code></li>
                     </ol>
                     <ul class="plan-features">
@@ -308,7 +309,8 @@ static class OwnerPage
                         <li><strong>Login config ID:</strong> {H.Encode(store.FacebookLoginConfigIdStatus)}</li>
                         <li><strong>Redirect URIs</strong> — OAuth uses the site URL you are browsing; add <em>all</em> of these in Meta under <strong>Facebook Login for Business → Settings → Valid OAuth Redirect URIs</strong>:
                             <ul class="plan-features">
-                                {string.Concat(PublicUrl.FacebookCallbackUrlsForMeta(store.Settings).Select(u => $"<li><code>{H.Encode(u)}</code></li>"))}
+                                {string.Concat(PublicUrl.FacebookCallbackUrlsForMeta(store.Settings).Select(u => $"<li><code>{H.Encode(u)}</code> (Facebook)</li>"))}
+                                {string.Concat(PublicUrl.InstagramCallbackUrlsForMeta(store.Settings).Select(u => $"<li><code>{H.Encode(u)}</code> (Instagram)</li>"))}
                             </ul>
                         </li>
                         <li><strong>App domains</strong> (Settings → Basic): <code>bookpromoterai.us</code></li>
@@ -329,7 +331,7 @@ static class OwnerPage
                         <li><code>Facebook__AppSecret</code></li>
                         <li><code>Facebook__LoginConfigId</code></li>
                     </ul>
-                    <p class="muted">App stays <strong>Unpublished</strong> for testing as admin. Test brand posting from <strong>Owner → Brand Social → Connect Facebook</strong>.</p>
+                    <p class="muted">App stays <strong>Unpublished</strong> for testing as admin. Test brand posting from <strong>Owner → Brand Social → Connect Facebook</strong> or <strong>Connect Instagram</strong>. Instagram requires a Business or Creator profile linked to your Facebook Page in Meta Business Suite.</p>
                 </div>
             </details>
 

@@ -28,7 +28,7 @@ class FacebookService
     static string GraphUrl(string path) =>
         $"https://graph.facebook.com/{GraphVersion}/{path.TrimStart('/')}";
 
-    public (string AuthorizeUrl, string State) BuildAuthorizationUrl(string redirectUri, bool brandContext = false)
+    public (string AuthorizeUrl, string State) BuildAuthorizationUrl(string redirectUri, bool brandContext = false, bool forInstagram = false)
     {
         var state = Guid.NewGuid().ToString("N");
         var query = new Dictionary<string, string>
@@ -39,7 +39,7 @@ class FacebookService
             ["response_type"] = "code"
         };
 
-        if (_settings.FacebookUsesConfigLogin && brandContext)
+        if (_settings.FacebookUsesConfigLogin && brandContext && !forInstagram)
         {
             if (string.IsNullOrWhiteSpace(_settings.FacebookLoginConfigId))
                 throw new InvalidOperationException("Facebook Login Config ID is not configured.");
@@ -47,8 +47,8 @@ class FacebookService
         }
         else
         {
-            query["scope"] = Scopes;
-            if (!brandContext)
+            query["scope"] = forInstagram ? InstagramService.Scopes : Scopes;
+            if (!brandContext || forInstagram)
                 query["auth_type"] = "rerequest";
         }
 
@@ -162,7 +162,20 @@ class FacebookService
         return string.IsNullOrWhiteSpace(payload?.AccessToken) ? shortLivedToken : payload.AccessToken;
     }
 
-    async Task<List<FacebookPage>> GetManagedPagesAsync(string userAccessToken, CancellationToken cancellationToken)
+    public async Task<(string? UserToken, string? Error)> ObtainUserAccessTokenAsync(
+        string code, string redirectUri, CancellationToken cancellationToken = default)
+    {
+        var (shortLived, exchangeError) = await ExchangeCodeAsync(code, redirectUri, cancellationToken);
+        if (shortLived is null)
+            return (null, exchangeError ?? "Facebook did not return an access token. Try connecting again.");
+
+        var userToken = await ExchangeForLongLivedUserTokenAsync(shortLived, cancellationToken);
+        return string.IsNullOrWhiteSpace(userToken)
+            ? (null, "Facebook connected but the session could not be extended. Try again.")
+            : (userToken, null);
+    }
+
+    public async Task<List<FacebookPage>> GetManagedPagesAsync(string userAccessToken, CancellationToken cancellationToken = default)
     {
         var url = GraphUrl("me/accounts") +
                   "?fields=id,name,access_token,username" +

@@ -71,7 +71,8 @@ class SocialAccount
         && (!PostLimits.IsBluesky(Platform) || !string.IsNullOrWhiteSpace(ExternalAccountId))
         && (!PostLimits.IsX(Platform) || !string.IsNullOrWhiteSpace(ExternalAccountId))
         && (!PostLimits.IsLinkedIn(Platform) || !string.IsNullOrWhiteSpace(ExternalAccountId))
-        && (!PostLimits.IsFacebook(Platform) || !string.IsNullOrWhiteSpace(ExternalAccountId));
+        && (!PostLimits.IsFacebook(Platform) || !string.IsNullOrWhiteSpace(ExternalAccountId))
+        && (!PostLimits.IsInstagram(Platform) || !string.IsNullOrWhiteSpace(ExternalAccountId));
 }
 
 class PromoCode

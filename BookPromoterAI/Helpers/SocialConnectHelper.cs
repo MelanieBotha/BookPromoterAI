@@ -326,4 +326,88 @@ static class SocialConnectHelper
             </section>
             """;
     }
+
+    public static string InstagramSetupPage(string returnUrl, string notice, AppSettings? settings, HttpRequest? request = null)
+    {
+        var brandContext = IsBrandContext(returnUrl);
+        var heading = brandContext
+            ? "Connect Book Promoter AI on Instagram"
+            : "Connect your Instagram account";
+        var intro = brandContext
+            ? "Sign in with Facebook to post to the <strong>Book Promoter AI</strong> Instagram account linked to your business Page."
+            : "Sign in with Facebook to connect your <strong>Instagram Business or Creator</strong> account. It must be linked to a Facebook Page you manage (set this up in Meta Business Suite).";
+        var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<div class="notice error">{H.Encode(notice)}</div>""";
+        var configured = settings?.IsFacebookConfigured == true;
+        var oauthReady = settings?.IsFacebookOAuthReady == true;
+        var callbackUrls = settings is not null
+            ? string.Join(" ", PublicUrl.InstagramCallbackUrlsForMeta(settings).Select(u => $"<code>{H.Encode(u)}</code>"))
+            : $"<code>https://bookpromoterai.us{InstagramService.CallbackPath}</code>";
+        var activeCallback = request is not null && settings is not null
+            ? $"""<p class="notice">Redirect URI: <code>{H.Encode(PublicUrl.InstagramCallbackUrl(request, settings))}</code></p>"""
+            : "";
+        var connectBlock = !configured
+            ? """
+                <p class="notice error">Meta API credentials are not configured yet. The app owner must add Facebook App ID and secret in Railway before authors can connect Instagram.</p>
+                <p class="muted">Owner: open <strong>Owner → Facebook API</strong> for setup steps (Instagram uses the same Meta app).</p>
+                <a class="button secondary" href="/my-account">Back</a>
+                """
+            : !oauthReady
+                ? """
+                    <p class="notice error">Meta App ID and secret are set, but OAuth is not ready.</p>
+                    <a class="button secondary" href="/my-account">Back</a>
+                    """
+                : $"""
+                <p class="muted">Instagram posting uses the same Meta app as Facebook. Your Instagram must be a <strong>Business or Creator</strong> profile linked to a Facebook Page — personal Instagram accounts cannot be connected via the API.</p>
+                <div class="form-actions">
+                    <a class="button" href="/social-accounts/connect/Instagram?return={H.Encode(returnUrl)}" style="background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)">Sign in with Facebook for Instagram</a>
+                    <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
+                </div>
+                """;
+        return $"""
+            <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>{heading}</h1></div></section>
+            <section class="panel oauth-panel">
+                <div class="oauth-platform-badge" style="background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)">IG</div>
+                <h2>Live Instagram posting</h2>
+                <p class="muted">{intro}</p>
+                <p class="muted small-text">Add these OAuth redirect URLs in your Meta app: {callbackUrls}</p>
+                {activeCallback}
+                {noticeHtml}
+                {connectBlock}
+            </section>
+            """;
+    }
+
+    public static string InstagramPagePickPage(InstagramPagePickPending pending, string token, string? notice = null)
+    {
+        var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<div class="notice error">{H.Encode(notice)}</div>""";
+        var options = new StringBuilder();
+        foreach (var account in pending.Accounts)
+        {
+            options.Append($"""
+                <label class="plan-option">
+                    <input type="radio" name="igUserId" value="{H.Encode(account.IgUserId)}" required>
+                    <span>
+                        <strong>@{H.Encode(account.IgUsername)}</strong>
+                        <span class="muted"> via {H.Encode(account.PageName)}</span>
+                    </span>
+                </label>
+                """);
+        }
+
+        return $"""
+            <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>Choose your Instagram account</h1></div></section>
+            <section class="panel oauth-panel">
+                <p class="muted">Pick the Instagram Business or Creator account you use for your author brand.</p>
+                {noticeHtml}
+                <form method="post" action="/social-accounts/connect/Instagram/select-account" class="stacked-form">
+                    <input type="hidden" name="token" value="{H.Encode(token)}">
+                    <fieldset class="plan-options">{options}</fieldset>
+                    <div class="form-actions">
+                        <button class="button" type="submit" style="background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)">Connect this account</button>
+                        <a class="button secondary" href="{H.Encode(pending.ReturnUrl)}">Cancel</a>
+                    </div>
+                </form>
+            </section>
+            """;
+    }
 }

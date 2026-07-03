@@ -1,4 +1,12 @@
 {
+  "1.9.41": {
+    "title": "BookPromoter AI v1.9.41 — What's new",
+    "updated": [],
+    "new": [
+      "Instagram OAuth connect and live posting with book cover images (uses the same Meta app as Facebook)"
+    ],
+    "added": []
+  },
   "1.9.40": {
     "title": "BookPromoter AI v1.9.40 — What's new",
     "updated": [

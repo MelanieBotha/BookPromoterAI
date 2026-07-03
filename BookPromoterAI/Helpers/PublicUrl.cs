@@ -57,4 +57,27 @@ static class PublicUrl
             if (seen.Add(callback)) yield return callback;
         }
     }
+
+    public static string InstagramCallbackUrl(HttpRequest request, AppSettings? settings = null)
+    {
+        if (settings is not null && !string.IsNullOrWhiteSpace(settings.PublicBaseUrl))
+            return InstagramService.CallbackUrl(settings.PublicBaseUrl.TrimEnd('/'));
+        return $"{FacebookOAuthBase(request)}{InstagramService.CallbackPath}";
+    }
+
+    public static IEnumerable<string> InstagramCallbackUrlsForMeta(AppSettings settings)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var baseUrl in new[]
+                 {
+                     settings.PublicBaseUrl.TrimEnd('/'),
+                     "https://bookpromoterai.us",
+                     "https://bookpromoterai-production.up.railway.app"
+                 })
+        {
+            if (string.IsNullOrWhiteSpace(baseUrl)) continue;
+            var callback = InstagramService.CallbackUrl(baseUrl);
+            if (seen.Add(callback)) yield return callback;
+        }
+    }
 }

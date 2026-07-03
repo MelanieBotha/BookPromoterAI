@@ -3,7 +3,7 @@ namespace BookPromoterAI;
 // =====================================================================
 // SOCIAL MEDIA POSTING SERVICE
 //
-// Bluesky uses live AT Protocol posting; X, LinkedIn, and Facebook use OAuth. Other platforms
+// Bluesky uses live AT Protocol posting; X, LinkedIn, Facebook, and Instagram use OAuth. Other platforms
 // remain simulated until OAuth is wired up for each one.
 // =====================================================================
 class SocialPostingService
@@ -12,6 +12,7 @@ class SocialPostingService
     readonly XService _x;
     readonly LinkedInService _linkedIn;
     readonly FacebookService _facebook;
+    readonly InstagramService _instagram;
     readonly HttpClient _http;
     readonly UploadPaths _uploads;
 
@@ -20,6 +21,7 @@ class SocialPostingService
         XService x,
         LinkedInService linkedIn,
         FacebookService facebook,
+        InstagramService instagram,
         IHttpClientFactory httpFactory,
         UploadPaths uploads)
     {
@@ -27,6 +29,7 @@ class SocialPostingService
         _x = x;
         _linkedIn = linkedIn;
         _facebook = facebook;
+        _instagram = instagram;
         _uploads = uploads;
         _http = httpFactory.CreateClient(nameof(SocialPostingService));
         _http.Timeout = TimeSpan.FromSeconds(30);
@@ -50,6 +53,9 @@ class SocialPostingService
 
         if (PostLimits.IsFacebook(account.Platform) && account.IsLiveConnection)
             return await PostToFacebookLive(account, postText, media, cancellationToken);
+
+        if (PostLimits.IsInstagram(account.Platform) && account.IsLiveConnection)
+            return await PostToInstagramLive(account, postText, media, cancellationToken);
 
         var result = account.Platform.ToLowerInvariant() switch
         {
@@ -223,6 +229,49 @@ class SocialPostingService
         };
     }
 
+    async Task<PostingOutcome> PostToInstagramLive(
+        SocialAccount account,
+        string postText,
+        BookPostMedia? media,
+        CancellationToken cancellationToken)
+    {
+        if (!PostLimits.IsWithinLimit(postText, account.Platform))
+        {
+            return new PostingOutcome
+            {
+                Result = PostingResult.Failure(
+                    $"Post exceeds Instagram's {PostLimits.InstagramMaxGraphemes}-character limit ({PostLimits.GraphemeLength(postText)} graphemes). Regenerate or shorten the post.")
+            };
+        }
+
+        if (string.IsNullOrWhiteSpace(account.AccessToken) || string.IsNullOrWhiteSpace(account.ExternalAccountId))
+            return new PostingOutcome { Result = PostingResult.Failure("Instagram is not connected. Reconnect your account in My Account.") };
+
+        string? imageUrl = null;
+        if (media is not null)
+        {
+            var baseUrl = ResolveBaseUrl(media.AppBaseUrl);
+            if (!string.IsNullOrWhiteSpace(media.TrackingCode))
+                imageUrl = PostBranding.BookCoverShareUrl(baseUrl, media.TrackingCode);
+            else if (!string.IsNullOrWhiteSpace(media.CoverImageUrl))
+                imageUrl = PostBranding.AbsoluteImageUrl(baseUrl, media.CoverImageUrl);
+        }
+
+        if (string.IsNullOrWhiteSpace(imageUrl))
+            return new PostingOutcome { Result = PostingResult.Failure("Instagram requires a book cover image. Add a cover to your book and try again.") };
+
+        var page = new FacebookPage("instagram", account.DisplayName, account.Handle, account.AccessToken);
+        var ig = new InstagramBusinessAccount(account.ExternalAccountId, account.Handle.TrimStart('@'), account.DisplayName);
+        var connection = new InstagramConnection(new InstagramPageLink(page, ig), account.RefreshToken ?? "");
+
+        var (result, refreshedPageToken) = await _instagram.PostAsync(connection, postText, imageUrl, cancellationToken);
+        return new PostingOutcome
+        {
+            Result = result,
+            AccessToken = refreshedPageToken
+        };
+    }
+
     static string ResolveBaseUrl(string? appBaseUrl)
     {
         var baseUrl = appBaseUrl?.TrimEnd('/');
@@ -237,8 +286,11 @@ class SocialPostingService
 
     async Task<PostingResult> PostToInstagram(SocialAccount account, string postText)
     {
+        if (!PostLimits.IsWithinLimit(postText, account.Platform))
+            return PostingResult.Failure($"Post exceeds Instagram's {PostLimits.InstagramMaxGraphemes}-character limit ({PostLimits.GraphemeLength(postText)} graphemes). Regenerate or shorten the post.");
+
         await Task.CompletedTask;
-        return PostingResult.SimulatedOk("(Simulated) Posted to Instagram.");
+        return PostingResult.Failure("Connect Instagram with OAuth in My Account for live posting.");
     }
 
     async Task<PostingResult> PostToX(SocialAccount account, string postText)
