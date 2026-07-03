@@ -207,22 +207,81 @@ static class SocialAccountRoutes
                         "text/html");
                 }
 
-                var callbackUrl = PublicUrl.InstagramOAuthRedirectUrl(request, settings);
-                var brandOAuth = SocialAccountKinds.IsBrand(kind);
-                var (authorizeUrl, state) = instagramService.BuildAuthorizationUrl(callbackUrl, brandOAuth);
-                await InstagramOAuthStateStore.SaveAsync(cache, state, new InstagramOAuthPending
+                var canLinkFromFacebook = FindFacebookAccountForLink(store, kind) is not null;
+                var startOAuth = string.Equals(request.Query["go"], "1", StringComparison.Ordinal);
+
+                if (startOAuth)
                 {
-                    UserId = saveUserId,
-                    ReturnUrl = returnUrl,
-                    Kind = kind
-                });
-                return Results.Redirect(authorizeUrl);
+                    var callbackUrl = PublicUrl.InstagramOAuthRedirectUrl(request, settings);
+                    var brandOAuth = SocialAccountKinds.IsBrand(kind);
+                    var (authorizeUrl, state) = instagramService.BuildAuthorizationUrl(callbackUrl, brandOAuth);
+                    await InstagramOAuthStateStore.SaveAsync(cache, state, new InstagramOAuthPending
+                    {
+                        UserId = saveUserId,
+                        ReturnUrl = returnUrl,
+                        Kind = kind
+                    });
+                    return Results.Redirect(authorizeUrl);
+                }
+
+                return Results.Content(
+                    H.RenderPage(http, "Connect Instagram",
+                        SocialConnectHelper.InstagramSetupPage(returnUrl, notice, settings, request, canLinkFromFacebook), store),
+                    "text/html");
             }
 
             var connectNotice = request.Query["notice"].ToString();
             return Results.Content(
                 H.RenderPage(http, $"Connect {platformName}", SocialConnectHelper.OAuthAuthorizePage(platformName, returnUrl, connectNotice), store),
                 "text/html");
+        });
+
+        app.MapGet("/social-accounts/connect/Instagram/from-facebook", async (
+            HttpRequest request,
+            HttpContext http,
+            AppStoreDb store,
+            AppSettings settings,
+            InstagramService instagramService) =>
+        {
+            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
+            var returnUrl = SocialConnectHelper.ResolveReturnUrl(request);
+            var kind = SocialConnectHelper.ResolveAccountKind(returnUrl);
+            if (SocialAccountKinds.IsBrand(kind) && !store.IsOwner) return Results.Redirect("/my-account");
+
+            var fbAccount = FindFacebookAccountForLink(store, kind);
+            if (fbAccount is null || string.IsNullOrWhiteSpace(fbAccount.RefreshToken))
+            {
+                return Results.Redirect(
+                    $"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Connect Facebook first, then try Link from Facebook again.")}");
+            }
+
+            var brandContext = SocialAccountKinds.IsBrand(kind);
+            var outcome = await instagramService.CompleteAuthorizationAsync(fbAccount.RefreshToken, brandContext);
+            if (outcome.Status == InstagramAuthStatus.Connected && outcome.Connection is not null)
+            {
+                var connection = outcome.Connection;
+                var saveUserId = SocialAccountKinds.IsBrand(kind) ? store.PrimaryOwnerUserId() : store.GetCurrentDbUser()?.Id ?? 0;
+                store.AddSocialAccountForUser(saveUserId, new SocialAccount
+                {
+                    Platform = "Instagram",
+                    DisplayName = connection.Link.Instagram.Name ?? connection.Link.Instagram.Username,
+                    Handle = connection.Link.Instagram.Username,
+                    IsConnected = true,
+                    ConnectedViaOAuth = true,
+                    AccountKind = kind,
+                    AccessToken = connection.Link.Page.AccessToken,
+                    RefreshToken = connection.UserAccessToken,
+                    ExternalAccountId = connection.Link.Instagram.Id
+                }, kind);
+                if (SocialAccountKinds.IsAuthor(kind))
+                    store.AddScheduleForUser(saveUserId, new SocialSchedule { Platform = "Instagram", PostsPerWeek = 1, RequiresApproval = true });
+                return Results.Redirect(returnUrl);
+            }
+
+            var error = outcome.Error ??
+                        "Could not find an Instagram account linked to your Facebook Page. Reconnect Facebook with Instagram permissions (Sign in with Facebook below).";
+            return Results.Redirect(
+                $"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(error)}");
         });
 
         app.MapGet(XService.CallbackPath, async (
@@ -779,5 +838,14 @@ static class SocialAccountRoutes
         if (SocialAccountKinds.IsAuthor(pending.Kind))
             store.AddScheduleForUser(pending.UserId, new SocialSchedule { Platform = "Instagram", PostsPerWeek = 1, RequiresApproval = true });
         return Results.Redirect(returnUrl);
+    }
+
+    static SocialAccount? FindFacebookAccountForLink(AppStoreDb store, string kind)
+    {
+        var accounts = SocialAccountKinds.IsBrand(kind) ? store.OwnerSocialAccounts : store.AuthorSocialAccounts;
+        return accounts.FirstOrDefault(a =>
+            PostLimits.IsFacebook(a.Platform) &&
+            a.IsConnected &&
+            !string.IsNullOrWhiteSpace(a.RefreshToken));
     }
 }

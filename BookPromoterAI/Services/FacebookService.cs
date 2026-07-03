@@ -49,7 +49,9 @@ class FacebookService
         else
         {
             query["scope"] = forInstagram ? InstagramService.Scopes : Scopes;
-            if (!brandContext || forInstagram)
+            if (forInstagram)
+                query["auth_type"] = "reauthenticate";
+            else if (!brandContext)
                 query["auth_type"] = "rerequest";
         }
 

@@ -330,7 +330,7 @@ static class SocialConnectHelper
             """;
     }
 
-    public static string InstagramSetupPage(string returnUrl, string notice, AppSettings? settings, HttpRequest? request = null)
+    public static string InstagramSetupPage(string returnUrl, string notice, AppSettings? settings, HttpRequest? request = null, bool canLinkFromFacebook = false)
     {
         var brandContext = IsBrandContext(returnUrl);
         var heading = brandContext
@@ -347,6 +347,12 @@ static class SocialConnectHelper
             : $"<code>https://bookpromoterai.us{InstagramService.CallbackPath}</code>";
         var activeCallback = request is not null && settings is not null
             ? $"""<p class="notice">OAuth redirect URI: <code>{H.Encode(PublicUrl.InstagramOAuthRedirectUrl(request, settings))}</code> (same as Facebook — required for Meta to return to the app)</p>"""
+            : "";
+        var facebookLinkButton = canLinkFromFacebook
+            ? $"""
+                <a class="button" href="/social-accounts/connect/Instagram/from-facebook?return={H.Encode(returnUrl)}" style="background:#1877F2">Link Instagram from connected Facebook</a>
+                <p class="muted small-text"><strong>Try this first</strong> if Facebook is already connected — skips the Meta login dialog.</p>
+                """
             : "";
         var connectBlock = !configured
             ? """
@@ -367,9 +373,11 @@ static class SocialConnectHelper
                     <li>Owner: add Instagram redirect URIs in Meta (see <strong>Owner → Instagram API</strong>).</li>
                 </ol>
                 <p class="muted">Instagram posting uses the same Meta app as Facebook. Personal Instagram accounts cannot be connected via the API.</p>
-                <p class="muted"><strong>If Meta shows &ldquo;Got it&rdquo; but never returns to BookPromoter AI:</strong> Meta linked the app as a Business Integration without sending an OAuth code. Remove <strong>AuthorPromoter AI</strong> at <a href="https://www.facebook.com/settings?tab=business_tools" target="_blank" rel="noopener">Business integrations</a>, then connect again — you should land back on BookPromoter AI automatically.</p>
+                <p class="muted"><strong>If Meta says &ldquo;Continue as BookPromoter AI&rdquo; and spins:</strong> click <strong>Not BookPromoter AI? Log into another account</strong> and sign in with your <em>personal</em> Facebook profile (the one that admins the Page) — not the business portfolio.</p>
+                <p class="muted"><strong>If Meta shows &ldquo;Got it&rdquo; but never returns to BookPromoter AI:</strong> remove <strong>AuthorPromoter AI</strong> at <a href="https://www.facebook.com/settings?tab=business_tools" target="_blank" rel="noopener">Business integrations</a>, then use <strong>Link from connected Facebook</strong> or Sign in below.</p>
                 <div class="form-actions">
-                    <a class="button" href="/social-accounts/connect/Instagram?return={H.Encode(returnUrl)}" style="background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)">Sign in with Facebook for Instagram</a>
+                    {facebookLinkButton}
+                    <a class="button" href="/social-accounts/connect/Instagram?return={H.Encode(returnUrl)}&amp;go=1" style="background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)">Sign in with Facebook for Instagram</a>
                     <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
                 </div>
                 """;

@@ -1,4 +1,12 @@
 {
+  "1.9.49": {
+    "title": "BookPromoter AI v1.9.49 — What's new",
+    "updated": [
+      "Instagram connect: link from existing Facebook (skips Meta dialog), setup page before OAuth, reauthenticate instead of rerequest"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.9.48": {
     "title": "BookPromoter AI v1.9.48 — What's new",
     "updated": [
