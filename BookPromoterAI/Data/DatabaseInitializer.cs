@@ -206,7 +206,42 @@ static class DatabaseInitializer
         MigrateOwnerBrandMailingListSubscribers(db);
         MigrateOwnerBrandSocialAccounts(db);
         PruneOrphanedGeneratedAds(db);
+        PruneOrphanAuthorSchedules(db);
         RepairMailingListSettingsIndex(db);
+    }
+
+    static void PruneOrphanAuthorSchedules(AppDbContext db)
+    {
+        if (!TableExists(db, "SocialSchedules") || !TableExists(db, "SocialAccounts")) return;
+
+        foreach (var userId in db.SocialSchedules
+            .Where(s => s.ScheduleKind == SocialScheduleKinds.Author || s.ScheduleKind == "")
+            .Select(s => s.UserId)
+            .Distinct()
+            .ToList())
+        {
+            var connected = db.SocialAccounts
+                .Where(a => a.UserId == userId && a.IsConnected
+                    && (a.AccountKind == SocialAccountKinds.Author || a.AccountKind == ""))
+                .AsNoTracking()
+                .ToList();
+            var orphanSchedules = db.SocialSchedules
+                .Where(s => s.UserId == userId && (s.ScheduleKind == SocialScheduleKinds.Author || s.ScheduleKind == ""))
+                .AsEnumerable()
+                .Where(s => !connected.Any(a => PostLimits.PlatformsMatch(a.Platform, s.Platform)))
+                .ToList();
+            foreach (var orphan in orphanSchedules)
+            {
+                var ads = db.GeneratedAds.Where(a => a.UserId == userId).AsEnumerable()
+                    .Where(a => PostLimits.PlatformsMatch(a.Platform, orphan.Platform))
+                    .ToList();
+                if (ads.Count > 0)
+                    db.GeneratedAds.RemoveRange(ads);
+                db.SocialSchedules.Remove(orphan);
+            }
+        }
+
+        db.SaveChanges();
     }
 
     static void PruneOrphanedGeneratedAds(AppDbContext db)

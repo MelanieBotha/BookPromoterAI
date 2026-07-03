@@ -68,7 +68,7 @@ static class AdLibraryPage
 
         var totalAds = allAds.Count;
         var thisWeekCount = allAds.Count(a => a.WeekYear == currentYear && a.WeekNumber == currentWeek);
-        var scheduledPerWeek = store.Schedules.Sum(s => s.PostsPerWeek);
+        var scheduledPerWeek = store.ConnectedAuthorSchedules().Sum(s => s.PostsPerWeek);
 
         var script = """
             <script>
@@ -130,7 +130,7 @@ static class AdLibraryPage
                 <div>
                     <p class="eyebrow">Ad Library</p>
                     <h1>AI-generated posts by week.</h1>
-                    <p class="muted">{totalAds} post(s) total &middot; {thisWeekCount} this week ({H.Encode(currentWeekLabel)}) &middot; Schedule: {scheduledPerWeek} posts/week across {store.Schedules.Count(s => s.PostsPerWeek > 0)} platform(s)</p>
+                    <p class="muted">{totalAds} post(s) total &middot; {thisWeekCount} this week ({H.Encode(currentWeekLabel)}) &middot; Schedule: {scheduledPerWeek} posts/week across {store.ConnectedAuthorSchedules().Count(s => s.PostsPerWeek > 0)} connected platform(s)</p>
                     <p class="muted small-text"><strong>Copy post</strong> copies the caption only. Your book link is on the <strong>last line</strong> — Facebook and X use the last URL for the preview image. Keep only that one link so readers see your book cover. <strong>Generate This Week's Posts</strong> replaces every unapproved post this week with a new book, platform, and caption; approved and already-posted ads are left unchanged. Auto-post runs every <strong>5 minutes</strong> and spaces posts evenly across the week — use <strong>Post now</strong> to publish immediately.</p>
                 </div>
                 <form method="post" action="/ad-library/generate-week">

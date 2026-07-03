@@ -90,7 +90,7 @@ static class MyAccountPage
             limitNotice = $"""<div class="notice error">{H.Encode(limitMessage)}</div>""";
 
         var plan2 = store.CurrentPlan;
-        var totalWeeklyPosts = store.Schedules.Sum(s => s.PostsPerWeek);
+        var totalWeeklyPosts = store.ConnectedAuthorSchedules().Sum(s => s.PostsPerWeek);
         var limitText = plan2?.MaxWeeklyPosts is int cap
             ? $"""<p class="muted small-text">Your {H.Encode(plan2.Name)} plan allows up to <strong>{cap} posts/week</strong> (about {H.Encode(plan2.AiPostsPerMonthText)} AI posts/month). Currently scheduling <strong>{totalWeeklyPosts}</strong>/week.</p>"""
             : """<p class="muted small-text">Your plan includes unlimited AI posts per month.</p>""";

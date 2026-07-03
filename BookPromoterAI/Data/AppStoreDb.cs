@@ -513,6 +513,18 @@ class AppStoreDb
         }
     }
 
+    /// <summary>Author schedules for platforms that still have a connected social account.</summary>
+    public List<SocialSchedule> ConnectedAuthorSchedules()
+    {
+        var accounts = AuthorSocialAccounts.Where(a => a.IsConnected).ToList();
+        return Schedules
+            .Where(s => accounts.Any(a => PostLimits.PlatformsMatch(a.Platform, s.Platform)))
+            .ToList();
+    }
+
+    static bool ScheduleMatchesConnectedAccount(IEnumerable<SocialAccount> connectedAccounts, string platform) =>
+        connectedAccounts.Any(a => a.IsConnected && PostLimits.PlatformsMatch(a.Platform, platform));
+
     public List<SocialSchedule> OwnerBrandSchedules
     {
         get
@@ -599,6 +611,19 @@ class AppStoreDb
                 existing.AutoPostEnabled = s.AutoPostEnabled;
             }
         }
+
+        var keptPlatforms = schedules.Select(s => s.Platform).ToList();
+        var orphanSchedules = db.SocialSchedules
+            .Where(s => s.UserId == uid && (s.ScheduleKind == SocialScheduleKinds.Author || s.ScheduleKind == ""))
+            .AsEnumerable()
+            .Where(s => !keptPlatforms.Any(p => PostLimits.PlatformsMatch(p, s.Platform)))
+            .ToList();
+        foreach (var orphan in orphanSchedules)
+        {
+            DeleteGeneratedAdsForPlatform(db, uid, orphan.Platform);
+            db.SocialSchedules.Remove(orphan);
+        }
+
         db.SaveChanges();
     }
 
@@ -667,12 +692,19 @@ class AppStoreDb
             var uid = CurrentUserId();
             if (uid == 0) return [];
             using var db = Db();
+            var connectedPlatforms = db.SocialAccounts
+                .Where(a => a.UserId == uid && a.IsConnected
+                    && (a.AccountKind == SocialAccountKinds.Author || a.AccountKind == ""))
+                .Select(a => a.Platform)
+                .AsNoTracking()
+                .ToList();
             return db.GeneratedAds
                 .Where(a => a.UserId == uid)
                 .Where(a => db.Books.Any(b => b.Id == a.BookId && b.UserId == uid))
-                .OrderByDescending(a => a.GeneratedAt)
                 .AsNoTracking()
                 .ToList()
+                .Where(a => connectedPlatforms.Any(p => PostLimits.PlatformsMatch(p, a.Platform)))
+                .OrderByDescending(a => a.GeneratedAt)
                 .Select(ToModel)
                 .ToList();
         }
@@ -1242,7 +1274,8 @@ class AppStoreDb
     {
         var touched = new List<GeneratedAd>();
         var books = Books;
-        var activeSchedules = Schedules.Where(s => s.PostsPerWeek > 0).ToList();
+        var connectedAccounts = AuthorSocialAccounts.Where(a => a.IsConnected).ToList();
+        var activeSchedules = ConnectedAuthorSchedules().Where(s => s.PostsPerWeek > 0).ToList();
         if (books.Count == 0 || activeSchedules.Count == 0) return touched;
 
         var now = DateTime.UtcNow;
@@ -1258,7 +1291,15 @@ class AppStoreDb
 
         foreach (var ad in weekAds.ToList())
         {
-            if (booksById.ContainsKey(ad.BookId)) continue;
+            if (!booksById.ContainsKey(ad.BookId))
+            {
+                db.GeneratedAds.Remove(ad);
+                weekAds.Remove(ad);
+                continue;
+            }
+
+            if (ScheduleMatchesConnectedAccount(connectedAccounts, ad.Platform)) continue;
+            if (ad.ApprovedForPosting || ad.PostStatus == "Posted") continue;
             db.GeneratedAds.Remove(ad);
             weekAds.Remove(ad);
         }
