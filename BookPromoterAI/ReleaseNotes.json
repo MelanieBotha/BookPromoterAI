@@ -1,4 +1,12 @@
 {
+  "1.9.55": {
+    "title": "BookPromoter AI v1.9.55 — What's new",
+    "updated": [
+      "Instagram grant uses Page token path after OAuth; clearer Meta errors; brand Facebook shows remove-integration checklist before sign-in"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.9.54": {
     "title": "BookPromoter AI v1.9.54 — What's new",
     "updated": [

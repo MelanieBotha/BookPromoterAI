@@ -33,9 +33,10 @@ class InstagramService
     public async Task<InstagramAuthOutcome> CompleteAuthorizationAsync(
         string userAccessToken, bool brandContext, CancellationToken cancellationToken = default)
     {
-        var pages = await _facebook.GetManagedPagesAsync(userAccessToken, cancellationToken);
+        var (pages, pagesError) = await _facebook.TryGetManagedPagesAsync(userAccessToken, cancellationToken);
         if (pages.Count == 0)
-            return InstagramAuthOutcome.Failed("No Facebook Pages found. Instagram Business accounts must be linked to a Facebook Page.");
+            return InstagramAuthOutcome.Failed(pagesError ??
+                "No Facebook Pages found. Instagram Business accounts must be linked to a Facebook Page.");
 
         var linked = new List<InstagramPageLink>();
         foreach (var page in pages)

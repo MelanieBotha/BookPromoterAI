@@ -277,15 +277,16 @@ static class SocialConnectHelper
                     """
                 : $"""
                 {(brandContext
-                    ? """
+                    ? $"""
+                    <p class="notice error"><strong>Before you continue:</strong> If <a href="https://www.facebook.com/settings?tab=business_tools" target="_blank" rel="noopener">Business integrations</a> lists <strong>AuthorPromoter AI</strong>, click <strong>Remove</strong> first.</p>
                     <p class="muted">Sign in with your <strong>personal</strong> Facebook account that admins the Book Promoter AI Page.</p>
-                    <p class="muted"><strong>If Meta says &ldquo;Continue as BookPromoter AI?&rdquo;</strong> — click <strong>Edit settings</strong> (never Continue — it hangs). Walk through Pages → approve permissions → Save. You must return to bookpromoterai.us.</p>
+                    <p class="muted">On Meta's &ldquo;Continue as BookPromoter AI?&rdquo; screen click <strong>Edit settings</strong> — <em>never</em> Continue (it spins). Approve Page access → Save. You must land back on bookpromoterai.us.</p>
                     """
                     : """
                     <p class="muted">You will sign in with Facebook as yourself, then connect a <strong>Facebook Page</strong> for your author brand (not your personal news feed). If Facebook shows a previous connection, click <strong>Edit settings</strong> and pick your author Page — not the BookPromoter AI business Page.</p>
                     """)}
                 <div class="form-actions">
-                    <a class="button" href="/social-accounts/connect/Facebook?return={H.Encode(returnUrl)}" style="background:#1877F2">Sign in with Facebook</a>
+                    <a class="button" href="/social-accounts/connect/Facebook?return={H.Encode(returnUrl)}&amp;go=1" style="background:#1877F2">Continue to Meta sign-in</a>
                     <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
                 </div>
                 """;
@@ -384,7 +385,7 @@ static class SocialConnectHelper
                     <li>Owner: add Instagram redirect URIs in Meta (see <strong>Owner → Instagram API</strong>).</li>
                 </ol>
                 <p class="muted">Instagram posting uses the same Meta app as Facebook. Personal Instagram accounts cannot be connected via the API.</p>
-                <p class="muted"><strong>Order:</strong> (1) <a href="/social-accounts/connect/Facebook?return={H.Encode(returnUrl)}">Connect Facebook</a> first. (2) Link from Facebook, or Grant Instagram access if link fails.</p>
+                <p class="muted"><strong>Before Instagram:</strong> Remove <strong>AuthorPromoter AI</strong> from <a href="https://www.facebook.com/settings?tab=business_tools" target="_blank" rel="noopener">Business integrations</a> if listed, then <a href="/social-accounts/connect/Facebook?return={H.Encode(returnUrl)}">connect Facebook</a> first.</p>
                 <div class="form-actions">
                     {facebookLinkButton}
                     {grantButton}
