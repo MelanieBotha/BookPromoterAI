@@ -7,6 +7,7 @@ static class AdLibraryRoutes
         app.MapGet("/ad-library", (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings) =>
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
+            store.EnsureCurrentWeekPostSlots();
             var search = request.Query["search"].ToString();
             var focus = request.Query["focus"].ToString();
             var notice = request.Query["generated"] == "1"

@@ -739,6 +739,14 @@ class AppStoreDb
         var book = db.Books.Include(b => b.Links).FirstOrDefault(b => b.Id == ad.BookId && b.UserId == uid);
         if (book is null) return null;
         RefreshGeneratedAdEntity(ad, book, generator, baseUrl);
+        var now = DateTime.UtcNow;
+        var (currentWeek, currentYear, _) = AdWeek.For(now);
+        var platformAds = db.GeneratedAds
+            .Where(a => a.UserId == uid && a.WeekNumber == currentWeek && a.WeekYear == currentYear && a.Platform == ad.Platform)
+            .ToList();
+        var schedule = db.SocialSchedules.FirstOrDefault(s => s.UserId == uid && s.Platform == ad.Platform);
+        if (schedule is not null)
+            PostSchedule.AssignWeeklyPostSlots(platformAds, schedule.PostsPerWeek, now, currentYear, currentWeek);
         db.SaveChanges();
         return adId;
     }
@@ -1367,8 +1375,51 @@ class AppStoreDb
             }
         }
 
+        foreach (var schedule in activeSchedules)
+        {
+            var platformAds = weekAds
+                .Where(a => PostLimits.PlatformsMatch(a.Platform, schedule.Platform))
+                .ToList();
+            PostSchedule.AssignWeeklyPostSlots(platformAds, schedule.PostsPerWeek, now, currentYear, currentWeek);
+        }
+
         db.SaveChanges();
         return touched;
+    }
+
+    /// <summary>Assign staggered auto-post times to pending ads missing a slot (e.g. before this feature shipped).</summary>
+    public void EnsureCurrentWeekPostSlots()
+    {
+        var uid = CurrentUserId();
+        if (uid == 0) return;
+
+        var now = DateTime.UtcNow;
+        var (currentWeek, currentYear, _) = AdWeek.For(now);
+        var schedules = ConnectedAuthorSchedules().Where(s => s.PostsPerWeek > 0).ToList();
+        if (schedules.Count == 0) return;
+
+        using var db = Db();
+        var weekAds = db.GeneratedAds
+            .Where(a => a.UserId == uid && a.WeekNumber == currentWeek && a.WeekYear == currentYear)
+            .ToList();
+        if (weekAds.Count == 0) return;
+
+        var changed = false;
+        foreach (var schedule in schedules)
+        {
+            var platformAds = weekAds
+                .Where(a => PostLimits.PlatformsMatch(a.Platform, schedule.Platform))
+                .ToList();
+            if (platformAds.Count == 0) continue;
+            if (platformAds.All(a => a.PostStatus != "Pending" || a.ScheduledPostAt is not null))
+                continue;
+
+            PostSchedule.AssignWeeklyPostSlots(platformAds, schedule.PostsPerWeek, now, currentYear, currentWeek);
+            changed = true;
+        }
+
+        if (changed)
+            db.SaveChanges();
     }
 
     static DbBook? PickBookForNewAd(List<DbBook> books, List<DbGeneratedAd> weekAds, string platform, ref int bookIndex)
@@ -1396,6 +1447,7 @@ class AppStoreDb
         ad.CoverImageUrl = book.CoverImageUrl;
         ad.BookTitle = book.Title;
         ad.GeneratedAt = DateTime.UtcNow;
+        ad.ScheduledPostAt = null;
         ad.ApprovedForPosting = false;
         ad.PostStatus = "Pending";
         ad.PostedAt = null;
@@ -2881,15 +2933,22 @@ class AppStoreDb
         {
             if (schedule.WeekTrackerStart != currentWeek) { schedule.WeekTrackerStart = currentWeek; schedule.PostsSentThisWeek = 0; }
             if (schedule.PostsSentThisWeek >= schedule.PostsPerWeek) continue;
-            var hoursBetween = (24.0 * 7) / schedule.PostsPerWeek;
-            if (schedule.LastPostedAt is DateTime last && (now - last).TotalHours < hoursBetween) continue;
             var account = (await db.SocialAccounts.Where(a =>
                 a.UserId == schedule.UserId
                 && (a.AccountKind == SocialAccountKinds.Author || a.AccountKind == ""))
                 .ToListAsync())
                 .FirstOrDefault(a => PostLimits.PlatformsMatch(a.Platform, schedule.Platform));
             if (account is null) continue;
-            var candidate = await db.GeneratedAds.Where(a => a.UserId == schedule.UserId && a.Platform == schedule.Platform && a.PostStatus == "Pending" && (!schedule.RequiresApproval || a.ApprovedForPosting)).OrderBy(a => a.GeneratedAt).FirstOrDefaultAsync();
+            var pendingAds = await db.GeneratedAds.Where(a =>
+                    a.UserId == schedule.UserId
+                    && a.Platform == schedule.Platform
+                    && a.PostStatus == "Pending"
+                    && (!schedule.RequiresApproval || a.ApprovedForPosting))
+                .ToListAsync();
+            var candidate = pendingAds
+                .Where(a => a.ScheduledPostAt is null || a.ScheduledPostAt <= now)
+                .OrderBy(a => a.ScheduledPostAt ?? a.GeneratedAt)
+                .FirstOrDefault();
             if (candidate is null) continue;
             var book = await db.Books.AsNoTracking().FirstOrDefaultAsync(b => b.Id == candidate.BookId && b.UserId == schedule.UserId);
             var media = BuildBookPostMedia(candidate, book);
@@ -3449,7 +3508,7 @@ class AppStoreDb
         PostsSentThisWeek = s.PostsSentThisWeek,
         WeekTrackerStart = s.WeekTrackerStart
     };
-    static GeneratedAd ToModel(DbGeneratedAd a) => new() { Id = a.Id, BookId = a.BookId, BookTitle = a.BookTitle, CoverImageUrl = a.CoverImageUrl, Platform = a.Platform, PostText = a.PostText, GeneratedAt = a.GeneratedAt, WeekNumber = a.WeekNumber, WeekYear = a.WeekYear, WeekLabel = a.WeekLabel, PostStatus = a.PostStatus, PostedAt = a.PostedAt, PostError = a.PostError, ApprovedForPosting = a.ApprovedForPosting };
+    static GeneratedAd ToModel(DbGeneratedAd a) => new() { Id = a.Id, BookId = a.BookId, BookTitle = a.BookTitle, CoverImageUrl = a.CoverImageUrl, Platform = a.Platform, PostText = a.PostText, GeneratedAt = a.GeneratedAt, ScheduledPostAt = a.ScheduledPostAt, WeekNumber = a.WeekNumber, WeekYear = a.WeekYear, WeekLabel = a.WeekLabel, PostStatus = a.PostStatus, PostedAt = a.PostedAt, PostError = a.PostError, ApprovedForPosting = a.ApprovedForPosting };
     static PostingLogEntry ToModel(DbPostingLogEntry l) => new()
     {
         Id = l.Id,

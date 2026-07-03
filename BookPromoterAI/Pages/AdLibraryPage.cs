@@ -42,7 +42,7 @@ static class AdLibraryPage
         foreach (var week in byWeek)
         {
             var cards = new StringBuilder();
-            foreach (var ad in week.OrderByDescending(a => a.GeneratedAt))
+            foreach (var ad in week.OrderBy(a => PostSchedule.DisplayTime(a)))
             {
                 cards.Append(RenderPostCard(store, ad, appBaseUrl, search, focus));
             }
@@ -207,12 +207,11 @@ static class AdLibraryPage
             ? $"""<p class="notice error small-text">{H.Encode(ad.PostError)}</p>"""
             : "";
 
-        var autoPostHint = ad.PostStatus == "Pending" && schedule?.AutoPostEnabled == true
-            ? AppStoreDb.FormatNextAutoPostHint(schedule) is string hint
-                ? $"""<p class="muted small-text">{H.Encode(hint)}</p>"""
-                : ""
+        var autoPostHint = PostSchedule.FormatAdAutoPostHint(ad, schedule) is string hint
+            ? $"""<p class="muted small-text">{H.Encode(hint)}</p>"""
             : "";
 
+        var scheduledAt = PostSchedule.DisplayTime(ad);
         var charCount = PostLimits.CharacterCountLabel(ad.Platform, ad.PostText);
         var focusClass = focus == $"ad-{ad.Id}" ? " post-card-focused" : "";
 
@@ -222,7 +221,7 @@ static class AdLibraryPage
                 <div class="post-card-header">
                     <div>
                         <strong>{H.Encode(ad.BookTitle)}</strong>
-                        <small>{ad.GeneratedAt:ddd MMM d, HH:mm} UTC</small>
+                        <small>Scheduled {scheduledAt:ddd MMM d, HH:mm} UTC</small>
                     </div>
                     {statusBadge}
                 </div>

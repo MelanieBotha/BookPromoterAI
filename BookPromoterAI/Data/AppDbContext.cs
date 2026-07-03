@@ -199,6 +199,7 @@ class DbGeneratedAd
     public string Platform { get; set; } = "";
     public string PostText { get; set; } = "";
     public DateTime GeneratedAt { get; set; }
+    public DateTime? ScheduledPostAt { get; set; }
     public int WeekNumber { get; set; }
     public int WeekYear { get; set; }
     public string WeekLabel { get; set; } = "";
