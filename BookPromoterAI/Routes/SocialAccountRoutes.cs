@@ -207,7 +207,7 @@ static class SocialAccountRoutes
                         "text/html");
                 }
 
-                var callbackUrl = PublicUrl.InstagramCallbackUrl(request, settings);
+                var callbackUrl = PublicUrl.InstagramOAuthRedirectUrl(request, settings);
                 var brandOAuth = SocialAccountKinds.IsBrand(kind);
                 var (authorizeUrl, state) = instagramService.BuildAuthorizationUrl(callbackUrl, brandOAuth);
                 await InstagramOAuthStateStore.SaveAsync(cache, state, new InstagramOAuthPending
@@ -365,12 +365,22 @@ static class SocialAccountRoutes
             AppStoreDb store,
             AppSettings settings,
             FacebookService facebookService,
+            InstagramService instagramService,
             IDistributedCache cache) =>
         {
             var error = request.Query["error"].ToString();
             var errorDescription = request.Query["error_description"].ToString();
             var code = request.Query["code"].ToString();
             var state = request.Query["state"].ToString();
+
+            var instagramPending = await InstagramOAuthStateStore.TakeAsync(cache, state);
+            if (instagramPending is not null)
+            {
+                return await FinishInstagramOAuthAsync(
+                    request, store, settings, facebookService, instagramService, cache,
+                    instagramPending, error, errorDescription, code);
+            }
+
             var pending = await FacebookOAuthStateStore.TakeAsync(cache, state);
             var returnUrl = FacebookOAuthStateStore.BuildReturnUrl(
                 pending?.ReturnUrl ?? "/my-account",
@@ -534,81 +544,9 @@ static class SocialAccountRoutes
                 return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Instagram login expired. Try connecting again.")}");
             }
 
-            if (!string.IsNullOrWhiteSpace(error))
-            {
-                var notice = error.Equals("access_denied", StringComparison.OrdinalIgnoreCase)
-                    ? "Instagram authorization was cancelled."
-                    : string.IsNullOrWhiteSpace(errorDescription)
-                        ? "Instagram authorization failed. Try again."
-                        : errorDescription;
-                return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(notice)}");
-            }
-
-            if (string.IsNullOrWhiteSpace(code))
-            {
-                return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Invalid Instagram login response. Try again.")}");
-            }
-
-            if (SocialAccountKinds.IsBrand(pending.Kind) && !OwnerAccount.IsOwnerEmail(
-                    store.GetUserEmailById(pending.UserId)))
-            {
-                return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Only the owner can connect brand accounts.")}");
-            }
-
-            var callbackUrl = PublicUrl.InstagramCallbackUrl(request, settings);
-            var brandContext = SocialAccountKinds.IsBrand(pending.Kind);
-            var (userToken, tokenError) = await facebookService.ObtainUserAccessTokenAsync(code, callbackUrl);
-            if (userToken is null)
-            {
-                return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(tokenError ?? "Instagram authorization failed. Try again.")}");
-            }
-
-            var outcome = await instagramService.CompleteAuthorizationAsync(userToken, brandContext);
-            if (outcome.Status == InstagramAuthStatus.NeedsAccountSelection &&
-                outcome.LinksToSelect is not null &&
-                !string.IsNullOrWhiteSpace(outcome.UserAccessToken))
-            {
-                var pickToken = Guid.NewGuid().ToString("N");
-                await InstagramPagePickStateStore.SaveAsync(cache, pickToken, new InstagramPagePickPending
-                {
-                    UserId = pending.UserId,
-                    ReturnUrl = returnUrl,
-                    Kind = pending.Kind,
-                    UserAccessToken = outcome.UserAccessToken,
-                    Accounts = outcome.LinksToSelect.Select(l => new InstagramAccountOption
-                    {
-                        PageId = l.Page.Id,
-                        PageName = l.Page.Name,
-                        PageAccessToken = l.Page.AccessToken,
-                        IgUserId = l.Instagram.Id,
-                        IgUsername = l.Instagram.Username,
-                        IgDisplayName = l.Instagram.Name ?? l.Instagram.Username
-                    }).ToList()
-                });
-                return Results.Redirect($"/social-accounts/connect/Instagram/select-account?token={Uri.EscapeDataString(pickToken)}");
-            }
-
-            if (outcome.Status != InstagramAuthStatus.Connected || outcome.Connection is null)
-            {
-                return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(outcome.Error ?? "Instagram authorization failed. Try again.")}");
-            }
-
-            var connection = outcome.Connection;
-            store.AddSocialAccountForUser(pending.UserId, new SocialAccount
-            {
-                Platform = "Instagram",
-                DisplayName = connection.Link.Instagram.Name ?? connection.Link.Instagram.Username,
-                Handle = connection.Link.Instagram.Username,
-                IsConnected = true,
-                ConnectedViaOAuth = true,
-                AccountKind = pending.Kind,
-                AccessToken = connection.Link.Page.AccessToken,
-                RefreshToken = connection.UserAccessToken,
-                ExternalAccountId = connection.Link.Instagram.Id
-            }, pending.Kind);
-            if (SocialAccountKinds.IsAuthor(pending.Kind))
-                store.AddScheduleForUser(pending.UserId, new SocialSchedule { Platform = "Instagram", PostsPerWeek = 1, RequiresApproval = true });
-            return Results.Redirect(returnUrl);
+            return await FinishInstagramOAuthAsync(
+                request, store, settings, facebookService, instagramService, cache,
+                pending, error, errorDescription, code, PublicUrl.InstagramCallbackUrl(request, settings));
         });
 
         app.MapGet("/social-accounts/connect/Instagram/select-account", async (
@@ -749,5 +687,97 @@ static class SocialAccountRoutes
                 store.AddSchedule(new SocialSchedule { Platform = platformName, PostsPerWeek = 1, RequiresApproval = true });
             return Results.Redirect(returnUrl);
         });
+    }
+
+    static async Task<IResult> FinishInstagramOAuthAsync(
+        HttpRequest request,
+        AppStoreDb store,
+        AppSettings settings,
+        FacebookService facebookService,
+        InstagramService instagramService,
+        IDistributedCache cache,
+        InstagramOAuthPending pending,
+        string? error,
+        string? errorDescription,
+        string code,
+        string? tokenExchangeRedirectUri = null)
+    {
+        var returnUrl = InstagramOAuthStateStore.BuildReturnUrl(pending.ReturnUrl, pending.Kind);
+
+        if (!string.IsNullOrWhiteSpace(error))
+        {
+            var notice = error.Equals("access_denied", StringComparison.OrdinalIgnoreCase)
+                ? "Instagram authorization was cancelled."
+                : string.IsNullOrWhiteSpace(errorDescription)
+                    ? "Instagram authorization failed. Try again."
+                    : errorDescription;
+            return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(notice)}");
+        }
+
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Invalid Instagram login response. Try again.")}");
+        }
+
+        if (SocialAccountKinds.IsBrand(pending.Kind) && !OwnerAccount.IsOwnerEmail(
+                store.GetUserEmailById(pending.UserId)))
+        {
+            return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Only the owner can connect brand accounts.")}");
+        }
+
+        var callbackUrl = tokenExchangeRedirectUri ?? PublicUrl.FacebookCallbackUrl(request, settings);
+        var brandContext = SocialAccountKinds.IsBrand(pending.Kind);
+        var (userToken, tokenError) = await facebookService.ObtainUserAccessTokenAsync(code, callbackUrl);
+        if (userToken is null)
+        {
+            return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(tokenError ?? "Instagram authorization failed. Try again.")}");
+        }
+
+        var outcome = await instagramService.CompleteAuthorizationAsync(userToken, brandContext);
+        if (outcome.Status == InstagramAuthStatus.NeedsAccountSelection &&
+            outcome.LinksToSelect is not null &&
+            !string.IsNullOrWhiteSpace(outcome.UserAccessToken))
+        {
+            var pickToken = Guid.NewGuid().ToString("N");
+            await InstagramPagePickStateStore.SaveAsync(cache, pickToken, new InstagramPagePickPending
+            {
+                UserId = pending.UserId,
+                ReturnUrl = returnUrl,
+                Kind = pending.Kind,
+                UserAccessToken = outcome.UserAccessToken,
+                Accounts = outcome.LinksToSelect.Select(l => new InstagramAccountOption
+                {
+                    PageId = l.Page.Id,
+                    PageName = l.Page.Name,
+                    PageAccessToken = l.Page.AccessToken,
+                    IgUserId = l.Instagram.Id,
+                    IgUsername = l.Instagram.Username,
+                    IgDisplayName = l.Instagram.Name ?? l.Instagram.Username
+                }).ToList()
+            });
+            return Results.Redirect($"/social-accounts/connect/Instagram/select-account?token={Uri.EscapeDataString(pickToken)}");
+        }
+
+        if (outcome.Status != InstagramAuthStatus.Connected || outcome.Connection is null)
+        {
+            return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(outcome.Error ?? "Instagram authorization failed. Try again.")}");
+        }
+
+        var connection = outcome.Connection;
+        store.AddSocialAccountForUser(pending.UserId, new SocialAccount
+        {
+            Platform = "Instagram",
+            DisplayName = connection.Link.Instagram.Name ?? connection.Link.Instagram.Username,
+            Handle = connection.Link.Instagram.Username,
+            IsConnected = true,
+            ConnectedViaOAuth = true,
+            AccountKind = pending.Kind,
+            AccessToken = connection.Link.Page.AccessToken,
+            RefreshToken = connection.UserAccessToken,
+            ExternalAccountId = connection.Link.Instagram.Id
+        }, pending.Kind);
+        if (SocialAccountKinds.IsAuthor(pending.Kind))
+            store.AddScheduleForUser(pending.UserId, new SocialSchedule { Platform = "Instagram", PostsPerWeek = 1, RequiresApproval = true });
+        return Results.Redirect(returnUrl);
     }
 }

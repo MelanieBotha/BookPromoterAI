@@ -1,4 +1,28 @@
 {
+  "1.9.48": {
+    "title": "BookPromoter AI v1.9.48 — What's new",
+    "updated": [
+      "Instagram OAuth uses the Facebook callback URL so Meta redirects back with an authorization code instead of stopping at Business Integration"
+    ],
+    "new": [],
+    "added": []
+  },
+  "1.9.47": {
+    "title": "BookPromoter AI v1.9.47 — What's new",
+    "updated": [
+      "Instagram OAuth avoids IG onboarding extras that hang on re-link; config mode uses Login Configuration with Instagram permissions"
+    ],
+    "new": [],
+    "added": []
+  },
+  "1.9.46": {
+    "title": "BookPromoter AI v1.9.46 — What's new",
+    "updated": [
+      "Instagram OAuth uses Meta IG onboarding parameters; Owner guide explains Invalid Scopes fix (add Instagram API with Facebook login to the Meta app)"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.9.45": {
     "title": "BookPromoter AI v1.9.45 — What's new",
     "updated": [],

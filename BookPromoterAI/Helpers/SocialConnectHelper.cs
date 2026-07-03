@@ -36,13 +36,16 @@ static class SocialConnectHelper
     }
 
     public static bool IsAllowedReturnUrl(string? url) =>
-        url == OwnerReturnPath || url.StartsWith("/owner-promos", StringComparison.OrdinalIgnoreCase) || url == "/my-account";
+        !string.IsNullOrWhiteSpace(url)
+        && (url == OwnerReturnPath || url.StartsWith("/owner-promos", StringComparison.OrdinalIgnoreCase) || url == "/my-account");
 
     public static string ResolveAccountKind(string? returnUrl) =>
-        returnUrl.StartsWith("/owner-promos", StringComparison.OrdinalIgnoreCase) ? SocialAccountKinds.Brand : SocialAccountKinds.Author;
+        !string.IsNullOrWhiteSpace(returnUrl) && returnUrl.StartsWith("/owner-promos", StringComparison.OrdinalIgnoreCase)
+            ? SocialAccountKinds.Brand
+            : SocialAccountKinds.Author;
 
     public static bool IsBrandContext(string? returnUrl) =>
-        returnUrl.StartsWith("/owner-promos", StringComparison.OrdinalIgnoreCase);
+        !string.IsNullOrWhiteSpace(returnUrl) && returnUrl.StartsWith("/owner-promos", StringComparison.OrdinalIgnoreCase);
 
     public static string ConnectButtons(string returnUrl)
     {
@@ -343,7 +346,7 @@ static class SocialConnectHelper
             ? string.Join(" ", PublicUrl.InstagramCallbackUrlsForMeta(settings).Select(u => $"<code>{H.Encode(u)}</code>"))
             : $"<code>https://bookpromoterai.us{InstagramService.CallbackPath}</code>";
         var activeCallback = request is not null && settings is not null
-            ? $"""<p class="notice">Redirect URI: <code>{H.Encode(PublicUrl.InstagramCallbackUrl(request, settings))}</code></p>"""
+            ? $"""<p class="notice">OAuth redirect URI: <code>{H.Encode(PublicUrl.InstagramOAuthRedirectUrl(request, settings))}</code> (same as Facebook — required for Meta to return to the app)</p>"""
             : "";
         var connectBlock = !configured
             ? """
@@ -364,6 +367,7 @@ static class SocialConnectHelper
                     <li>Owner: add Instagram redirect URIs in Meta (see <strong>Owner → Instagram API</strong>).</li>
                 </ol>
                 <p class="muted">Instagram posting uses the same Meta app as Facebook. Personal Instagram accounts cannot be connected via the API.</p>
+                <p class="muted"><strong>If Meta shows &ldquo;Got it&rdquo; but never returns to BookPromoter AI:</strong> Meta linked the app as a Business Integration without sending an OAuth code. Remove <strong>AuthorPromoter AI</strong> at <a href="https://www.facebook.com/settings?tab=business_tools" target="_blank" rel="noopener">Business integrations</a>, then connect again — you should land back on BookPromoter AI automatically.</p>
                 <div class="form-actions">
                     <a class="button" href="/social-accounts/connect/Instagram?return={H.Encode(returnUrl)}" style="background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)">Sign in with Facebook for Instagram</a>
                     <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>

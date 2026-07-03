@@ -357,15 +357,16 @@ static class OwnerPage
                         <li>Confirm the Page shows <strong>Boost Instagram post</strong> in the left menu (means IG is linked).</li>
                     </ol>
 
-                    <h3 style="margin-top:16px">Step 3 — Meta developer app</h3>
+                    <p class="notice error"><strong>If Facebook shows &ldquo;Invalid Scopes: instagram_basic, instagram_content_publish&rdquo;</strong> — your Meta app is missing the Instagram product. Do <em>not</em> create a separate AuthorPromoter AI-IG app. On <strong>AuthorPromoter AI</strong> (<code>1820670845576321</code>): left sidebar → <strong>Add products</strong> (or <strong>Instagram</strong>) → <strong>API setup with Facebook login</strong> → <strong>Set up</strong>. Then <strong>Permissions and features</strong> will list <code>instagram_basic</code> and <code>instagram_content_publish</code> — add them as <em>Ready for testing</em>.</p>
+
+                    <h3 style="margin-top:16px">Step 3 — Meta developer app (AuthorPromoter AI only)</h3>
                     <ol class="plan-features">
-                        <li>Open <a href="https://developers.facebook.com/apps/1820670845576321" target="_blank" rel="noopener">AuthorPromoter AI</a> in Meta Developers.</li>
-                        <li>Under <strong>Use cases</strong>, ensure <strong>Instagram API</strong> (or Manage messaging &amp; content on Instagram) is added.</li>
-                        <li><strong>Use cases → Customize</strong> — add and set to <em>Ready for testing</em>:
-                            <code>instagram_basic</code>, <code>instagram_content_publish</code>, <code>pages_show_list</code>, <code>pages_read_engagement</code></li>
-                        <li><strong>Facebook Login for Business → Settings → Valid OAuth Redirect URIs</strong> — add every Instagram callback (same list as Facebook API):
+                        <li>Open <a href="https://developers.facebook.com/apps/1820670845576321" target="_blank" rel="noopener">AuthorPromoter AI</a> — <strong>not</strong> AuthorPromoter AI-IG.</li>
+                        <li>Left sidebar → <strong>Add products</strong> → find <strong>Instagram</strong> → <strong>Set up</strong> → choose <strong>API setup with Facebook login</strong> (uses Facebook Login, same as BookPromoter AI).</li>
+                        <li><strong>Use cases</strong> → <strong>Manage everything on your Page</strong> → <strong>Customize</strong> → <strong>Permissions and features</strong> → add <code>instagram_basic</code> and <code>instagram_content_publish</code> (<em>Ready for testing</em>).</li>
+                        <li><strong>Facebook Login for Business → Settings → Valid OAuth Redirect URIs</strong> — Instagram uses the <strong>same</strong> callback as Facebook (not a separate Instagram path):
                             <ul class="plan-features">
-                                {string.Concat(PublicUrl.InstagramCallbackUrlsForMeta(store.Settings).Select(u => $"<li><code>{H.Encode(u)}</code></li>"))}
+                                {string.Concat(PublicUrl.FacebookCallbackUrlsForMeta(store.Settings).Select(u => $"<li><code>{H.Encode(u)}</code></li>"))}
                             </ul>
                         </li>
                         <li><strong>App roles:</strong> your Facebook account must be Administrator or Developer on the app.</li>
@@ -379,6 +380,8 @@ static class OwnerPage
                         <li>Test: <a href="/owner-promos?section=promote-app">Promote BookPromoter AI</a> → <strong>Post</strong> on Instagram (logo + caption).</li>
                     </ol>
 
+                    <p class="muted"><strong>If Connect spins on &ldquo;Continue as BookPromoter AI?&rdquo;</strong> — you linked Facebook earlier without Instagram permissions. Click <strong>Edit settings</strong> on the Meta dialog and approve Instagram access. If it still hangs, remove <strong>AuthorPromoter AI</strong> under <a href="https://www.facebook.com/settings?tab=business_tools" target="_blank" rel="noopener">Facebook → Business integrations</a>, then retry in a private window.</p>
+                    <p class="muted"><strong>Config OAuth mode:</strong> if Railway uses <code>Facebook__OAuthMode=config</code>, edit your Meta <strong>Login Configuration</strong> and add <code>instagram_basic</code> + <code>instagram_content_publish</code> to its permissions list.</p>
                     <p class="muted"><strong>Note:</strong> Personal Instagram accounts cannot use the API. Authors connect their own IG the same way from <strong>My Account → Connect Instagram</strong> (linked to their author Facebook Page, not BookPromoter&apos;s).</p>
                     <p class="muted"><strong>App review:</strong> While the app is in Development mode, only app admins can connect. For public author use, submit <code>instagram_content_publish</code> for Meta App Review when ready.</p>
                 </div>

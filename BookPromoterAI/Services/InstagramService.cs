@@ -7,6 +7,8 @@ namespace BookPromoterAI;
 class InstagramService
 {
     public const string CallbackPath = "/social-accounts/oauth-callback/instagram";
+    /// <summary>OAuth redirect URI — same as Facebook so Meta returns an authorization code reliably.</summary>
+    public const string OAuthRedirectPath = FacebookService.CallbackPath;
     public const string Scopes =
         "pages_show_list,pages_read_engagement,public_profile,instagram_basic,instagram_content_publish";
 
