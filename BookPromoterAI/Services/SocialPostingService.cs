@@ -49,7 +49,7 @@ class SocialPostingService
             return await PostToLinkedInLive(account, postText, cancellationToken);
 
         if (PostLimits.IsFacebook(account.Platform) && account.IsLiveConnection)
-            return await PostToFacebookLive(account, postText, cancellationToken);
+            return await PostToFacebookLive(account, postText, media, cancellationToken);
 
         var result = account.Platform.ToLowerInvariant() switch
         {
@@ -177,16 +177,44 @@ class SocialPostingService
     async Task<PostingOutcome> PostToFacebookLive(
         SocialAccount account,
         string postText,
+        BookPostMedia? media,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(account.AccessToken) || string.IsNullOrWhiteSpace(account.ExternalAccountId))
             return new PostingOutcome { Result = PostingResult.Failure("Facebook is not connected. Reconnect your Page in My Account.") };
 
+        string? photoUrl = null;
+        byte[]? photoBytes = null;
+        string? photoMime = null;
+        if (media is not null)
+        {
+            var baseUrl = ResolveBaseUrl(media.AppBaseUrl);
+            if (!string.IsNullOrWhiteSpace(media.TrackingCode))
+                photoUrl = PostBranding.BookCoverShareUrl(baseUrl, media.TrackingCode);
+            else if (!string.IsNullOrWhiteSpace(media.CoverImageUrl))
+                photoUrl = PostBranding.AbsoluteImageUrl(baseUrl, media.CoverImageUrl);
+
+            var image = await BookCoverLoader.TryLoadAsync(
+                _http,
+                _uploads.Path,
+                baseUrl,
+                media.BookTitle,
+                media.CoverImageUrl,
+                media.TrackingCode,
+                cancellationToken);
+            if (image is not null)
+            {
+                photoBytes = image.Data;
+                photoMime = image.MimeType;
+            }
+        }
+
         var connection = new FacebookPageConnection(
             new FacebookPage(account.ExternalAccountId, account.DisplayName, account.Handle, account.AccessToken),
             account.RefreshToken ?? "");
 
-        var (result, updated) = await _facebook.PostAsync(connection, postText, cancellationToken);
+        var (result, updated) = await _facebook.PostAsync(
+            connection, postText, photoUrl, photoBytes, photoMime, cancellationToken);
         return new PostingOutcome
         {
             Result = result,
