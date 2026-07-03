@@ -68,6 +68,37 @@ class InstagramService
         return InstagramAuthOutcome.NeedsAccountSelection(authorLinks, userAccessToken);
     }
 
+    /// <summary>Discover IG via an already-connected Facebook Page (page token), without listing pages from the user token.</summary>
+    public async Task<InstagramAuthOutcome> CompleteAuthorizationFromConnectedFacebookAsync(
+        string pageId,
+        string pageAccessToken,
+        string pageName,
+        string pageHandle,
+        string? userAccessToken,
+        bool brandContext,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(pageId) || string.IsNullOrWhiteSpace(pageAccessToken))
+            return InstagramAuthOutcome.Failed("Facebook Page token missing. Reconnect Facebook in Brand Social Accounts.");
+
+        var page = new FacebookPage(pageId, pageName, pageHandle, pageAccessToken);
+        var ig = await GetInstagramBusinessAccountAsync(page.Id, page.AccessToken, cancellationToken);
+        if (ig is null)
+            return InstagramAuthOutcome.Failed(
+                "No Instagram account is linked to your Facebook Page. In Meta Business Suite, link your Instagram Business account to the Book Promoter AI Page, then try again.");
+
+        var userToken = userAccessToken ?? "";
+        var link = new InstagramPageLink(page, ig);
+        if (brandContext)
+            return InstagramAuthOutcome.Connected(new InstagramConnection(link, userToken));
+
+        if (FacebookService.IsBookPromoterBrandPage(page))
+            return InstagramAuthOutcome.Failed(
+                "Only the BookPromoter AI business Page was detected. Link your author Instagram to your own Facebook Page.");
+
+        return InstagramAuthOutcome.Connected(new InstagramConnection(link, userToken));
+    }
+
     public async Task<InstagramBusinessAccount?> GetInstagramBusinessAccountAsync(
         string pageId, string pageAccessToken, CancellationToken cancellationToken = default)
     {

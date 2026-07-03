@@ -1,4 +1,12 @@
 {
+  "1.9.50": {
+    "title": "BookPromoter AI v1.9.50 — What's new",
+    "updated": [
+      "Link Instagram from Facebook uses the connected Page token directly (fixes No Facebook Pages found)"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.9.49": {
     "title": "BookPromoter AI v1.9.49 — What's new",
     "updated": [

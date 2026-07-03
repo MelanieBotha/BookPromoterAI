@@ -249,14 +249,20 @@ static class SocialAccountRoutes
             if (SocialAccountKinds.IsBrand(kind) && !store.IsOwner) return Results.Redirect("/my-account");
 
             var fbAccount = FindFacebookAccountForLink(store, kind);
-            if (fbAccount is null || string.IsNullOrWhiteSpace(fbAccount.RefreshToken))
+            if (fbAccount is null || string.IsNullOrWhiteSpace(fbAccount.AccessToken) || string.IsNullOrWhiteSpace(fbAccount.ExternalAccountId))
             {
                 return Results.Redirect(
                     $"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Connect Facebook first, then try Link from Facebook again.")}");
             }
 
             var brandContext = SocialAccountKinds.IsBrand(kind);
-            var outcome = await instagramService.CompleteAuthorizationAsync(fbAccount.RefreshToken, brandContext);
+            var outcome = await instagramService.CompleteAuthorizationFromConnectedFacebookAsync(
+                fbAccount.ExternalAccountId,
+                fbAccount.AccessToken,
+                fbAccount.DisplayName,
+                fbAccount.Handle,
+                fbAccount.RefreshToken,
+                brandContext);
             if (outcome.Status == InstagramAuthStatus.Connected && outcome.Connection is not null)
             {
                 var connection = outcome.Connection;
@@ -846,6 +852,7 @@ static class SocialAccountRoutes
         return accounts.FirstOrDefault(a =>
             PostLimits.IsFacebook(a.Platform) &&
             a.IsConnected &&
-            !string.IsNullOrWhiteSpace(a.RefreshToken));
+            !string.IsNullOrWhiteSpace(a.AccessToken) &&
+            !string.IsNullOrWhiteSpace(a.ExternalAccountId));
     }
 }
