@@ -866,20 +866,27 @@ static class SocialAccountRoutes
         var refreshed = pages.FirstOrDefault(p => p.Id == fbAccount.ExternalAccountId);
         if (refreshed is null)
         {
+            if (outcome.Status == InstagramAuthStatus.Failed && !string.IsNullOrWhiteSpace(outcome.Error))
+                return outcome;
             return InstagramAuthOutcome.Failed(
-                "Facebook session expired. In Brand Social Accounts, disconnect and reconnect Facebook, then try Link from Facebook again.");
+                "Could not refresh Facebook Page access. Disconnect and reconnect Facebook in Brand Social Accounts (approve Instagram permissions), then try Link from Facebook again.");
         }
 
         fbAccount.AccessToken = refreshed.AccessToken;
         store.UpdateSocialAccount(fbAccount, kind);
 
-        return await instagramService.CompleteAuthorizationFromConnectedFacebookAsync(
+        var retry = await instagramService.CompleteAuthorizationFromConnectedFacebookAsync(
             refreshed.Id,
             refreshed.AccessToken,
             refreshed.Name,
             refreshed.Handle,
             fbAccount.RefreshToken,
             brandContext);
+        if (retry.Status == InstagramAuthStatus.Connected)
+            return retry;
+        if (!string.IsNullOrWhiteSpace(retry.Error))
+            return retry;
+        return outcome;
     }
 
     static SocialAccount? FindFacebookAccountForLink(AppStoreDb store, string kind)

@@ -351,7 +351,8 @@ static class SocialConnectHelper
         var facebookLinkButton = canLinkFromFacebook
             ? $"""
                 <a class="button" href="/social-accounts/connect/Instagram/from-facebook?return={H.Encode(returnUrl)}" style="background:#1877F2">Link Instagram from connected Facebook</a>
-                <p class="muted small-text"><strong>Try this first</strong> if Facebook is already connected — skips the Meta login dialog.</p>
+                <p class="muted small-text"><strong>Try this first</strong> after Facebook is connected with Instagram permissions. If you see a session or permission error, reconnect Facebook below first.</p>
+                <p class="muted small-text"><a href="/social-accounts/connect/Facebook?return={H.Encode(returnUrl)}">Reconnect Facebook</a> (grants Instagram API access for brand posting) — then use Link from Facebook.</p>
                 """
             : "";
         var connectBlock = !configured
