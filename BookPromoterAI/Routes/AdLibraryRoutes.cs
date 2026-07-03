@@ -10,7 +10,7 @@ static class AdLibraryRoutes
             var search = request.Query["search"].ToString();
             var focus = request.Query["focus"].ToString();
             var notice = request.Query["generated"] == "1"
-                ? """<div class="notice success">This week's unapproved posts have been refreshed with the latest captions and book links. Approved posts were left unchanged.</div>"""
+                ? """<div class="notice success">Unapproved posts for this week were replaced with new books, platforms, and captions. Approved and already-posted ads were left unchanged.</div>"""
                 : request.Query["regenerated"] == "1"
                     ? """<div class="notice success">Post regenerated.</div>"""
                     : request.Query["approved"] == "1"
@@ -26,7 +26,7 @@ static class AdLibraryRoutes
         app.MapPost("/ad-library/generate-week", (HttpRequest request, AppStoreDb store, AppSettings settings) =>
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
-            store.GenerateWeeklyPosts(generator, PublicUrl.Base(request, settings));
+            store.GenerateWeeklyPosts(generator, PublicUrl.Base(request, settings), replaceUnapproved: true);
             return Results.Redirect("/ad-library?generated=1");
         });
 

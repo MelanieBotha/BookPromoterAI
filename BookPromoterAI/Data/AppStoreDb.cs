@@ -1238,7 +1238,7 @@ class AppStoreDb
         return "Weekly auto-send is on — readers get one featured book per week (checked every 5 minutes).";
     }
 
-    public List<GeneratedAd> GenerateWeeklyPosts(PostGenerator generator, string baseUrl)
+    public List<GeneratedAd> GenerateWeeklyPosts(PostGenerator generator, string baseUrl, bool replaceUnapproved = false)
     {
         var touched = new List<GeneratedAd>();
         var books = Books;
@@ -1251,6 +1251,7 @@ class AppStoreDb
 
         using var db = Db();
         var booksById = db.Books.Include(b => b.Links).Where(b => b.UserId == uid).ToDictionary(b => b.Id);
+        var bookList = booksById.Values.ToList();
         var weekAds = db.GeneratedAds
             .Where(a => a.UserId == uid && a.WeekNumber == currentWeek && a.WeekYear == currentYear)
             .ToList();
@@ -1262,13 +1263,27 @@ class AppStoreDb
             weekAds.Remove(ad);
         }
 
-        foreach (var ad in weekAds)
+        if (replaceUnapproved)
         {
-            if (ad.ApprovedForPosting || ad.PostStatus == "Posted") continue;
-            if (!booksById.TryGetValue(ad.BookId, out var book)) continue;
-            RefreshGeneratedAdEntity(ad, book, generator, baseUrl);
-            ad.WeekLabel = weekLabel;
-            touched.Add(ToModel(ad));
+            var protectedAds = weekAds.Where(a => a.ApprovedForPosting || a.PostStatus == "Posted").ToList();
+            var disposable = weekAds.Except(protectedAds).ToList();
+            if (disposable.Count > 0)
+            {
+                db.GeneratedAds.RemoveRange(disposable);
+                foreach (var ad in disposable)
+                    weekAds.Remove(ad);
+            }
+        }
+        else
+        {
+            foreach (var ad in weekAds)
+            {
+                if (ad.ApprovedForPosting || ad.PostStatus == "Posted") continue;
+                if (!booksById.TryGetValue(ad.BookId, out var book)) continue;
+                RefreshGeneratedAdEntity(ad, book, generator, baseUrl);
+                ad.WeekLabel = weekLabel;
+                touched.Add(ToModel(ad));
+            }
         }
 
         var postsThisWeekByPlatform = weekAds
@@ -1284,8 +1299,8 @@ class AppStoreDb
 
             for (var i = 0; i < needed; i++)
             {
-                var bookModel = books[bookIndex % books.Count];
-                if (!booksById.TryGetValue(bookModel.Id, out var dbBook)) { bookIndex++; continue; }
+                var dbBook = PickBookForNewAd(bookList, weekAds, schedule.Platform, ref bookIndex);
+                if (dbBook is null) continue;
 
                 dbBook.PostVariantSeed++;
                 var refreshedModel = ToModel(dbBook);
@@ -1308,12 +1323,27 @@ class AppStoreDb
                 weekAds.Add(created);
                 postsThisWeekByPlatform[schedule.Platform] = postsThisWeekByPlatform.GetValueOrDefault(schedule.Platform, 0) + 1;
                 touched.Add(ToModel(created));
-                bookIndex++;
             }
         }
 
         db.SaveChanges();
         return touched;
+    }
+
+    static DbBook? PickBookForNewAd(List<DbBook> books, List<DbGeneratedAd> weekAds, string platform, ref int bookIndex)
+    {
+        if (books.Count == 0) return null;
+        for (var attempt = 0; attempt < books.Count; attempt++)
+        {
+            var candidate = books[bookIndex % books.Count];
+            bookIndex++;
+            var alreadyUsed = weekAds.Any(a =>
+                PostLimits.PlatformsMatch(a.Platform, platform) && a.BookId == candidate.Id);
+            if (!alreadyUsed || books.Count == 1)
+                return candidate;
+        }
+
+        return books[(bookIndex++) % books.Count];
     }
 
     static void RefreshGeneratedAdEntity(DbGeneratedAd ad, DbBook book, PostGenerator generator, string baseUrl)

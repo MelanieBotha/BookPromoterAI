@@ -131,7 +131,7 @@ static class AdLibraryPage
                     <p class="eyebrow">Ad Library</p>
                     <h1>AI-generated posts by week.</h1>
                     <p class="muted">{totalAds} post(s) total &middot; {thisWeekCount} this week ({H.Encode(currentWeekLabel)}) &middot; Schedule: {scheduledPerWeek} posts/week across {store.Schedules.Count(s => s.PostsPerWeek > 0)} platform(s)</p>
-                    <p class="muted small-text"><strong>Copy post</strong> copies the caption only. Your book link is on the <strong>last line</strong> — Facebook and X use the last URL for the preview image. Keep only that one link so readers see your book cover. <strong>Generate This Week's Posts</strong> refreshes unapproved posts for the current week; approved or already-posted ads are left unchanged. Auto-post runs every <strong>5 minutes</strong> and spaces posts evenly across the week — use <strong>Post now</strong> to publish immediately.</p>
+                    <p class="muted small-text"><strong>Copy post</strong> copies the caption only. Your book link is on the <strong>last line</strong> — Facebook and X use the last URL for the preview image. Keep only that one link so readers see your book cover. <strong>Generate This Week's Posts</strong> replaces every unapproved post this week with a new book, platform, and caption; approved and already-posted ads are left unchanged. Auto-post runs every <strong>5 minutes</strong> and spaces posts evenly across the week — use <strong>Post now</strong> to publish immediately.</p>
                 </div>
                 <form method="post" action="/ad-library/generate-week">
                     <button class="button" type="submit">Generate This Week's Posts</button>
