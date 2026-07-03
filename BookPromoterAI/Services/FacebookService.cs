@@ -43,7 +43,7 @@ class FacebookService
             ["response_type"] = "code"
         };
 
-        if (_settings.FacebookUsesConfigLogin && brandContext && !forInstagram)
+        if (_settings.FacebookUsesConfigLogin && !brandContext && !forInstagram)
         {
             if (string.IsNullOrWhiteSpace(_settings.FacebookLoginConfigId))
                 throw new InvalidOperationException("Facebook Login Config ID is not configured.");
@@ -56,9 +56,9 @@ class FacebookService
                 : brandContext
                     ? BrandScopes
                     : Scopes;
-            if (forInstagram || brandContext)
+            if (forInstagram)
                 query["auth_type"] = "reauthenticate";
-            else
+            else if (!brandContext)
                 query["auth_type"] = "rerequest";
         }
 

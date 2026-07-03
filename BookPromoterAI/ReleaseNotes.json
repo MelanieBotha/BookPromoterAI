@@ -1,4 +1,12 @@
 {
+  "1.9.53": {
+    "title": "BookPromoter AI v1.9.53 — What's new",
+    "updated": [
+      "Fix brand Facebook reconnect hanging on Meta Continue — use scope OAuth with Instagram permissions instead of config_id/reauthenticate"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.9.52": {
     "title": "BookPromoter AI v1.9.52 — What's new",
     "updated": [
