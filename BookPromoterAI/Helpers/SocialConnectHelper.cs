@@ -276,7 +276,14 @@ static class SocialConnectHelper
                     <a class="button secondary" href="/my-account">Back</a>
                     """
                 : $"""
-                <p class="muted">You will sign in with Facebook as yourself, then connect a <strong>Facebook Page</strong> for your author brand (not your personal news feed). If Facebook shows a previous connection, click <strong>Edit settings</strong> and pick your author Page — not the BookPromoter AI business Page.</p>
+                {(brandContext
+                    ? """
+                    <p class="muted">Sign in with your <strong>personal</strong> Facebook account that admins the Book Promoter AI Page.</p>
+                    <p class="muted"><strong>If Meta says &ldquo;Continue as BookPromoter AI?&rdquo;</strong> — click <strong>Edit settings</strong> (never Continue — it hangs). Walk through Pages → approve permissions → Save. You must return to bookpromoterai.us.</p>
+                    """
+                    : """
+                    <p class="muted">You will sign in with Facebook as yourself, then connect a <strong>Facebook Page</strong> for your author brand (not your personal news feed). If Facebook shows a previous connection, click <strong>Edit settings</strong> and pick your author Page — not the BookPromoter AI business Page.</p>
+                    """)}
                 <div class="form-actions">
                     <a class="button" href="/social-accounts/connect/Facebook?return={H.Encode(returnUrl)}" style="background:#1877F2">Sign in with Facebook</a>
                     <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
@@ -351,10 +358,13 @@ static class SocialConnectHelper
         var facebookLinkButton = canLinkFromFacebook
             ? $"""
                 <a class="button" href="/social-accounts/connect/Instagram/from-facebook?return={H.Encode(returnUrl)}" style="background:#1877F2">Link Instagram from connected Facebook</a>
-                <p class="muted small-text"><strong>Try this first</strong> after Facebook is connected with Instagram permissions. If you see a session or permission error, reconnect Facebook below first.</p>
-                <p class="muted small-text"><a href="/social-accounts/connect/Facebook?return={H.Encode(returnUrl)}">Reconnect Facebook</a> (grants Instagram API access for brand posting) — then use Link from Facebook.</p>
+                <p class="muted small-text"><strong>Try this first</strong> if Facebook is already connected.</p>
                 """
             : "";
+        var grantButton = $"""
+            <a class="button" href="/social-accounts/connect/Instagram?return={H.Encode(returnUrl)}&amp;go=grant" style="background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)">Grant Instagram access &amp; link</a>
+            <p class="muted small-text">Opens Meta to approve Instagram permissions, then links automatically. On &ldquo;Continue as BookPromoter AI?&rdquo; click <strong>Edit settings</strong> — not Continue.</p>
+            """;
         var connectBlock = !configured
             ? """
                 <p class="notice error">Meta API credentials are not configured yet. The app owner must add Facebook App ID and secret in Railway before authors can connect Instagram.</p>
@@ -374,11 +384,10 @@ static class SocialConnectHelper
                     <li>Owner: add Instagram redirect URIs in Meta (see <strong>Owner → Instagram API</strong>).</li>
                 </ol>
                 <p class="muted">Instagram posting uses the same Meta app as Facebook. Personal Instagram accounts cannot be connected via the API.</p>
-                <p class="muted"><strong>If Meta says &ldquo;Continue as BookPromoter AI&rdquo; and spins:</strong> click <strong>Not BookPromoter AI? Log into another account</strong> and sign in with your <em>personal</em> Facebook profile (the one that admins the Page) — not the business portfolio.</p>
-                <p class="muted"><strong>If Meta shows &ldquo;Got it&rdquo; but never returns to BookPromoter AI:</strong> remove <strong>AuthorPromoter AI</strong> at <a href="https://www.facebook.com/settings?tab=business_tools" target="_blank" rel="noopener">Business integrations</a>, then use <strong>Link from connected Facebook</strong> or Sign in below.</p>
+                <p class="muted"><strong>Order:</strong> (1) <a href="/social-accounts/connect/Facebook?return={H.Encode(returnUrl)}">Connect Facebook</a> first. (2) Link from Facebook, or Grant Instagram access if link fails.</p>
                 <div class="form-actions">
                     {facebookLinkButton}
-                    <a class="button" href="/social-accounts/connect/Instagram?return={H.Encode(returnUrl)}&amp;go=1" style="background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)">Sign in with Facebook for Instagram</a>
+                    {grantButton}
                     <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
                 </div>
                 """;

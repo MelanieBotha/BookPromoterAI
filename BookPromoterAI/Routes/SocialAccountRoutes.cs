@@ -208,7 +208,8 @@ static class SocialAccountRoutes
                 }
 
                 var canLinkFromFacebook = FindFacebookAccountForLink(store, kind) is not null;
-                var startOAuth = string.Equals(request.Query["go"], "1", StringComparison.Ordinal);
+                var startOAuth = string.Equals(request.Query["go"], "grant", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(request.Query["go"], "1", StringComparison.Ordinal);
 
                 if (startOAuth)
                 {
@@ -826,6 +827,8 @@ static class SocialAccountRoutes
         }
 
         var connection = outcome.Connection;
+        SyncFacebookAccountFromInstagramConnection(store, pending.Kind, connection);
+
         store.AddSocialAccountForUser(pending.UserId, new SocialAccount
         {
             Platform = "Instagram",
@@ -887,6 +890,18 @@ static class SocialAccountRoutes
         if (!string.IsNullOrWhiteSpace(retry.Error))
             return retry;
         return outcome;
+    }
+
+    static void SyncFacebookAccountFromInstagramConnection(
+        AppStoreDb store, string kind, InstagramConnection connection)
+    {
+        var fb = FindFacebookAccountForLink(store, kind);
+        if (fb is null) return;
+        if (!string.Equals(fb.ExternalAccountId, connection.Link.Page.Id, StringComparison.Ordinal))
+            return;
+        fb.AccessToken = connection.Link.Page.AccessToken;
+        fb.RefreshToken = connection.UserAccessToken;
+        store.UpdateSocialAccount(fb, kind);
     }
 
     static SocialAccount? FindFacebookAccountForLink(AppStoreDb store, string kind)

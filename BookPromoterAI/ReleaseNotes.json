@@ -1,4 +1,12 @@
 {
+  "1.9.54": {
+    "title": "BookPromoter AI v1.9.54 — What's new",
+    "updated": [
+      "Fix Meta OAuth hang: brand Facebook uses Page scopes only; Instagram permissions granted in a separate step without auth_type"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.9.53": {
     "title": "BookPromoter AI v1.9.53 — What's new",
     "updated": [

@@ -8,9 +8,6 @@ class FacebookService
 {
     public const string CallbackPath = "/social-accounts/oauth-callback/facebook";
     public const string Scopes = "pages_show_list,pages_manage_posts,pages_read_engagement,public_profile";
-    /// <summary>Owner brand connect — Page posting plus Instagram discovery/publish.</summary>
-    public const string BrandScopes =
-        "pages_show_list,pages_manage_posts,pages_read_engagement,public_profile,instagram_basic,instagram_content_publish";
     /// <summary>Permissions to enable on the Meta Login Configuration (config mode only).</summary>
     public static readonly string[] LoginConfigurationPermissions =
         ["pages_show_list", "pages_manage_posts", "pages_read_engagement", "business_management", "public_profile",
@@ -51,14 +48,10 @@ class FacebookService
         }
         else
         {
-            query["scope"] = forInstagram
-                ? InstagramService.Scopes
-                : brandContext
-                    ? BrandScopes
-                    : Scopes;
-            if (forInstagram)
-                query["auth_type"] = "reauthenticate";
-            else if (!brandContext)
+            // Standard scope OAuth. Do NOT add auth_type for brand or Instagram — Meta's Business
+            // Integration "Continue as …?" dialog spins and never returns an authorization code.
+            query["scope"] = forInstagram ? InstagramService.Scopes : Scopes;
+            if (!brandContext && !forInstagram)
                 query["auth_type"] = "rerequest";
         }
 
