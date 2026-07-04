@@ -102,6 +102,9 @@ class AppStoreDb
     public string FacebookAppIdStatus => _settings.DescribeFacebookAppId();
     public string FacebookAppSecretStatus => _settings.DescribeFacebookAppSecret();
     public string FacebookLoginConfigIdStatus => _settings.DescribeFacebookLoginConfigId();
+    public bool IsRedditConfigured => _settings.IsRedditConfigured;
+    public string RedditClientIdStatus => _settings.DescribeRedditClientId();
+    public string RedditClientSecretStatus => _settings.DescribeRedditClientSecret();
 
     public DatabasePaths Database => _database;
 

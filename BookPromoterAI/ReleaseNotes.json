@@ -1,4 +1,15 @@
 {
+  "1.9.56": {
+    "title": "BookPromoter AI v1.9.56 — What's new",
+    "updated": [
+      "Owner Facebook connect shows a checklist before Meta OAuth and uses reauthenticate to avoid the Continue loop",
+      "Instagram removed; Reddit OAuth connect and live text posting added for authors and owner brand"
+    ],
+    "new": [
+      "Reddit API integration with subreddit selection on connect"
+    ],
+    "added": []
+  },
   "1.9.44": {
     "title": "BookPromoter AI v1.9.44 — What's new",
     "updated": [

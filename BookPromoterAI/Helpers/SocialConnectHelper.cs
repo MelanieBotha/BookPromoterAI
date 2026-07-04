@@ -7,7 +7,7 @@ static class SocialConnectHelper
     public const string OwnerReturnPath = "/owner-promos";
 
     public static readonly string[] DefaultPlatforms =
-        ["Facebook", "X", "Instagram", "LinkedIn", "Pinterest", "TikTok", "Bluesky"];
+        ["Facebook", "X", "Reddit", "LinkedIn", "Pinterest", "TikTok", "Bluesky"];
 
     public static readonly HashSet<string> DisabledPlatforms = new(StringComparer.OrdinalIgnoreCase) { "TikTok" };
 
@@ -20,7 +20,7 @@ static class SocialConnectHelper
     {
         ["Facebook"] = "#1877F2",
         ["X"] = "#000000",
-        ["Instagram"] = "#E4405F",
+        ["Reddit"] = "#FF4500",
         ["LinkedIn"] = "#0A66C2",
         ["Pinterest"] = "#E60023",
         ["TikTok"] = "#000000",
@@ -90,6 +90,9 @@ static class SocialConnectHelper
         if (PostLimits.IsFacebook(platformName))
             return FacebookSetupPage(returnUrl, notice, null);
 
+        if (PostLimits.IsReddit(platformName))
+            return RedditSetupPage(returnUrl, notice, null);
+
         if (IsPlatformDisabled(platformName))
         {
             return $"""
@@ -102,7 +105,7 @@ static class SocialConnectHelper
         }
         var brands = new Dictionary<string, (string Color, string Initial)>(StringComparer.OrdinalIgnoreCase)
         {
-            ["Facebook"] = ("#1877F2", "f"), ["X"] = ("#000000", "X"), ["Instagram"] = ("#E4405F", "IG"),
+            ["Facebook"] = ("#1877F2", "f"), ["X"] = ("#000000", "X"), ["Reddit"] = ("#FF4500", "R"),
             ["LinkedIn"] = ("#0A66C2", "in"), ["Pinterest"] = ("#E60023", "P"), ["TikTok"] = ("#000000", "T"),
             ["Bluesky"] = ("#0085FF", "B"),
         };
@@ -260,6 +263,20 @@ static class SocialConnectHelper
         var activeCallback = request is not null && settings is not null
             ? $"""<p class="notice">OAuth mode: <strong>{H.Encode(settings.FacebookUsesConfigLogin ? "config_id (Login for Business)" : "scope (Page permissions)")}</strong>. Redirect URI: <code>{H.Encode(PublicUrl.FacebookCallbackUrl(request, settings))}</code></p>"""
             : "";
+        var brandSteps = brandContext
+            ? """
+                <div class="notice">
+                    <strong>Before you continue:</strong>
+                    <ol class="plan-features">
+                        <li>Open <a href="https://www.facebook.com/settings?tab=business_tools&amp;section=active" target="_blank" rel="noopener">Facebook Business integrations</a> and remove <strong>AuthorPromoter AI</strong> if listed.</li>
+                        <li>Sign in as your <strong>personal</strong> Facebook account (Melanie Botha) — the one that admins the Book Promoter AI Page.</li>
+                        <li>On the Meta dialog, click <strong>Edit settings</strong> — never <strong>Continue</strong>.</li>
+                        <li>On <strong>Choose Pages</strong>, select <strong>Book Promoter AI</strong> only.</li>
+                    </ol>
+                </div>
+                """
+            : "";
+        var connectHref = $"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&go=1";
         var connectBlock = !configured
             ? """
                 <p class="notice error">Facebook API credentials are not configured yet. The app owner must add them in Railway before authors can connect.</p>
@@ -272,10 +289,19 @@ static class SocialConnectHelper
                     <p class="muted">Scope mode (default) only needs App ID + secret. Config mode also needs <code>Facebook__LoginConfigId</code> in Railway.</p>
                     <a class="button secondary" href="/my-account">Back</a>
                     """
-                : $"""
+                : brandContext
+                    ? $"""
+                {brandSteps}
+                <p class="muted">If Facebook keeps showing &ldquo;Continue as BookPromoter AI?&rdquo;, you must click <strong>Edit settings</strong> and re-select the Page. Clicking <strong>Continue</strong> will loop back without connecting.</p>
+                <div class="form-actions">
+                    <a class="button" href="{H.Encode(connectHref)}" style="background:#1877F2">Continue to Facebook sign-in</a>
+                    <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
+                </div>
+                """
+                    : $"""
                 <p class="muted">You will sign in with Facebook as yourself, then connect a <strong>Facebook Page</strong> for your author brand (not your personal news feed). If Facebook shows a previous connection, click <strong>Edit settings</strong> and pick your author Page — not the BookPromoter AI business Page.</p>
                 <div class="form-actions">
-                    <a class="button" href="/social-accounts/connect/Facebook?return={H.Encode(returnUrl)}" style="background:#1877F2">Sign in with Facebook</a>
+                    <a class="button" href="{H.Encode(connectHref)}" style="background:#1877F2">Sign in with Facebook</a>
                     <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
                 </div>
                 """;
@@ -327,86 +353,47 @@ static class SocialConnectHelper
             """;
     }
 
-    public static string InstagramSetupPage(string returnUrl, string notice, AppSettings? settings, HttpRequest? request = null)
+    public static string RedditSetupPage(string returnUrl, string notice, AppSettings? settings, HttpRequest? request = null)
     {
         var brandContext = IsBrandContext(returnUrl);
         var heading = brandContext
-            ? "Connect Book Promoter AI on Instagram"
-            : "Connect your Instagram account";
+            ? "Connect BookPromoter AI on Reddit"
+            : "Connect your Reddit account";
         var intro = brandContext
-            ? "Sign in with Facebook to post to the <strong>Book Promoter AI</strong> Instagram account linked to your business Page."
-            : "Sign in with Facebook to connect your <strong>Instagram Business or Creator</strong> account. It must be linked to a Facebook Page you manage (set this up in Meta Business Suite).";
+            ? "Post app promotions to a subreddit you moderate or where self-promotion is allowed."
+            : "Post book promotions to a subreddit you can submit to (for example a genre or self-promo community).";
         var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<div class="notice error">{H.Encode(notice)}</div>""";
-        var configured = settings?.IsFacebookConfigured == true;
-        var oauthReady = settings?.IsFacebookOAuthReady == true;
-        var callbackUrls = settings is not null
-            ? string.Join(" ", PublicUrl.InstagramCallbackUrlsForMeta(settings).Select(u => $"<code>{H.Encode(u)}</code>"))
-            : $"<code>https://bookpromoterai.us{InstagramService.CallbackPath}</code>";
-        var activeCallback = request is not null && settings is not null
-            ? $"""<p class="notice">Redirect URI: <code>{H.Encode(PublicUrl.InstagramCallbackUrl(request, settings))}</code></p>"""
-            : "";
-        var connectBlock = !configured
-            ? """
-                <p class="notice error">Meta API credentials are not configured yet. The app owner must add Facebook App ID and secret in Railway before authors can connect Instagram.</p>
-                <p class="muted">Owner: open <strong>Owner → Facebook API</strong> for setup steps (Instagram uses the same Meta app).</p>
-                <a class="button secondary" href="/my-account">Back</a>
+        var configured = settings?.IsRedditConfigured == true;
+        var callbackExample = settings is not null && !string.IsNullOrWhiteSpace(settings.PublicBaseUrl)
+            ? RedditService.CallbackUrl(settings.PublicBaseUrl.TrimEnd('/'))
+            : $"https://bookpromoterai.us{RedditService.CallbackPath}";
+        var defaultSub = brandContext ? "BookPromoterAI" : "";
+        var connectBlock = configured
+            ? $"""
+                <p class="muted">The first line of each post becomes the Reddit title; the rest is the post body.</p>
+                <form method="post" action="/social-accounts/connect/Reddit/start" class="form">
+                    <input type="hidden" name="return" value="{H.Encode(returnUrl)}">
+                    <label>Subreddit (without r/) <input name="subreddit" value="{H.Encode(defaultSub)}" placeholder="selfpublish" required></label>
+                    <div class="form-actions">
+                        <button class="button" type="submit" style="background:#FF4500">Sign in with Reddit</button>
+                        <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
+                    </div>
+                </form>
                 """
-            : !oauthReady
-                ? """
-                    <p class="notice error">Meta App ID and secret are set, but OAuth is not ready.</p>
-                    <a class="button secondary" href="/my-account">Back</a>
-                    """
-                : $"""
-                <p class="muted">Instagram posting uses the same Meta app as Facebook. Your Instagram must be a <strong>Business or Creator</strong> profile linked to a Facebook Page — personal Instagram accounts cannot be connected via the API.</p>
-                <div class="form-actions">
-                    <a class="button" href="/social-accounts/connect/Instagram?return={H.Encode(returnUrl)}" style="background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)">Sign in with Facebook for Instagram</a>
-                    <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
-                </div>
+            : """
+                <p class="notice error">Reddit API credentials are not configured yet. The app owner must add them in Railway before authors can connect.</p>
+                <p class="muted">Owner: open <strong>Owner → Reddit API</strong> for setup steps.</p>
+                <a class="button secondary" href="/my-account">Back</a>
                 """;
         return $"""
             <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>{heading}</h1></div></section>
             <section class="panel oauth-panel">
-                <div class="oauth-platform-badge" style="background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)">IG</div>
-                <h2>Live Instagram posting</h2>
+                <div class="oauth-platform-badge" style="background:#FF4500">R</div>
+                <h2>Live Reddit posting</h2>
                 <p class="muted">{intro}</p>
-                <p class="muted small-text">Add these OAuth redirect URLs in your Meta app: {callbackUrls}</p>
-                {activeCallback}
+                <p class="muted small-text">OAuth redirect URL for your Reddit app: <code>{H.Encode(callbackExample)}</code></p>
                 {noticeHtml}
                 {connectBlock}
-            </section>
-            """;
-    }
-
-    public static string InstagramPagePickPage(InstagramPagePickPending pending, string token, string? notice = null)
-    {
-        var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<div class="notice error">{H.Encode(notice)}</div>""";
-        var options = new StringBuilder();
-        foreach (var account in pending.Accounts)
-        {
-            options.Append($"""
-                <label class="plan-option">
-                    <input type="radio" name="igUserId" value="{H.Encode(account.IgUserId)}" required>
-                    <span>
-                        <strong>@{H.Encode(account.IgUsername)}</strong>
-                        <span class="muted"> via {H.Encode(account.PageName)}</span>
-                    </span>
-                </label>
-                """);
-        }
-
-        return $"""
-            <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>Choose your Instagram account</h1></div></section>
-            <section class="panel oauth-panel">
-                <p class="muted">Pick the Instagram Business or Creator account you use for your author brand.</p>
-                {noticeHtml}
-                <form method="post" action="/social-accounts/connect/Instagram/select-account" class="stacked-form">
-                    <input type="hidden" name="token" value="{H.Encode(token)}">
-                    <fieldset class="plan-options">{options}</fieldset>
-                    <div class="form-actions">
-                        <button class="button" type="submit" style="background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)">Connect this account</button>
-                        <a class="button secondary" href="{H.Encode(pending.ReturnUrl)}">Cancel</a>
-                    </div>
-                </form>
             </section>
             """;
     }

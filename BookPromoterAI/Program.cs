@@ -73,7 +73,7 @@ builder.Services.AddBluesky();
 builder.Services.AddX();
 builder.Services.AddLinkedIn();
 builder.Services.AddFacebook();
-builder.Services.AddInstagram();
+builder.Services.AddReddit();
 builder.Services.AddScoped<SocialPostingService>();
 
 var generator = new PostGenerator();

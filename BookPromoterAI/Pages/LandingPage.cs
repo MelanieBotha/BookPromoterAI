@@ -20,7 +20,7 @@ static class LandingPage
                 <h2>Everything in one dashboard</h2>
                 <ul class="landing-checklist">
                     <li>Book catalog with store links &amp; cover art</li>
-                    <li>AI-generated posts for X, Instagram &amp; more</li>
+                    <li>AI-generated posts for X, Reddit &amp; more</li>
                     <li>Weekly Ad Library with copy-to-clipboard</li>
                     <li>Click tracking on every promo link</li>
                     <li>Posting schedule &amp; mailing list tools</li>

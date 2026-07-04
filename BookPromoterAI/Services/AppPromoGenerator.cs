@@ -8,7 +8,7 @@ static class AppPromoGenerator
         "Stop writing posts from scratch — BookPromoter AI creates platform-ready captions for your books.",
         "One dashboard for books, social posts, scheduling, and reader mailing lists. Built for indie authors.",
         "Your next book deserves better marketing. BookPromoter AI helps you post consistently without the grind.",
-        "Schedule book promos across Facebook, Instagram, X, and more — with covers attached automatically.",
+        "Schedule book promos across Facebook, Reddit, X, and more — with covers attached automatically.",
         "Turn your backlist into a steady stream of social posts. BookPromoter AI does the heavy lifting.",
         "Indie authors: AI captions, book covers in every post, and click tracking in one place.",
         "Marketing your books shouldn't eat your writing time. Let BookPromoter AI handle the posts."
@@ -22,7 +22,7 @@ static class AppPromoGenerator
         "#IndieAuthors #AmWriting #BookPromo"
     ];
 
-    static readonly string[] Platforms = ["Facebook", "Instagram", "X", "LinkedIn", "Bluesky"];
+    static readonly string[] Platforms = ["Facebook", "Reddit", "X", "LinkedIn", "Bluesky"];
 
     public static IReadOnlyList<string> SupportedPlatforms => Platforms;
 
@@ -116,12 +116,12 @@ static class AppPromoGenerator
             return PostLimits.Enforce($"{hook}\n{cta}\n#Books #Authors", platform);
         }
 
-        if (platform.Equals("Instagram", StringComparison.OrdinalIgnoreCase))
+        if (platform.Equals("Reddit", StringComparison.OrdinalIgnoreCase))
         {
             var cta = useTrialCta
                 ? $"Start free with an access code:\n{trialUrl}"
                 : $"Create your account:\n{startUrl}";
-            return PostLimits.Enforce($"{hook}\n\n{cta}\n\n#Bookstagram #Authors #IndieAuthor #BookMarketing", platform);
+            return PostLimits.Enforce($"{hook}\n\n{cta}\n\n#selfpublish #writing #books", platform);
         }
 
         var bodyCta = useTrialCta

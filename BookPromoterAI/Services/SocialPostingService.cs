@@ -3,7 +3,7 @@ namespace BookPromoterAI;
 // =====================================================================
 // SOCIAL MEDIA POSTING SERVICE
 //
-// Bluesky uses live AT Protocol posting; X, LinkedIn, Facebook, and Instagram use OAuth. Other platforms
+// Bluesky uses live AT Protocol posting; X, LinkedIn, Facebook, and Reddit use OAuth. Other platforms
 // remain simulated until OAuth is wired up for each one.
 // =====================================================================
 class SocialPostingService
@@ -12,7 +12,7 @@ class SocialPostingService
     readonly XService _x;
     readonly LinkedInService _linkedIn;
     readonly FacebookService _facebook;
-    readonly InstagramService _instagram;
+    readonly RedditService _reddit;
     readonly HttpClient _http;
     readonly UploadPaths _uploads;
 
@@ -21,7 +21,7 @@ class SocialPostingService
         XService x,
         LinkedInService linkedIn,
         FacebookService facebook,
-        InstagramService instagram,
+        RedditService reddit,
         IHttpClientFactory httpFactory,
         UploadPaths uploads)
     {
@@ -29,7 +29,7 @@ class SocialPostingService
         _x = x;
         _linkedIn = linkedIn;
         _facebook = facebook;
-        _instagram = instagram;
+        _reddit = reddit;
         _uploads = uploads;
         _http = httpFactory.CreateClient(nameof(SocialPostingService));
         _http.Timeout = TimeSpan.FromSeconds(30);
@@ -54,13 +54,13 @@ class SocialPostingService
         if (PostLimits.IsFacebook(account.Platform) && account.IsLiveConnection)
             return await PostToFacebookLive(account, postText, media, brandMedia, cancellationToken);
 
-        if (PostLimits.IsInstagram(account.Platform) && account.IsLiveConnection)
-            return await PostToInstagramLive(account, postText, media, brandMedia, cancellationToken);
+        if (PostLimits.IsReddit(account.Platform) && account.IsLiveConnection)
+            return await PostToRedditLive(account, postText, cancellationToken);
 
         var result = account.Platform.ToLowerInvariant() switch
         {
             "facebook" => await PostToFacebook(account, postText),
-            "instagram" => await PostToInstagram(account, postText),
+            "reddit" => await PostToReddit(account, postText),
             "x" or "x (twitter)" or "twitter" => await PostToX(account, postText),
             "bluesky" => await PostToBluesky(account, postText),
             "linkedin" => await PostToLinkedIn(account, postText),
@@ -270,11 +270,9 @@ class SocialPostingService
         };
     }
 
-    async Task<PostingOutcome> PostToInstagramLive(
+    async Task<PostingOutcome> PostToRedditLive(
         SocialAccount account,
         string postText,
-        BookPostMedia? media,
-        BrandPostMedia? brandMedia,
         CancellationToken cancellationToken)
     {
         if (!PostLimits.IsWithinLimit(postText, account.Platform))
@@ -282,40 +280,16 @@ class SocialPostingService
             return new PostingOutcome
             {
                 Result = PostingResult.Failure(
-                    $"Post exceeds Instagram's {PostLimits.InstagramMaxGraphemes}-character limit ({PostLimits.GraphemeLength(postText)} graphemes). Regenerate or shorten the post.")
+                    $"Post exceeds Reddit's {PostLimits.RedditMaxGraphemes}-character limit ({PostLimits.GraphemeLength(postText)} graphemes). Regenerate or shorten the post.")
             };
         }
 
-        if (string.IsNullOrWhiteSpace(account.AccessToken) || string.IsNullOrWhiteSpace(account.ExternalAccountId))
-            return new PostingOutcome { Result = PostingResult.Failure("Instagram is not connected. Reconnect your account in My Account.") };
+        if (string.IsNullOrWhiteSpace(account.AccessToken))
+            return new PostingOutcome { Result = PostingResult.Failure("Reddit is not connected. Reconnect your account in My Account.") };
 
-        string? imageUrl = null;
-        if (media is not null)
-        {
-            var baseUrl = ResolveBaseUrl(media.AppBaseUrl);
-            if (!string.IsNullOrWhiteSpace(media.TrackingCode))
-                imageUrl = PostBranding.BookCoverShareUrl(baseUrl, media.TrackingCode);
-            else if (!string.IsNullOrWhiteSpace(media.CoverImageUrl))
-                imageUrl = PostBranding.AbsoluteImageUrl(baseUrl, media.CoverImageUrl);
-        }
-        else if (brandMedia is not null)
-        {
-            imageUrl = BrandLogoLoader.PublicLogoUrl(ResolveBaseUrl(brandMedia.AppBaseUrl));
-        }
-
-        if (string.IsNullOrWhiteSpace(imageUrl))
-            return new PostingOutcome { Result = PostingResult.Failure("Instagram requires an image. Book posts need a cover; brand posts use the BookPromoter AI logo.") };
-
-        var page = new FacebookPage("instagram", account.DisplayName, account.Handle, account.AccessToken);
-        var ig = new InstagramBusinessAccount(account.ExternalAccountId, account.Handle.TrimStart('@'), account.DisplayName);
-        var connection = new InstagramConnection(new InstagramPageLink(page, ig), account.RefreshToken ?? "");
-
-        var (result, refreshedPageToken) = await _instagram.PostAsync(connection, postText, imageUrl, cancellationToken);
-        return new PostingOutcome
-        {
-            Result = result,
-            AccessToken = refreshedPageToken
-        };
+        var tokens = new RedditTokenSet(account.AccessToken, account.RefreshToken ?? "");
+        var result = await _reddit.PostAsync(tokens, account.Handle, postText, cancellationToken);
+        return new PostingOutcome { Result = result };
     }
 
     static string ResolveBaseUrl(string? appBaseUrl)
@@ -330,13 +304,13 @@ class SocialPostingService
         return PostingResult.Failure("Connect Facebook with OAuth in My Account for live Page posting.");
     }
 
-    async Task<PostingResult> PostToInstagram(SocialAccount account, string postText)
+    async Task<PostingResult> PostToReddit(SocialAccount account, string postText)
     {
         if (!PostLimits.IsWithinLimit(postText, account.Platform))
-            return PostingResult.Failure($"Post exceeds Instagram's {PostLimits.InstagramMaxGraphemes}-character limit ({PostLimits.GraphemeLength(postText)} graphemes). Regenerate or shorten the post.");
+            return PostingResult.Failure($"Post exceeds Reddit's {PostLimits.RedditMaxGraphemes}-character limit ({PostLimits.GraphemeLength(postText)} graphemes). Regenerate or shorten the post.");
 
         await Task.CompletedTask;
-        return PostingResult.Failure("Connect Instagram with OAuth in My Account for live posting.");
+        return PostingResult.Failure("Connect Reddit with OAuth in My Account for live posting.");
     }
 
     async Task<PostingResult> PostToX(SocialAccount account, string postText)

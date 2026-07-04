@@ -14,7 +14,7 @@ static class PlatformClickSource
         return name.ToLowerInvariant() switch
         {
             "facebook" => "facebook",
-            "instagram" => "instagram",
+            "reddit" => "reddit",
             "linkedin" => "linkedin",
             "inkitt" => "inkitt",
             "pinterest" => "pinterest",
@@ -32,7 +32,7 @@ static class PlatformClickSource
         {
             "facebook" or "fb" => "Facebook",
             "x" or "twitter" => "X",
-            "instagram" or "ig" => "Instagram",
+            "reddit" => "Reddit",
             "linkedin" => "LinkedIn",
             "bluesky" => "Bluesky",
             "inkitt" => "Inkitt",

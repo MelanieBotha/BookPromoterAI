@@ -11,8 +11,6 @@ static class SocialAccountRoutes
             Results.Redirect($"/social-accounts/connect/{platform}{request.QueryString}"));
         app.MapGet("/social_accounts/oauth_callback/facebook", (HttpRequest request) =>
             Results.Redirect($"/social-accounts/oauth-callback/facebook{request.QueryString}"));
-        app.MapGet("/social_accounts/oauth_callback/instagram", (HttpRequest request) =>
-            Results.Redirect($"/social-accounts/oauth-callback/instagram{request.QueryString}"));
 
         app.MapGet("/social-accounts", () => Results.Redirect("/my-account"));
 
@@ -98,7 +96,7 @@ static class SocialAccountRoutes
             XService xService,
             LinkedInService linkedInService,
             FacebookService facebookService,
-            InstagramService instagramService,
+            RedditService redditService,
             IDistributedCache cache) =>
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
@@ -177,46 +175,39 @@ static class SocialAccountRoutes
                         "text/html");
                 }
 
-                var callbackUrl = PublicUrl.FacebookCallbackUrl(request, settings);
                 var brandOAuth = SocialAccountKinds.IsBrand(kind);
+                if (brandOAuth && !string.Equals(request.Query["go"], "1", StringComparison.Ordinal))
+                {
+                    return Results.Content(
+                        H.RenderPage(http, "Connect Facebook", SocialConnectHelper.FacebookSetupPage(returnUrl, notice, settings, request), store),
+                        "text/html");
+                }
+
+                var callbackUrl = PublicUrl.FacebookCallbackUrl(request, settings);
                 var (authorizeUrl, state) = facebookService.BuildAuthorizationUrl(callbackUrl, brandOAuth);
                 await FacebookOAuthStateStore.SaveAsync(cache, state, new FacebookOAuthPending
                 {
                     UserId = saveUserId,
                     ReturnUrl = returnUrl,
-                    Kind = kind
+                    Kind = kind,
+                    RedirectUri = callbackUrl
                 });
                 return Results.Redirect(authorizeUrl);
             }
 
-            if (PostLimits.IsInstagram(platformName))
+            if (PostLimits.IsReddit(platformName))
             {
                 var notice = request.Query["notice"].ToString();
-                if (!settings.IsFacebookConfigured)
+                if (!settings.IsRedditConfigured)
                 {
                     return Results.Content(
-                        H.RenderPage(http, "Connect Instagram", SocialConnectHelper.InstagramSetupPage(returnUrl, notice, settings, request), store),
+                        H.RenderPage(http, "Connect Reddit", SocialConnectHelper.RedditSetupPage(returnUrl, notice, settings, request), store),
                         "text/html");
                 }
 
-                if (!settings.IsFacebookOAuthReady)
-                {
-                    return Results.Content(
-                        H.RenderPage(http, "Connect Instagram", SocialConnectHelper.InstagramSetupPage(returnUrl,
-                            "Meta App ID and secret are missing. Owner: add Facebook__AppId and Facebook__AppSecret in Railway (see Owner → Facebook API).", settings, request), store),
-                        "text/html");
-                }
-
-                var callbackUrl = PublicUrl.InstagramCallbackUrl(request, settings);
-                var brandOAuth = SocialAccountKinds.IsBrand(kind);
-                var (authorizeUrl, state) = instagramService.BuildAuthorizationUrl(callbackUrl, brandOAuth);
-                await InstagramOAuthStateStore.SaveAsync(cache, state, new InstagramOAuthPending
-                {
-                    UserId = saveUserId,
-                    ReturnUrl = returnUrl,
-                    Kind = kind
-                });
-                return Results.Redirect(authorizeUrl);
+                return Results.Content(
+                    H.RenderPage(http, "Connect Reddit", SocialConnectHelper.RedditSetupPage(returnUrl, notice, settings, request), store),
+                    "text/html");
             }
 
             var connectNotice = request.Query["notice"].ToString();
@@ -402,10 +393,21 @@ static class SocialAccountRoutes
                 return Results.Redirect($"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Only the owner can connect brand accounts.")}");
             }
 
-            var callbackUrl = PublicUrl.FacebookCallbackUrl(request, settings);
+            var callbackUrl = !string.IsNullOrWhiteSpace(pending.RedirectUri)
+                ? pending.RedirectUri
+                : PublicUrl.FacebookCallbackUrl(request, settings);
             var brandContext = SocialAccountKinds.IsBrand(pending.Kind);
             var outcome = await facebookService.CompleteAuthorizationAsync(
                 code, callbackUrl, brandContext);
+            if (outcome.Status == FacebookAuthStatus.Failed)
+            {
+                var legacyCallback = FacebookService.LegacyCallbackUrl(PublicUrl.Base(request, settings));
+                if (!string.Equals(callbackUrl, legacyCallback, StringComparison.OrdinalIgnoreCase))
+                {
+                    outcome = await facebookService.CompleteAuthorizationAsync(
+                        code, legacyCallback, brandContext);
+                }
+            }
             if (outcome.Status == FacebookAuthStatus.NeedsPageSelection &&
                 outcome.PagesToSelect is not null &&
                 !string.IsNullOrWhiteSpace(outcome.UserAccessToken))
@@ -511,163 +513,104 @@ static class SocialAccountRoutes
             return Results.Redirect(returnUrl);
         });
 
-        app.MapGet(InstagramService.CallbackPath, async (
+        app.MapPost("/social-accounts/connect/Reddit/start", async (
             HttpRequest request,
-            HttpContext http,
             AppStoreDb store,
             AppSettings settings,
-            FacebookService facebookService,
-            InstagramService instagramService,
+            RedditService redditService,
+            IDistributedCache cache) =>
+        {
+            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
+            var form = await request.ReadFormAsync();
+            var returnUrl = SocialConnectHelper.ResolveReturnUrl(request, form["return"].ToString());
+            var kind = SocialConnectHelper.ResolveAccountKind(returnUrl);
+            if (SocialAccountKinds.IsBrand(kind) && !store.IsOwner) return Results.Redirect("/my-account");
+            if (store.CheckSocialAccountLimit(kind) is not null) return Results.Redirect(returnUrl);
+            if (!settings.IsRedditConfigured)
+                return Results.Redirect($"/social-accounts/connect/Reddit?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Reddit API credentials are not configured.")}");
+
+            var subreddit = RedditService.NormalizeSubreddit(form["subreddit"].ToString());
+            if (string.IsNullOrWhiteSpace(subreddit))
+                return Results.Redirect($"/social-accounts/connect/Reddit?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Enter a subreddit name.")}");
+
+            var userId = store.GetCurrentDbUser()?.Id ?? 0;
+            if (userId == 0) return Results.Redirect("/start");
+            var saveUserId = SocialAccountKinds.IsBrand(kind) ? store.PrimaryOwnerUserId() : userId;
+            if (saveUserId == 0) return Results.Redirect("/start");
+
+            var callbackUrl = RedditService.CallbackUrl(PublicUrl.Base(request, settings));
+            var (authorizeUrl, state) = redditService.BuildAuthorizationUrl(callbackUrl);
+            await RedditOAuthStateStore.SaveAsync(cache, state, new RedditOAuthPending
+            {
+                UserId = saveUserId,
+                ReturnUrl = returnUrl,
+                Kind = kind,
+                Subreddit = subreddit
+            });
+            return Results.Redirect(authorizeUrl);
+        });
+
+        app.MapGet(RedditService.CallbackPath, async (
+            HttpRequest request,
+            AppStoreDb store,
+            AppSettings settings,
+            RedditService redditService,
             IDistributedCache cache) =>
         {
             var error = request.Query["error"].ToString();
-            var errorDescription = request.Query["error_description"].ToString();
             var code = request.Query["code"].ToString();
             var state = request.Query["state"].ToString();
-            var pending = await InstagramOAuthStateStore.TakeAsync(cache, state);
-            var returnUrl = InstagramOAuthStateStore.BuildReturnUrl(
+            var pending = await RedditOAuthStateStore.TakeAsync(cache, state);
+            var returnUrl = RedditOAuthStateStore.BuildReturnUrl(
                 pending?.ReturnUrl ?? "/my-account",
                 pending?.Kind ?? SocialAccountKinds.Author);
 
             if (pending is null)
             {
-                return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Instagram login expired. Try connecting again.")}");
+                return Results.Redirect($"/social-accounts/connect/Reddit?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Reddit login expired. Try connecting again.")}");
             }
 
             if (!string.IsNullOrWhiteSpace(error))
             {
                 var notice = error.Equals("access_denied", StringComparison.OrdinalIgnoreCase)
-                    ? "Instagram authorization was cancelled."
-                    : string.IsNullOrWhiteSpace(errorDescription)
-                        ? "Instagram authorization failed. Try again."
-                        : errorDescription;
-                return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(notice)}");
+                    ? "Reddit authorization was cancelled."
+                    : "Reddit authorization failed. Try again.";
+                return Results.Redirect($"/social-accounts/connect/Reddit?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(notice)}");
             }
 
             if (string.IsNullOrWhiteSpace(code))
             {
-                return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Invalid Instagram login response. Try again.")}");
+                return Results.Redirect($"/social-accounts/connect/Reddit?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Invalid Reddit login response. Try again.")}");
             }
 
             if (SocialAccountKinds.IsBrand(pending.Kind) && !OwnerAccount.IsOwnerEmail(
                     store.GetUserEmailById(pending.UserId)))
             {
-                return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Only the owner can connect brand accounts.")}");
+                return Results.Redirect($"/social-accounts/connect/Reddit?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Only the owner can connect brand accounts.")}");
             }
 
-            var callbackUrl = PublicUrl.InstagramCallbackUrl(request, settings);
-            var brandContext = SocialAccountKinds.IsBrand(pending.Kind);
-            var (userToken, tokenError) = await facebookService.ObtainUserAccessTokenAsync(code, callbackUrl);
-            if (userToken is null)
+            var callbackUrl = RedditService.CallbackUrl(PublicUrl.Base(request, settings));
+            var (ok, connectError, tokens, user) = await redditService.CompleteAuthorizationAsync(code, callbackUrl);
+            if (!ok || tokens is null || user is null)
             {
-                return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(tokenError ?? "Instagram authorization failed. Try again.")}");
+                return Results.Redirect($"/social-accounts/connect/Reddit?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(connectError)}");
             }
 
-            var outcome = await instagramService.CompleteAuthorizationAsync(userToken, brandContext);
-            if (outcome.Status == InstagramAuthStatus.NeedsAccountSelection &&
-                outcome.LinksToSelect is not null &&
-                !string.IsNullOrWhiteSpace(outcome.UserAccessToken))
-            {
-                var pickToken = Guid.NewGuid().ToString("N");
-                await InstagramPagePickStateStore.SaveAsync(cache, pickToken, new InstagramPagePickPending
-                {
-                    UserId = pending.UserId,
-                    ReturnUrl = returnUrl,
-                    Kind = pending.Kind,
-                    UserAccessToken = outcome.UserAccessToken,
-                    Accounts = outcome.LinksToSelect.Select(l => new InstagramAccountOption
-                    {
-                        PageId = l.Page.Id,
-                        PageName = l.Page.Name,
-                        PageAccessToken = l.Page.AccessToken,
-                        IgUserId = l.Instagram.Id,
-                        IgUsername = l.Instagram.Username,
-                        IgDisplayName = l.Instagram.Name ?? l.Instagram.Username
-                    }).ToList()
-                });
-                return Results.Redirect($"/social-accounts/connect/Instagram/select-account?token={Uri.EscapeDataString(pickToken)}");
-            }
-
-            if (outcome.Status != InstagramAuthStatus.Connected || outcome.Connection is null)
-            {
-                return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(outcome.Error ?? "Instagram authorization failed. Try again.")}");
-            }
-
-            var connection = outcome.Connection;
+            var subreddit = RedditService.NormalizeSubreddit(pending.Subreddit);
             store.AddSocialAccountForUser(pending.UserId, new SocialAccount
             {
-                Platform = "Instagram",
-                DisplayName = connection.Link.Instagram.Name ?? connection.Link.Instagram.Username,
-                Handle = connection.Link.Instagram.Username,
+                Platform = "Reddit",
+                DisplayName = $"r/{subreddit}",
+                Handle = subreddit,
                 IsConnected = true,
                 ConnectedViaOAuth = true,
                 AccountKind = pending.Kind,
-                AccessToken = connection.Link.Page.AccessToken,
-                RefreshToken = connection.UserAccessToken,
-                ExternalAccountId = connection.Link.Instagram.Id
+                AccessToken = tokens.AccessToken,
+                RefreshToken = tokens.RefreshToken,
+                ExternalAccountId = user.Id
             }, pending.Kind);
             if (SocialAccountKinds.IsAuthor(pending.Kind))
-                store.AddScheduleForUser(pending.UserId, new SocialSchedule { Platform = "Instagram", PostsPerWeek = 1, RequiresApproval = true });
-            return Results.Redirect(returnUrl);
-        });
-
-        app.MapGet("/social-accounts/connect/Instagram/select-account", async (
-            HttpRequest request,
-            HttpContext http,
-            AppStoreDb store,
-            IDistributedCache cache) =>
-        {
-            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
-            var token = request.Query["token"].ToString();
-            var notice = request.Query["notice"].ToString();
-            var pending = await InstagramPagePickStateStore.PeekAsync(cache, token);
-            if (pending is null)
-            {
-                return Results.Redirect($"/social-accounts/connect/Instagram?return=/my-account&notice={Uri.EscapeDataString("Account selection expired. Try connecting again.")}");
-            }
-
-            return Results.Content(
-                H.RenderPage(http, "Choose Instagram Account", SocialConnectHelper.InstagramPagePickPage(pending, token, notice), store),
-                "text/html");
-        });
-
-        app.MapPost("/social-accounts/connect/Instagram/select-account", async (
-            HttpRequest request,
-            AppStoreDb store,
-            IDistributedCache cache) =>
-        {
-            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
-            var form = await request.ReadFormAsync();
-            var token = form["token"].ToString();
-            var igUserId = form["igUserId"].ToString();
-            var pending = await InstagramPagePickStateStore.PeekAsync(cache, token);
-            var returnUrl = pending?.ReturnUrl ?? "/my-account";
-            if (pending is null)
-            {
-                return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Account selection expired. Try connecting again.")}");
-            }
-
-            var account = pending.Accounts.FirstOrDefault(a => a.IgUserId == igUserId);
-            if (account is null)
-            {
-                return Results.Redirect($"/social-accounts/connect/Instagram/select-account?token={Uri.EscapeDataString(token)}&notice={Uri.EscapeDataString("Choose an Instagram account.")}");
-            }
-
-            await InstagramPagePickStateStore.TakeAsync(cache, token);
-            store.AddSocialAccountForUser(pending.UserId, new SocialAccount
-            {
-                Platform = "Instagram",
-                DisplayName = account.IgDisplayName,
-                Handle = account.IgUsername,
-                IsConnected = true,
-                ConnectedViaOAuth = true,
-                AccountKind = pending.Kind,
-                AccessToken = account.PageAccessToken,
-                RefreshToken = pending.UserAccessToken,
-                ExternalAccountId = account.IgUserId
-            }, pending.Kind);
-            if (SocialAccountKinds.IsAuthor(pending.Kind))
-                store.AddScheduleForUser(pending.UserId, new SocialSchedule { Platform = "Instagram", PostsPerWeek = 1, RequiresApproval = true });
+                store.AddScheduleForUser(pending.UserId, new SocialSchedule { Platform = "Reddit", PostsPerWeek = 1, RequiresApproval = true });
             return Results.Redirect(returnUrl);
         });
 
@@ -729,6 +672,12 @@ static class SocialAccountRoutes
             if (PostLimits.IsFacebook(platformName))
             {
                 var connectUrl = $"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Use the Connect Facebook button to sign in with Facebook.")}";
+                return Results.Redirect(connectUrl);
+            }
+
+            if (PostLimits.IsReddit(platformName))
+            {
+                var connectUrl = $"/social-accounts/connect/Reddit?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Use the Connect Reddit button to sign in with Reddit.")}";
                 return Results.Redirect(connectUrl);
             }
 

@@ -25,6 +25,9 @@ class AppSettings
     /// <summary>OAuth mode: "scope" (default, standard Page permissions) or "config" (Login for Business config_id).</summary>
     public string FacebookOAuthMode { get; init; } = "scope";
 
+    public string RedditClientId { get; init; } = "";
+    public string RedditClientSecret { get; init; } = "";
+
     public bool IsSendGridConfigured =>
         !string.IsNullOrWhiteSpace(SendGridApiKey) &&
         SendGridApiKey != "YOUR_SENDGRID_API_KEY_HERE" &&
@@ -58,6 +61,12 @@ class AppSettings
     public bool IsFacebookOAuthReady =>
         IsFacebookConfigured &&
         (!FacebookUsesConfigLogin || IsValidFacebookLoginConfigId(FacebookLoginConfigId));
+
+    public bool IsRedditConfigured =>
+        !string.IsNullOrWhiteSpace(RedditClientId) &&
+        RedditClientId != "YOUR_REDDIT_CLIENT_ID" &&
+        !string.IsNullOrWhiteSpace(RedditClientSecret) &&
+        RedditClientSecret != "YOUR_REDDIT_CLIENT_SECRET";
 
     public bool FacebookUsesConfigLogin =>
         string.Equals(FacebookOAuthMode, "config", StringComparison.OrdinalIgnoreCase);
@@ -167,6 +176,20 @@ class AppSettings
         return "OK - detected.";
     }
 
+    public string DescribeRedditClientId()
+    {
+        if (string.IsNullOrWhiteSpace(RedditClientId) || RedditClientId == "YOUR_REDDIT_CLIENT_ID")
+            return "Missing - add Reddit__ClientId in Railway (from reddit.com/prefs/apps).";
+        return "OK - detected.";
+    }
+
+    public string DescribeRedditClientSecret()
+    {
+        if (string.IsNullOrWhiteSpace(RedditClientSecret) || RedditClientSecret == "YOUR_REDDIT_CLIENT_SECRET")
+            return "Missing - add Reddit__ClientSecret in Railway.";
+        return "OK - detected.";
+    }
+
     public string DescribeFacebookAppId()
     {
         if (string.IsNullOrWhiteSpace(FacebookAppId) || FacebookAppId == "YOUR_FACEBOOK_APP_ID")
@@ -229,7 +252,9 @@ class AppSettings
             FacebookAppId = CleanSecret(config["Facebook:AppId"]),
             FacebookAppSecret = CleanSecret(config["Facebook:AppSecret"]),
             FacebookLoginConfigId = CleanSecret(config["Facebook:LoginConfigId"]),
-            FacebookOAuthMode = (config["Facebook:OAuthMode"] ?? "scope").Trim().ToLowerInvariant()
+            FacebookOAuthMode = (config["Facebook:OAuthMode"] ?? "scope").Trim().ToLowerInvariant(),
+            RedditClientId = CleanSecret(config["Reddit:ClientId"]),
+            RedditClientSecret = CleanSecret(config["Reddit:ClientSecret"])
         };
     }
 

@@ -8,6 +8,8 @@ sealed class FacebookOAuthPending
     public int UserId { get; init; }
     public string ReturnUrl { get; init; } = "/my-account";
     public string Kind { get; init; } = SocialAccountKinds.Author;
+    /// <summary>Exact redirect_uri sent to Meta — must match on token exchange.</summary>
+    public string RedirectUri { get; init; } = "";
 }
 
 static class FacebookOAuthStateStore

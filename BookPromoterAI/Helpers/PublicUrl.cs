@@ -53,19 +53,14 @@ static class PublicUrl
                  })
         {
             if (string.IsNullOrWhiteSpace(baseUrl)) continue;
-            var callback = FacebookService.CallbackUrl(baseUrl);
-            if (seen.Add(callback)) yield return callback;
+            foreach (var callback in new[] { FacebookService.CallbackUrl(baseUrl), FacebookService.LegacyCallbackUrl(baseUrl) })
+            {
+                if (seen.Add(callback)) yield return callback;
+            }
         }
     }
 
-    public static string InstagramCallbackUrl(HttpRequest request, AppSettings? settings = null)
-    {
-        if (settings is not null && !string.IsNullOrWhiteSpace(settings.PublicBaseUrl))
-            return InstagramService.CallbackUrl(settings.PublicBaseUrl.TrimEnd('/'));
-        return $"{FacebookOAuthBase(request)}{InstagramService.CallbackPath}";
-    }
-
-    public static IEnumerable<string> InstagramCallbackUrlsForMeta(AppSettings settings)
+    public static IEnumerable<string> RedditCallbackUrlsForMeta(AppSettings settings)
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var baseUrl in new[]
@@ -76,7 +71,7 @@ static class PublicUrl
                  })
         {
             if (string.IsNullOrWhiteSpace(baseUrl)) continue;
-            var callback = InstagramService.CallbackUrl(baseUrl);
+            var callback = RedditService.CallbackUrl(baseUrl);
             if (seen.Add(callback)) yield return callback;
         }
     }

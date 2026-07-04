@@ -13,8 +13,8 @@ static class PostLimits
     /// <summary>LinkedIn feed post limit.</summary>
     public const int LinkedInMaxGraphemes = 3000;
 
-    /// <summary>Instagram caption limit.</summary>
-    public const int InstagramMaxGraphemes = 2200;
+    /// <summary>Reddit self-post body limit.</summary>
+    public const int RedditMaxGraphemes = 40000;
 
     static readonly Dictionary<string, int> Limits = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -23,7 +23,7 @@ static class PostLimits
         ["X (Twitter)"] = XMaxGraphemes,
         ["Twitter"] = XMaxGraphemes,
         ["LinkedIn"] = LinkedInMaxGraphemes,
-        ["Instagram"] = InstagramMaxGraphemes,
+        ["Reddit"] = RedditMaxGraphemes,
     };
 
     public static int? GetMaxGraphemes(string platform)
@@ -128,11 +128,13 @@ static class PostLimits
     public static bool IsFacebook(string platform) =>
         platform.Equals("Facebook", StringComparison.OrdinalIgnoreCase);
 
-    public static bool IsInstagram(string platform) =>
-        platform.Equals("Instagram", StringComparison.OrdinalIgnoreCase);
+    public static bool IsInstagram(string platform) => false;
+
+    public static bool IsReddit(string platform) =>
+        platform.Equals("Reddit", StringComparison.OrdinalIgnoreCase);
 
     public static bool RequiresLiveConnection(string platform) =>
-        IsBluesky(platform) || IsX(platform) || IsLinkedIn(platform) || IsFacebook(platform) || IsInstagram(platform);
+        IsBluesky(platform) || IsX(platform) || IsLinkedIn(platform) || IsFacebook(platform) || IsReddit(platform);
 
     public static string LiveReconnectHint(string platform)
     {
@@ -144,8 +146,8 @@ static class PostLimits
             return "LinkedIn is not connected for live posting. In My Account, remove your LinkedIn account and reconnect with Sign in with LinkedIn.";
         if (IsFacebook(platform))
             return "Facebook is not connected for live posting. In My Account, remove your Facebook account and reconnect with Sign in with Facebook.";
-        if (IsInstagram(platform))
-            return "Instagram is not connected for live posting. In My Account, remove your Instagram account and reconnect with Sign in with Instagram.";
+        if (IsReddit(platform))
+            return "Reddit is not connected for live posting. In My Account, remove your Reddit account and reconnect with Sign in with Reddit.";
         return $"Connect {platform} for live posting in My Account.";
     }
 
@@ -159,8 +161,8 @@ static class PostLimits
             return "Reconnect LinkedIn with Sign in with LinkedIn in My Account to use Post now.";
         if (IsFacebook(platform))
             return "Reconnect Facebook with Sign in with Facebook in My Account to use Post now.";
-        if (IsInstagram(platform))
-            return "Reconnect Instagram with Sign in with Instagram in My Account to use Post now.";
+        if (IsReddit(platform))
+            return "Reconnect Reddit with Sign in with Reddit in My Account to use Post now.";
         return $"Reconnect {platform} in My Account to use Post now.";
     }
 
@@ -171,6 +173,6 @@ static class PostLimits
         if (IsX(a) && IsX(b)) return true;
         if (IsLinkedIn(a) && IsLinkedIn(b)) return true;
         if (IsFacebook(a) && IsFacebook(b)) return true;
-        return IsInstagram(a) && IsInstagram(b);
+        return IsReddit(a) && IsReddit(b);
     }
 }

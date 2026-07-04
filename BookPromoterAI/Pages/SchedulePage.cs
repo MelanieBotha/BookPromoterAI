@@ -6,7 +6,7 @@ static class SchedulePage
     public static readonly (string Value, string Group)[] AllPlatforms =
     [
         ("Facebook",        "Major Platforms"),
-        ("Instagram",       "Major Platforms"),
+        ("Reddit",          "Major Platforms"),
         ("X (Twitter)",     "Major Platforms"),
         ("TikTok",          "Major Platforms"),
         ("YouTube",         "Major Platforms"),
@@ -22,7 +22,6 @@ static class SchedulePage
         ("Telegram",        "Messaging & Community"),
         ("WhatsApp",        "Messaging & Community"),
         ("Discord",         "Messaging & Community"),
-        ("Reddit",          "Messaging & Community"),
         ("Quora",           "Messaging & Community"),
         ("Clubhouse",       "Messaging & Community"),
         ("Goodreads",       "Books & Reading"),

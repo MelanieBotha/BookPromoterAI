@@ -35,9 +35,9 @@ class PostGenerator
             _ when PostLimits.IsBluesky(platform) => hasLink
                 ? $"{hook}\n\n#Books #{CleanTag(book.GenreOrDefault())}\n\n{link}"
                 : $"{hook}\n\n#Books #{CleanTag(book.GenreOrDefault())}",
-            "Instagram" => hasLink
-                ? $"{hook}\n\n#Bookstagram #{CleanTag(book.GenreOrDefault())}\n\n{link}"
-                : $"{hook}\n\n#Bookstagram #{CleanTag(book.GenreOrDefault())}\n\n{linkLine}",
+            "Reddit" => hasLink
+                ? $"{hook}\n\n{book.Description}\n\n{link}"
+                : $"{hook}\n\n{book.Description}\n\n{linkLine}",
             _ => hasLink
                 ? $"{hook}\n\n{book.Description}\n\n{link}"
                 : $"{hook}\n\n{book.Description}\n\n{linkLine}"

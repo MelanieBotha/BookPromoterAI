@@ -7,6 +7,8 @@ namespace BookPromoterAI;
 class FacebookService
 {
     public const string CallbackPath = "/social-accounts/oauth-callback/facebook";
+    /// <summary>Legacy Meta redirect URI (underscore path) — still accepted for token exchange.</summary>
+    public const string LegacyCallbackPath = "/social_accounts/oauth_callback/facebook";
     public const string Scopes = "pages_show_list,pages_manage_posts,pages_read_engagement,public_profile";
     /// <summary>Permissions to enable on the Meta Login Configuration (config mode only).</summary>
     public static readonly string[] LoginConfigurationPermissions =
@@ -25,10 +27,13 @@ class FacebookService
     public static string CallbackUrl(string appBaseUrl) =>
         $"{appBaseUrl.TrimEnd('/')}{CallbackPath}";
 
+    public static string LegacyCallbackUrl(string appBaseUrl) =>
+        $"{appBaseUrl.TrimEnd('/')}{LegacyCallbackPath}";
+
     static string GraphUrl(string path) =>
         $"https://graph.facebook.com/{GraphVersion}/{path.TrimStart('/')}";
 
-    public (string AuthorizeUrl, string State) BuildAuthorizationUrl(string redirectUri, bool brandContext = false, bool forInstagram = false)
+    public (string AuthorizeUrl, string State) BuildAuthorizationUrl(string redirectUri, bool brandContext = false)
     {
         var state = Guid.NewGuid().ToString("N");
         var query = new Dictionary<string, string>
@@ -39,7 +44,7 @@ class FacebookService
             ["response_type"] = "code"
         };
 
-        if (_settings.FacebookUsesConfigLogin && brandContext && !forInstagram)
+        if (_settings.FacebookUsesConfigLogin && brandContext)
         {
             if (string.IsNullOrWhiteSpace(_settings.FacebookLoginConfigId))
                 throw new InvalidOperationException("Facebook Login Config ID is not configured.");
@@ -47,9 +52,8 @@ class FacebookService
         }
         else
         {
-            query["scope"] = forInstagram ? InstagramService.Scopes : Scopes;
-            if (!brandContext || forInstagram)
-                query["auth_type"] = "rerequest";
+            query["scope"] = Scopes;
+            query["auth_type"] = brandContext ? "reauthenticate" : "rerequest";
         }
 
         var url = $"https://www.facebook.com/{GraphVersion}/dialog/oauth?" +

@@ -77,7 +77,7 @@ static class LegalPage
                 <p>The Service may help you draft posts, schedule content, track links, or send emails. You are solely responsible for:</p>
                 <ul>
                     <li>The accuracy and legality of content you publish or send;</li>
-                    <li>Compliance with each platform&rsquo;s terms (Facebook, Instagram, X, TikTok, Amazon, etc.);</li>
+                    <li>Compliance with each platform&rsquo;s terms (Facebook, Reddit, X, TikTok, Amazon, etc.);</li>
                     <li>Disclosures required for advertising, affiliate links, or sponsored content; and</li>
                     <li>Obtaining consent from recipients before sending marketing emails.</li>
                 </ul>
@@ -238,7 +238,7 @@ static class LegalPage
                     <li><strong>Stripe</strong> — subscription billing and payment processing</li>
                     <li><strong>SendGrid</strong> — transactional and user-initiated email delivery</li>
                     <li><strong>Railway</strong> (or similar hosting) — application hosting and data storage</li>
-                    <li><strong>Social platforms</strong> — when you connect accounts or post content (Facebook, Instagram, X, Bluesky, etc.), those platforms&rsquo; own privacy policies apply</li>
+                    <li><strong>Social platforms</strong> — when you connect accounts or post content (Facebook, Reddit, X, Bluesky, etc.), those platforms&rsquo; own privacy policies apply</li>
                 </ul>
                 <p>We only share information with these providers as needed to deliver the Service. Each third party processes data under its own terms and privacy policy.</p>
                 """)}

@@ -72,7 +72,7 @@ class SocialAccount
         && (!PostLimits.IsX(Platform) || !string.IsNullOrWhiteSpace(ExternalAccountId))
         && (!PostLimits.IsLinkedIn(Platform) || !string.IsNullOrWhiteSpace(ExternalAccountId))
         && (!PostLimits.IsFacebook(Platform) || !string.IsNullOrWhiteSpace(ExternalAccountId))
-        && (!PostLimits.IsInstagram(Platform) || !string.IsNullOrWhiteSpace(ExternalAccountId));
+        && (!PostLimits.IsReddit(Platform) || !string.IsNullOrWhiteSpace(ExternalAccountId));
 }
 
 class PromoCode

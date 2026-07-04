@@ -300,17 +300,15 @@ static class OwnerPage
                         <li><strong>Token type:</strong> User access token</li>
                         <li><strong>Assets:</strong> Pages</li>
                         <li><strong>Permissions:</strong> {string.Join(", ", FacebookService.LoginConfigurationPermissions)} (each must be <em>Ready for testing</em> under Use cases → Customize)</li>
-                        <li><strong>Instagram permissions</strong> (for Instagram connect): <code>instagram_basic</code>, <code>instagram_content_publish</code></li>
-                        <li>Copy the <strong>Configuration ID</strong> → Railway variable <code>Facebook__LoginConfigId</code></li>
+                        <li>Copy the <strong>Configuration ID</strong> → Railway variable <code>Facebook__LoginConfigId</code> (config mode only)</li>
                     </ol>
                     <ul class="plan-features">
                         <li><strong>Meta app name:</strong> use <em>AuthorPromoter AI</em> (Meta blocks &ldquo;Book&rdquo; in app names)</li>
                         <li><strong>App ID:</strong> {H.Encode(store.FacebookAppIdStatus)} (must be <code>1820670845576321</code> in Meta)</li>
                         <li><strong>Login config ID:</strong> {H.Encode(store.FacebookLoginConfigIdStatus)}</li>
-                        <li><strong>Redirect URIs</strong> — OAuth uses the site URL you are browsing; add <em>all</em> of these in Meta under <strong>Facebook Login for Business → Settings → Valid OAuth Redirect URIs</strong>:
+                        <li><strong>Redirect URIs</strong> — OAuth uses the site URL you are browsing; add <em>all</em> of these in Meta under <strong>Facebook Login → Settings → Valid OAuth Redirect URIs</strong>:
                             <ul class="plan-features">
-                                {string.Concat(PublicUrl.FacebookCallbackUrlsForMeta(store.Settings).Select(u => $"<li><code>{H.Encode(u)}</code> (Facebook)</li>"))}
-                                {string.Concat(PublicUrl.InstagramCallbackUrlsForMeta(store.Settings).Select(u => $"<li><code>{H.Encode(u)}</code> (Instagram)</li>"))}
+                                {string.Concat(PublicUrl.FacebookCallbackUrlsForMeta(store.Settings).Select(u => $"<li><code>{H.Encode(u)}</code></li>"))}
                             </ul>
                         </li>
                         <li><strong>App domains</strong> (Settings → Basic): <code>bookpromoterai.us</code></li>
@@ -331,7 +329,34 @@ static class OwnerPage
                         <li><code>Facebook__AppSecret</code></li>
                         <li><code>Facebook__LoginConfigId</code></li>
                     </ul>
-                    <p class="muted">App stays <strong>Unpublished</strong> for testing as admin. Test brand posting from <strong>Owner → Brand Social → Connect Facebook</strong> or <strong>Connect Instagram</strong>. Instagram requires a Business or Creator profile linked to your Facebook Page in Meta Business Suite.</p>
+                    <p class="muted">App stays <strong>Unpublished</strong> for testing as admin. Test brand posting from <strong>Owner → Brand Social → Connect Facebook</strong>. If Meta shows &ldquo;Continue as BookPromoter AI?&rdquo;, click <strong>Edit settings</strong> and select the <strong>Book Promoter AI</strong> Page — do not click Continue.</p>
+                </div>
+            </details>
+
+            <details class="owner-collapsible" id="owner-section-reddit-api"{open("reddit-api")}>
+                <summary class="owner-collapsible-heading">Reddit API</summary>
+                <div class="panel owner-settings">
+                    {(store.IsRedditConfigured
+                        ? """<p class="notice success">Reddit API: Ready.</p>"""
+                        : $"""
+                            <p class="notice error">Reddit is not configured yet.</p>
+                            <ul class="plan-features">
+                                <li><strong>Client ID:</strong> {H.Encode(store.RedditClientIdStatus)}</li>
+                                <li><strong>Client secret:</strong> {H.Encode(store.RedditClientSecretStatus)}</li>
+                            </ul>
+                            """)}
+                    <p class="muted">Create a <strong>web app</strong> at <a href="https://www.reddit.com/prefs/apps" target="_blank" rel="noopener">reddit.com/prefs/apps</a> (click <em>create another app...</em>).</p>
+                    <p class="muted">Add this redirect URL in your Reddit app:</p>
+                    <ul class="plan-features">
+                        {string.Concat(PublicUrl.RedditCallbackUrlsForMeta(store.Settings).Select(u => $"<li><code>{H.Encode(u)}</code></li>"))}
+                    </ul>
+                    <p class="muted">Requested scopes: <code>{H.Encode(RedditService.Scopes)}</code></p>
+                    <p class="muted">Add Railway variables, then redeploy:</p>
+                    <ul class="plan-features">
+                        <li><code>Reddit__ClientId</code></li>
+                        <li><code>Reddit__ClientSecret</code></li>
+                    </ul>
+                    <p class="muted">Authors and owner pick a subreddit when connecting. The first line of each post becomes the Reddit title.</p>
                 </div>
             </details>
 
