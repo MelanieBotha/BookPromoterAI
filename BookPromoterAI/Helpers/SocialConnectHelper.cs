@@ -4,7 +4,7 @@ namespace BookPromoterAI;
 
 static class SocialConnectHelper
 {
-    public const string OwnerReturnPath = "/owner-promos?section=owner-social";
+    public const string OwnerReturnPath = "/owner-promos";
 
     public static readonly string[] DefaultPlatforms =
         ["Facebook", "X", "Instagram", "LinkedIn", "Pinterest", "TikTok", "Bluesky"];
@@ -36,16 +36,13 @@ static class SocialConnectHelper
     }
 
     public static bool IsAllowedReturnUrl(string? url) =>
-        !string.IsNullOrWhiteSpace(url)
-        && (url == OwnerReturnPath || url.StartsWith("/owner-promos", StringComparison.OrdinalIgnoreCase) || url == "/my-account");
+        url == OwnerReturnPath || url == "/my-account";
 
     public static string ResolveAccountKind(string? returnUrl) =>
-        !string.IsNullOrWhiteSpace(returnUrl) && returnUrl.StartsWith("/owner-promos", StringComparison.OrdinalIgnoreCase)
-            ? SocialAccountKinds.Brand
-            : SocialAccountKinds.Author;
+        returnUrl == OwnerReturnPath ? SocialAccountKinds.Brand : SocialAccountKinds.Author;
 
     public static bool IsBrandContext(string? returnUrl) =>
-        !string.IsNullOrWhiteSpace(returnUrl) && returnUrl.StartsWith("/owner-promos", StringComparison.OrdinalIgnoreCase);
+        returnUrl == OwnerReturnPath;
 
     public static string ConnectButtons(string returnUrl)
     {
@@ -276,17 +273,9 @@ static class SocialConnectHelper
                     <a class="button secondary" href="/my-account">Back</a>
                     """
                 : $"""
-                {(brandContext
-                    ? $"""
-                    <p class="notice error"><strong>Before you continue:</strong> If <a href="https://www.facebook.com/settings?tab=business_tools" target="_blank" rel="noopener">Business integrations</a> lists <strong>AuthorPromoter AI</strong>, click <strong>Remove</strong> first.</p>
-                    <p class="muted">Sign in with your <strong>personal</strong> Facebook account that admins the Book Promoter AI Page.</p>
-                    <p class="muted">On Meta's &ldquo;Continue as BookPromoter AI?&rdquo; screen click <strong>Edit settings</strong> — <em>never</em> Continue (it spins). Approve Page access → Save. You must land back on bookpromoterai.us.</p>
-                    """
-                    : """
-                    <p class="muted">You will sign in with Facebook as yourself, then connect a <strong>Facebook Page</strong> for your author brand (not your personal news feed). If Facebook shows a previous connection, click <strong>Edit settings</strong> and pick your author Page — not the BookPromoter AI business Page.</p>
-                    """)}
+                <p class="muted">You will sign in with Facebook as yourself, then connect a <strong>Facebook Page</strong> for your author brand (not your personal news feed). If Facebook shows a previous connection, click <strong>Edit settings</strong> and pick your author Page — not the BookPromoter AI business Page.</p>
                 <div class="form-actions">
-                    <a class="button" href="/social-accounts/connect/Facebook?return={H.Encode(returnUrl)}&amp;go=1" style="background:#1877F2">Continue to Meta sign-in</a>
+                    <a class="button" href="/social-accounts/connect/Facebook?return={H.Encode(returnUrl)}" style="background:#1877F2">Sign in with Facebook</a>
                     <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
                 </div>
                 """;
@@ -338,7 +327,7 @@ static class SocialConnectHelper
             """;
     }
 
-    public static string InstagramSetupPage(string returnUrl, string notice, AppSettings? settings, HttpRequest? request = null, bool canLinkFromFacebook = false)
+    public static string InstagramSetupPage(string returnUrl, string notice, AppSettings? settings, HttpRequest? request = null)
     {
         var brandContext = IsBrandContext(returnUrl);
         var heading = brandContext
@@ -354,18 +343,8 @@ static class SocialConnectHelper
             ? string.Join(" ", PublicUrl.InstagramCallbackUrlsForMeta(settings).Select(u => $"<code>{H.Encode(u)}</code>"))
             : $"<code>https://bookpromoterai.us{InstagramService.CallbackPath}</code>";
         var activeCallback = request is not null && settings is not null
-            ? $"""<p class="notice">OAuth redirect URI: <code>{H.Encode(PublicUrl.InstagramOAuthRedirectUrl(request, settings))}</code> (same as Facebook — required for Meta to return to the app)</p>"""
+            ? $"""<p class="notice">Redirect URI: <code>{H.Encode(PublicUrl.InstagramCallbackUrl(request, settings))}</code></p>"""
             : "";
-        var facebookLinkButton = canLinkFromFacebook
-            ? $"""
-                <a class="button" href="/social-accounts/connect/Instagram/from-facebook?return={H.Encode(returnUrl)}" style="background:#1877F2">Link Instagram from connected Facebook</a>
-                <p class="muted small-text"><strong>Try this first</strong> if Facebook is already connected.</p>
-                """
-            : "";
-        var grantButton = $"""
-            <a class="button" href="/social-accounts/connect/Instagram?return={H.Encode(returnUrl)}&amp;go=grant" style="background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)">Grant Instagram access &amp; link</a>
-            <p class="muted small-text">Opens Meta to approve Instagram permissions, then links automatically. On &ldquo;Continue as BookPromoter AI?&rdquo; click <strong>Edit settings</strong> — not Continue.</p>
-            """;
         var connectBlock = !configured
             ? """
                 <p class="notice error">Meta API credentials are not configured yet. The app owner must add Facebook App ID and secret in Railway before authors can connect Instagram.</p>
@@ -378,17 +357,9 @@ static class SocialConnectHelper
                     <a class="button secondary" href="/my-account">Back</a>
                     """
                 : $"""
-                <p class="muted">Complete these steps before connecting:</p>
-                <ol class="plan-features">
-                    <li>Switch Instagram to a <strong>Business or Creator</strong> account.</li>
-                    <li>In <a href="https://business.facebook.com/settings/instagram-account-v2" target="_blank" rel="noopener">Meta Business Suite</a>, link IG to your Facebook Page.</li>
-                    <li>Owner: add Instagram redirect URIs in Meta (see <strong>Owner → Instagram API</strong>).</li>
-                </ol>
-                <p class="muted">Instagram posting uses the same Meta app as Facebook. Personal Instagram accounts cannot be connected via the API.</p>
-                <p class="muted"><strong>Before Instagram:</strong> Remove <strong>AuthorPromoter AI</strong> from <a href="https://www.facebook.com/settings?tab=business_tools" target="_blank" rel="noopener">Business integrations</a> if listed, then <a href="/social-accounts/connect/Facebook?return={H.Encode(returnUrl)}">connect Facebook</a> first.</p>
+                <p class="muted">Instagram posting uses the same Meta app as Facebook. Your Instagram must be a <strong>Business or Creator</strong> profile linked to a Facebook Page — personal Instagram accounts cannot be connected via the API.</p>
                 <div class="form-actions">
-                    {facebookLinkButton}
-                    {grantButton}
+                    <a class="button" href="/social-accounts/connect/Instagram?return={H.Encode(returnUrl)}" style="background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)">Sign in with Facebook for Instagram</a>
                     <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
                 </div>
                 """;
@@ -400,7 +371,6 @@ static class SocialConnectHelper
                 <p class="muted">{intro}</p>
                 <p class="muted small-text">Add these OAuth redirect URLs in your Meta app: {callbackUrls}</p>
                 {activeCallback}
-                <p class="muted small-text">App version <strong>v{AppVersion.Display}</strong> — need v1.9.50+ for Link from Facebook.</p>
                 {noticeHtml}
                 {connectBlock}
             </section>

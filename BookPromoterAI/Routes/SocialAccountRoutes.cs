@@ -177,17 +177,8 @@ static class SocialAccountRoutes
                         "text/html");
                 }
 
-                var brandOAuth = SocialAccountKinds.IsBrand(kind);
-                var startFacebookOAuth = !brandOAuth || string.Equals(request.Query["go"], "1", StringComparison.Ordinal);
-                if (!startFacebookOAuth)
-                {
-                    return Results.Content(
-                        H.RenderPage(http, "Connect Facebook",
-                            SocialConnectHelper.FacebookSetupPage(returnUrl, notice, settings, request), store),
-                        "text/html");
-                }
-
                 var callbackUrl = PublicUrl.FacebookCallbackUrl(request, settings);
+                var brandOAuth = SocialAccountKinds.IsBrand(kind);
                 var (authorizeUrl, state) = facebookService.BuildAuthorizationUrl(callbackUrl, brandOAuth);
                 await FacebookOAuthStateStore.SaveAsync(cache, state, new FacebookOAuthPending
                 {
@@ -216,85 +207,22 @@ static class SocialAccountRoutes
                         "text/html");
                 }
 
-                var canLinkFromFacebook = FindFacebookAccountForLink(store, kind) is not null;
-                var startOAuth = string.Equals(request.Query["go"], "grant", StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(request.Query["go"], "1", StringComparison.Ordinal);
-
-                if (startOAuth)
+                var callbackUrl = PublicUrl.InstagramCallbackUrl(request, settings);
+                var brandOAuth = SocialAccountKinds.IsBrand(kind);
+                var (authorizeUrl, state) = instagramService.BuildAuthorizationUrl(callbackUrl, brandOAuth);
+                await InstagramOAuthStateStore.SaveAsync(cache, state, new InstagramOAuthPending
                 {
-                    var callbackUrl = PublicUrl.InstagramOAuthRedirectUrl(request, settings);
-                    var brandOAuth = SocialAccountKinds.IsBrand(kind);
-                    var (authorizeUrl, state) = instagramService.BuildAuthorizationUrl(callbackUrl, brandOAuth);
-                    await InstagramOAuthStateStore.SaveAsync(cache, state, new InstagramOAuthPending
-                    {
-                        UserId = saveUserId,
-                        ReturnUrl = returnUrl,
-                        Kind = kind
-                    });
-                    return Results.Redirect(authorizeUrl);
-                }
-
-                return Results.Content(
-                    H.RenderPage(http, "Connect Instagram",
-                        SocialConnectHelper.InstagramSetupPage(returnUrl, notice, settings, request, canLinkFromFacebook), store),
-                    "text/html");
+                    UserId = saveUserId,
+                    ReturnUrl = returnUrl,
+                    Kind = kind
+                });
+                return Results.Redirect(authorizeUrl);
             }
 
             var connectNotice = request.Query["notice"].ToString();
             return Results.Content(
                 H.RenderPage(http, $"Connect {platformName}", SocialConnectHelper.OAuthAuthorizePage(platformName, returnUrl, connectNotice), store),
                 "text/html");
-        });
-
-        app.MapGet("/social-accounts/connect/Instagram/from-facebook", async (
-            HttpRequest request,
-            HttpContext http,
-            AppStoreDb store,
-            AppSettings settings,
-            FacebookService facebookService,
-            InstagramService instagramService) =>
-        {
-            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
-            var returnUrl = SocialConnectHelper.ResolveReturnUrl(request);
-            var kind = SocialConnectHelper.ResolveAccountKind(returnUrl);
-            if (SocialAccountKinds.IsBrand(kind) && !store.IsOwner) return Results.Redirect("/my-account");
-
-            var fbAccount = FindFacebookAccountForLink(store, kind);
-            if (fbAccount is null || string.IsNullOrWhiteSpace(fbAccount.AccessToken) || string.IsNullOrWhiteSpace(fbAccount.ExternalAccountId))
-            {
-                return Results.Redirect(
-                    $"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Connect Facebook first, then try Link from Facebook again.")}");
-            }
-
-            var brandContext = SocialAccountKinds.IsBrand(kind);
-            var outcome = await TryLinkInstagramFromFacebookAsync(
-                store, facebookService, instagramService, fbAccount, brandContext, kind);
-
-            if (outcome.Status == InstagramAuthStatus.Connected && outcome.Connection is not null)
-            {
-                var connection = outcome.Connection;
-                var saveUserId = SocialAccountKinds.IsBrand(kind) ? store.PrimaryOwnerUserId() : store.GetCurrentDbUser()?.Id ?? 0;
-                store.AddSocialAccountForUser(saveUserId, new SocialAccount
-                {
-                    Platform = "Instagram",
-                    DisplayName = connection.Link.Instagram.Name ?? connection.Link.Instagram.Username,
-                    Handle = connection.Link.Instagram.Username,
-                    IsConnected = true,
-                    ConnectedViaOAuth = true,
-                    AccountKind = kind,
-                    AccessToken = connection.Link.Page.AccessToken,
-                    RefreshToken = connection.UserAccessToken,
-                    ExternalAccountId = connection.Link.Instagram.Id
-                }, kind);
-                if (SocialAccountKinds.IsAuthor(kind))
-                    store.AddScheduleForUser(saveUserId, new SocialSchedule { Platform = "Instagram", PostsPerWeek = 1, RequiresApproval = true });
-                return Results.Redirect(returnUrl);
-            }
-
-            var error = outcome.Error ??
-                        "Could not find an Instagram account linked to your Facebook Page. Reconnect Facebook with Instagram permissions (Sign in with Facebook below).";
-            return Results.Redirect(
-                $"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(error)}");
         });
 
         app.MapGet(XService.CallbackPath, async (
@@ -437,22 +365,12 @@ static class SocialAccountRoutes
             AppStoreDb store,
             AppSettings settings,
             FacebookService facebookService,
-            InstagramService instagramService,
             IDistributedCache cache) =>
         {
             var error = request.Query["error"].ToString();
             var errorDescription = request.Query["error_description"].ToString();
             var code = request.Query["code"].ToString();
             var state = request.Query["state"].ToString();
-
-            var instagramPending = await InstagramOAuthStateStore.TakeAsync(cache, state);
-            if (instagramPending is not null)
-            {
-                return await FinishInstagramOAuthAsync(
-                    request, store, settings, facebookService, instagramService, cache,
-                    instagramPending, error, errorDescription, code);
-            }
-
             var pending = await FacebookOAuthStateStore.TakeAsync(cache, state);
             var returnUrl = FacebookOAuthStateStore.BuildReturnUrl(
                 pending?.ReturnUrl ?? "/my-account",
@@ -616,9 +534,81 @@ static class SocialAccountRoutes
                 return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Instagram login expired. Try connecting again.")}");
             }
 
-            return await FinishInstagramOAuthAsync(
-                request, store, settings, facebookService, instagramService, cache,
-                pending, error, errorDescription, code, PublicUrl.InstagramCallbackUrl(request, settings));
+            if (!string.IsNullOrWhiteSpace(error))
+            {
+                var notice = error.Equals("access_denied", StringComparison.OrdinalIgnoreCase)
+                    ? "Instagram authorization was cancelled."
+                    : string.IsNullOrWhiteSpace(errorDescription)
+                        ? "Instagram authorization failed. Try again."
+                        : errorDescription;
+                return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(notice)}");
+            }
+
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Invalid Instagram login response. Try again.")}");
+            }
+
+            if (SocialAccountKinds.IsBrand(pending.Kind) && !OwnerAccount.IsOwnerEmail(
+                    store.GetUserEmailById(pending.UserId)))
+            {
+                return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Only the owner can connect brand accounts.")}");
+            }
+
+            var callbackUrl = PublicUrl.InstagramCallbackUrl(request, settings);
+            var brandContext = SocialAccountKinds.IsBrand(pending.Kind);
+            var (userToken, tokenError) = await facebookService.ObtainUserAccessTokenAsync(code, callbackUrl);
+            if (userToken is null)
+            {
+                return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(tokenError ?? "Instagram authorization failed. Try again.")}");
+            }
+
+            var outcome = await instagramService.CompleteAuthorizationAsync(userToken, brandContext);
+            if (outcome.Status == InstagramAuthStatus.NeedsAccountSelection &&
+                outcome.LinksToSelect is not null &&
+                !string.IsNullOrWhiteSpace(outcome.UserAccessToken))
+            {
+                var pickToken = Guid.NewGuid().ToString("N");
+                await InstagramPagePickStateStore.SaveAsync(cache, pickToken, new InstagramPagePickPending
+                {
+                    UserId = pending.UserId,
+                    ReturnUrl = returnUrl,
+                    Kind = pending.Kind,
+                    UserAccessToken = outcome.UserAccessToken,
+                    Accounts = outcome.LinksToSelect.Select(l => new InstagramAccountOption
+                    {
+                        PageId = l.Page.Id,
+                        PageName = l.Page.Name,
+                        PageAccessToken = l.Page.AccessToken,
+                        IgUserId = l.Instagram.Id,
+                        IgUsername = l.Instagram.Username,
+                        IgDisplayName = l.Instagram.Name ?? l.Instagram.Username
+                    }).ToList()
+                });
+                return Results.Redirect($"/social-accounts/connect/Instagram/select-account?token={Uri.EscapeDataString(pickToken)}");
+            }
+
+            if (outcome.Status != InstagramAuthStatus.Connected || outcome.Connection is null)
+            {
+                return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(outcome.Error ?? "Instagram authorization failed. Try again.")}");
+            }
+
+            var connection = outcome.Connection;
+            store.AddSocialAccountForUser(pending.UserId, new SocialAccount
+            {
+                Platform = "Instagram",
+                DisplayName = connection.Link.Instagram.Name ?? connection.Link.Instagram.Username,
+                Handle = connection.Link.Instagram.Username,
+                IsConnected = true,
+                ConnectedViaOAuth = true,
+                AccountKind = pending.Kind,
+                AccessToken = connection.Link.Page.AccessToken,
+                RefreshToken = connection.UserAccessToken,
+                ExternalAccountId = connection.Link.Instagram.Id
+            }, pending.Kind);
+            if (SocialAccountKinds.IsAuthor(pending.Kind))
+                store.AddScheduleForUser(pending.UserId, new SocialSchedule { Platform = "Instagram", PostsPerWeek = 1, RequiresApproval = true });
+            return Results.Redirect(returnUrl);
         });
 
         app.MapGet("/social-accounts/connect/Instagram/select-account", async (
@@ -759,224 +749,5 @@ static class SocialAccountRoutes
                 store.AddSchedule(new SocialSchedule { Platform = platformName, PostsPerWeek = 1, RequiresApproval = true });
             return Results.Redirect(returnUrl);
         });
-    }
-
-    static async Task<IResult> FinishInstagramOAuthAsync(
-        HttpRequest request,
-        AppStoreDb store,
-        AppSettings settings,
-        FacebookService facebookService,
-        InstagramService instagramService,
-        IDistributedCache cache,
-        InstagramOAuthPending pending,
-        string? error,
-        string? errorDescription,
-        string code,
-        string? tokenExchangeRedirectUri = null)
-    {
-        var returnUrl = InstagramOAuthStateStore.BuildReturnUrl(pending.ReturnUrl, pending.Kind);
-
-        if (!string.IsNullOrWhiteSpace(error))
-        {
-            var notice = error.Equals("access_denied", StringComparison.OrdinalIgnoreCase)
-                ? "Instagram authorization was cancelled."
-                : string.IsNullOrWhiteSpace(errorDescription)
-                    ? "Instagram authorization failed. Try again."
-                    : errorDescription;
-            return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(notice)}");
-        }
-
-        if (string.IsNullOrWhiteSpace(code))
-        {
-            return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Invalid Instagram login response. Try again.")}");
-        }
-
-        if (SocialAccountKinds.IsBrand(pending.Kind) && !OwnerAccount.IsOwnerEmail(
-                store.GetUserEmailById(pending.UserId)))
-        {
-            return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Only the owner can connect brand accounts.")}");
-        }
-
-        var callbackUrl = tokenExchangeRedirectUri ?? PublicUrl.FacebookCallbackUrl(request, settings);
-        var brandContext = SocialAccountKinds.IsBrand(pending.Kind);
-        var (userToken, tokenError) = await facebookService.ObtainUserAccessTokenAsync(code, callbackUrl);
-        if (userToken is null)
-        {
-            return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(tokenError ?? "Instagram authorization failed. Try again.")}");
-        }
-
-        var outcome = await ResolveInstagramAuthAfterOAuthAsync(
-            store, facebookService, instagramService, pending.Kind, userToken, brandContext);
-        if (outcome.Status == InstagramAuthStatus.NeedsAccountSelection &&
-            outcome.LinksToSelect is not null &&
-            !string.IsNullOrWhiteSpace(outcome.UserAccessToken))
-        {
-            var pickToken = Guid.NewGuid().ToString("N");
-            await InstagramPagePickStateStore.SaveAsync(cache, pickToken, new InstagramPagePickPending
-            {
-                UserId = pending.UserId,
-                ReturnUrl = returnUrl,
-                Kind = pending.Kind,
-                UserAccessToken = outcome.UserAccessToken,
-                Accounts = outcome.LinksToSelect.Select(l => new InstagramAccountOption
-                {
-                    PageId = l.Page.Id,
-                    PageName = l.Page.Name,
-                    PageAccessToken = l.Page.AccessToken,
-                    IgUserId = l.Instagram.Id,
-                    IgUsername = l.Instagram.Username,
-                    IgDisplayName = l.Instagram.Name ?? l.Instagram.Username
-                }).ToList()
-            });
-            return Results.Redirect($"/social-accounts/connect/Instagram/select-account?token={Uri.EscapeDataString(pickToken)}");
-        }
-
-        if (outcome.Status != InstagramAuthStatus.Connected || outcome.Connection is null)
-        {
-            return Results.Redirect($"/social-accounts/connect/Instagram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(outcome.Error ?? "Instagram authorization failed. Try again.")}");
-        }
-
-        var connection = outcome.Connection;
-        SyncFacebookAccountFromInstagramConnection(store, pending.Kind, connection);
-
-        store.AddSocialAccountForUser(pending.UserId, new SocialAccount
-        {
-            Platform = "Instagram",
-            DisplayName = connection.Link.Instagram.Name ?? connection.Link.Instagram.Username,
-            Handle = connection.Link.Instagram.Username,
-            IsConnected = true,
-            ConnectedViaOAuth = true,
-            AccountKind = pending.Kind,
-            AccessToken = connection.Link.Page.AccessToken,
-            RefreshToken = connection.UserAccessToken,
-            ExternalAccountId = connection.Link.Instagram.Id
-        }, pending.Kind);
-        if (SocialAccountKinds.IsAuthor(pending.Kind))
-            store.AddScheduleForUser(pending.UserId, new SocialSchedule { Platform = "Instagram", PostsPerWeek = 1, RequiresApproval = true });
-        return Results.Redirect(returnUrl);
-    }
-
-    static async Task<InstagramAuthOutcome> ResolveInstagramAuthAfterOAuthAsync(
-        AppStoreDb store,
-        FacebookService facebookService,
-        InstagramService instagramService,
-        string kind,
-        string userToken,
-        bool brandContext)
-    {
-        var (pages, pagesError) = await facebookService.TryGetManagedPagesAsync(userToken);
-        var fbAccount = FindFacebookAccountForLink(store, kind);
-
-        if (pages.Count > 0)
-        {
-            var page = fbAccount is not null
-                ? pages.FirstOrDefault(p => p.Id == fbAccount.ExternalAccountId)
-                : null;
-            page ??= brandContext
-                ? pages.FirstOrDefault(FacebookService.IsBookPromoterBrandPage) ?? pages[0]
-                : pages[0];
-
-            if (fbAccount is not null)
-            {
-                fbAccount.AccessToken = page.AccessToken;
-                fbAccount.RefreshToken = userToken;
-                store.UpdateSocialAccount(fbAccount, kind);
-            }
-
-            var fromPage = await instagramService.CompleteAuthorizationFromConnectedFacebookAsync(
-                page.Id, page.AccessToken, page.Name, page.Handle, userToken, brandContext);
-            if (fromPage.Status == InstagramAuthStatus.Connected)
-                return fromPage;
-            if (fromPage.Status == InstagramAuthStatus.Failed && !string.IsNullOrWhiteSpace(fromPage.Error))
-                return fromPage;
-        }
-
-        if (pages.Count == 0 && fbAccount is not null &&
-            !string.IsNullOrWhiteSpace(fbAccount.ExternalAccountId) &&
-            !string.IsNullOrWhiteSpace(fbAccount.AccessToken))
-        {
-            var fromStored = await instagramService.CompleteAuthorizationFromConnectedFacebookAsync(
-                fbAccount.ExternalAccountId,
-                fbAccount.AccessToken,
-                fbAccount.DisplayName,
-                fbAccount.Handle,
-                userToken,
-                brandContext);
-            if (fromStored.Status == InstagramAuthStatus.Connected)
-                return fromStored;
-        }
-
-        if (pages.Count == 0)
-            return InstagramAuthOutcome.Failed(pagesError ?? FacebookService.MetaBusinessIntegrationHelp);
-
-        return await instagramService.CompleteAuthorizationAsync(userToken, brandContext);
-    }
-
-    static async Task<InstagramAuthOutcome> TryLinkInstagramFromFacebookAsync(
-        AppStoreDb store,
-        FacebookService facebookService,
-        InstagramService instagramService,
-        SocialAccount fbAccount,
-        bool brandContext,
-        string kind)
-    {
-        var outcome = await instagramService.CompleteAuthorizationFromConnectedFacebookAsync(
-            fbAccount.ExternalAccountId!,
-            fbAccount.AccessToken!,
-            fbAccount.DisplayName,
-            fbAccount.Handle,
-            fbAccount.RefreshToken,
-            brandContext);
-
-        if (outcome.Status == InstagramAuthStatus.Connected || string.IsNullOrWhiteSpace(fbAccount.RefreshToken))
-            return outcome;
-
-        var pages = await facebookService.GetManagedPagesAsync(fbAccount.RefreshToken);
-        var refreshed = pages.FirstOrDefault(p => p.Id == fbAccount.ExternalAccountId);
-        if (refreshed is null)
-        {
-            if (outcome.Status == InstagramAuthStatus.Failed && !string.IsNullOrWhiteSpace(outcome.Error))
-                return outcome;
-            return InstagramAuthOutcome.Failed(
-                "Could not refresh Facebook Page access. Disconnect and reconnect Facebook in Brand Social Accounts (approve Instagram permissions), then try Link from Facebook again.");
-        }
-
-        fbAccount.AccessToken = refreshed.AccessToken;
-        store.UpdateSocialAccount(fbAccount, kind);
-
-        var retry = await instagramService.CompleteAuthorizationFromConnectedFacebookAsync(
-            refreshed.Id,
-            refreshed.AccessToken,
-            refreshed.Name,
-            refreshed.Handle,
-            fbAccount.RefreshToken,
-            brandContext);
-        if (retry.Status == InstagramAuthStatus.Connected)
-            return retry;
-        if (!string.IsNullOrWhiteSpace(retry.Error))
-            return retry;
-        return outcome;
-    }
-
-    static void SyncFacebookAccountFromInstagramConnection(
-        AppStoreDb store, string kind, InstagramConnection connection)
-    {
-        var fb = FindFacebookAccountForLink(store, kind);
-        if (fb is null) return;
-        if (!string.Equals(fb.ExternalAccountId, connection.Link.Page.Id, StringComparison.Ordinal))
-            return;
-        fb.AccessToken = connection.Link.Page.AccessToken;
-        fb.RefreshToken = connection.UserAccessToken;
-        store.UpdateSocialAccount(fb, kind);
-    }
-
-    static SocialAccount? FindFacebookAccountForLink(AppStoreDb store, string kind)
-    {
-        var accounts = SocialAccountKinds.IsBrand(kind) ? store.OwnerSocialAccounts : store.AuthorSocialAccounts;
-        return accounts.FirstOrDefault(a =>
-            PostLimits.IsFacebook(a.Platform) &&
-            a.IsConnected &&
-            !string.IsNullOrWhiteSpace(a.AccessToken) &&
-            !string.IsNullOrWhiteSpace(a.ExternalAccountId));
     }
 }

@@ -65,10 +65,6 @@ static class PublicUrl
         return $"{FacebookOAuthBase(request)}{InstagramService.CallbackPath}";
     }
 
-    /// <summary>Redirect URI sent to Meta for Instagram OAuth (shared with Facebook callback).</summary>
-    public static string InstagramOAuthRedirectUrl(HttpRequest request, AppSettings? settings = null) =>
-        FacebookCallbackUrl(request, settings);
-
     public static IEnumerable<string> InstagramCallbackUrlsForMeta(AppSettings settings)
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

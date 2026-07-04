@@ -10,8 +10,7 @@ class FacebookService
     public const string Scopes = "pages_show_list,pages_manage_posts,pages_read_engagement,public_profile";
     /// <summary>Permissions to enable on the Meta Login Configuration (config mode only).</summary>
     public static readonly string[] LoginConfigurationPermissions =
-        ["pages_show_list", "pages_manage_posts", "pages_read_engagement", "business_management", "public_profile",
-         "instagram_basic", "instagram_content_publish"];
+        ["pages_show_list", "pages_manage_posts", "pages_read_engagement", "business_management", "public_profile"];
     public const string GraphVersion = "v22.0";
 
     readonly HttpClient _http;
@@ -40,7 +39,7 @@ class FacebookService
             ["response_type"] = "code"
         };
 
-        if (_settings.FacebookUsesConfigLogin && !brandContext && !forInstagram)
+        if (_settings.FacebookUsesConfigLogin && brandContext && !forInstagram)
         {
             if (string.IsNullOrWhiteSpace(_settings.FacebookLoginConfigId))
                 throw new InvalidOperationException("Facebook Login Config ID is not configured.");
@@ -48,10 +47,8 @@ class FacebookService
         }
         else
         {
-            // Standard scope OAuth. Do NOT add auth_type for brand or Instagram — Meta's Business
-            // Integration "Continue as …?" dialog spins and never returns an authorization code.
             query["scope"] = forInstagram ? InstagramService.Scopes : Scopes;
-            if (!brandContext && !forInstagram)
+            if (!brandContext || forInstagram)
                 query["auth_type"] = "rerequest";
         }
 
@@ -178,29 +175,18 @@ class FacebookService
             : (userToken, null);
     }
 
-    public const string MetaBusinessIntegrationHelp =
-        "Remove AuthorPromoter AI at facebook.com/settings?tab=business_tools first. On Meta's dialog click Edit settings (not Continue — it hangs). Sign in with your personal Facebook account that admins the Book Promoter AI Page.";
-
     public async Task<List<FacebookPage>> GetManagedPagesAsync(string userAccessToken, CancellationToken cancellationToken = default)
-    {
-        var (pages, _) = await TryGetManagedPagesAsync(userAccessToken, cancellationToken);
-        return pages;
-    }
-
-    public async Task<(List<FacebookPage> Pages, string? Error)> TryGetManagedPagesAsync(
-        string userAccessToken, CancellationToken cancellationToken = default)
     {
         var url = GraphUrl("me/accounts") +
                   "?fields=id,name,access_token,username" +
                   $"&access_token={Uri.EscapeDataString(userAccessToken)}";
 
         var response = await _http.GetAsync(url, cancellationToken);
-        var body = await response.Content.ReadAsStringAsync(cancellationToken);
         if (!response.IsSuccessStatusCode)
-            return ([], DescribeGraphError(body, "Could not list your Facebook Pages from Meta."));
+            return [];
 
-        var payload = System.Text.Json.JsonSerializer.Deserialize<FacebookPagesResponse>(body);
-        var pages = payload?.Data?
+        var payload = await response.Content.ReadFromJsonAsync<FacebookPagesResponse>(cancellationToken: cancellationToken);
+        return payload?.Data?
             .Where(p => !string.IsNullOrWhiteSpace(p.Id) && !string.IsNullOrWhiteSpace(p.AccessToken))
             .Select(p => new FacebookPage(
                 p.Id!,
@@ -208,13 +194,6 @@ class FacebookService
                 p.Username?.Trim() ?? p.Id!,
                 p.AccessToken!))
             .ToList() ?? [];
-
-        if (pages.Count == 0)
-        {
-            return ([], "Meta returned no Facebook Pages for this login. " + MetaBusinessIntegrationHelp);
-        }
-
-        return (pages, null);
     }
 
     async Task<(bool Success, bool NeedsRefresh, string Error)> TryPostPhotoAsync(

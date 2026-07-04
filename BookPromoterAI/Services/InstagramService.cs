@@ -7,8 +7,6 @@ namespace BookPromoterAI;
 class InstagramService
 {
     public const string CallbackPath = "/social-accounts/oauth-callback/instagram";
-    /// <summary>OAuth redirect URI — same as Facebook so Meta returns an authorization code reliably.</summary>
-    public const string OAuthRedirectPath = FacebookService.CallbackPath;
     public const string Scopes =
         "pages_show_list,pages_read_engagement,public_profile,instagram_basic,instagram_content_publish";
 
@@ -33,10 +31,9 @@ class InstagramService
     public async Task<InstagramAuthOutcome> CompleteAuthorizationAsync(
         string userAccessToken, bool brandContext, CancellationToken cancellationToken = default)
     {
-        var (pages, pagesError) = await _facebook.TryGetManagedPagesAsync(userAccessToken, cancellationToken);
+        var pages = await _facebook.GetManagedPagesAsync(userAccessToken, cancellationToken);
         if (pages.Count == 0)
-            return InstagramAuthOutcome.Failed(pagesError ??
-                "No Facebook Pages found. Instagram Business accounts must be linked to a Facebook Page.");
+            return InstagramAuthOutcome.Failed("No Facebook Pages found. Instagram Business accounts must be linked to a Facebook Page.");
 
         var linked = new List<InstagramPageLink>();
         foreach (var page in pages)
@@ -69,45 +66,7 @@ class InstagramService
         return InstagramAuthOutcome.NeedsAccountSelection(authorLinks, userAccessToken);
     }
 
-    /// <summary>Discover IG via an already-connected Facebook Page (page token), without listing pages from the user token.</summary>
-    public async Task<InstagramAuthOutcome> CompleteAuthorizationFromConnectedFacebookAsync(
-        string pageId,
-        string pageAccessToken,
-        string pageName,
-        string pageHandle,
-        string? userAccessToken,
-        bool brandContext,
-        CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(pageId) || string.IsNullOrWhiteSpace(pageAccessToken))
-            return InstagramAuthOutcome.Failed("Facebook Page token missing. Reconnect Facebook in Brand Social Accounts.");
-
-        var page = new FacebookPage(pageId, pageName, pageHandle, pageAccessToken);
-        var (ig, igError) = await TryGetInstagramBusinessAccountAsync(page.Id, page.AccessToken, cancellationToken);
-        if (ig is null)
-            return InstagramAuthOutcome.Failed(igError ??
-                "No Instagram account is linked to your Facebook Page. In Meta Business Suite, link your Instagram Business account to the Book Promoter AI Page, then try again.");
-
-        var userToken = userAccessToken ?? "";
-        var link = new InstagramPageLink(page, ig);
-        if (brandContext)
-            return InstagramAuthOutcome.Connected(new InstagramConnection(link, userToken));
-
-        if (FacebookService.IsBookPromoterBrandPage(page))
-            return InstagramAuthOutcome.Failed(
-                "Only the BookPromoter AI business Page was detected. Link your author Instagram to your own Facebook Page.");
-
-        return InstagramAuthOutcome.Connected(new InstagramConnection(link, userToken));
-    }
-
     public async Task<InstagramBusinessAccount?> GetInstagramBusinessAccountAsync(
-        string pageId, string pageAccessToken, CancellationToken cancellationToken = default)
-    {
-        var (account, _) = await TryGetInstagramBusinessAccountAsync(pageId, pageAccessToken, cancellationToken);
-        return account;
-    }
-
-    public async Task<(InstagramBusinessAccount? Account, string? Error)> TryGetInstagramBusinessAccountAsync(
         string pageId, string pageAccessToken, CancellationToken cancellationToken = default)
     {
         var url = GraphUrl(pageId) +
@@ -115,31 +74,18 @@ class InstagramService
                   $"&access_token={Uri.EscapeDataString(pageAccessToken)}";
 
         var response = await _http.GetAsync(url, cancellationToken);
-        var body = await response.Content.ReadAsStringAsync(cancellationToken);
         if (!response.IsSuccessStatusCode)
-            return (null, DescribeGraphError(body, "Could not read Instagram from Facebook Page. Reconnect Facebook and try again."));
+            return null;
 
-        var payload = System.Text.Json.JsonSerializer.Deserialize<InstagramPageResponse>(body);
+        var payload = await response.Content.ReadFromJsonAsync<InstagramPageResponse>(cancellationToken: cancellationToken);
         var ig = payload?.InstagramBusinessAccount;
         if (ig is null || string.IsNullOrWhiteSpace(ig.Id))
-            return (null, "No Instagram account is linked to this Facebook Page. Link IG in Meta Business Suite → Settings → Instagram accounts.");
+            return null;
 
-        return (new InstagramBusinessAccount(
+        return new InstagramBusinessAccount(
             ig.Id,
             ig.Username?.Trim() ?? ig.Id,
-            ig.Name?.Trim()), null);
-    }
-
-    static string? DescribeGraphError(string body, string fallback)
-    {
-        try
-        {
-            var err = System.Text.Json.JsonSerializer.Deserialize<InstagramGraphErrorResponse>(body);
-            if (!string.IsNullOrWhiteSpace(err?.Error?.Message))
-                return err.Error.Message;
-        }
-        catch { /* ignore */ }
-        return fallback;
+            ig.Name?.Trim());
     }
 
     public async Task<(PostingResult Result, string? RefreshedPageToken)> PostAsync(
