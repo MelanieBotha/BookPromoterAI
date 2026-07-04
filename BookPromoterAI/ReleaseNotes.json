@@ -1,4 +1,13 @@
 {
+  "1.9.57": {
+    "title": "BookPromoter AI v1.9.57 — What's new",
+    "updated": [
+      "Owner Facebook OAuth no longer sends auth_type for brand connects (fixes Meta Continue loop)",
+      "Clearer setup instructions: use Edit settings or personal login, not Continue as BookPromoter AI"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.9.56": {
     "title": "BookPromoter AI v1.9.56 — What's new",
     "updated": [

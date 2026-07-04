@@ -15,6 +15,9 @@ class FacebookService
         ["pages_show_list", "pages_manage_posts", "pages_read_engagement", "business_management", "public_profile"];
     public const string GraphVersion = "v22.0";
 
+    public const string MetaBusinessIntegrationHelp =
+        "Remove AuthorPromoter AI at facebook.com/settings?tab=business_tools first. On Meta's dialog click Edit settings (not Continue — it loops). Or click Not BookPromoter AI? and sign in with your personal Facebook account that admins the Book Promoter AI Page.";
+
     readonly HttpClient _http;
     readonly AppSettings _settings;
 
@@ -52,8 +55,11 @@ class FacebookService
         }
         else
         {
+            // Do NOT add auth_type for brand — Meta's "Continue as BookPromoter AI?" dialog spins
+            // and never returns an authorization code when auth_type is set.
             query["scope"] = Scopes;
-            query["auth_type"] = brandContext ? "reauthenticate" : "rerequest";
+            if (!brandContext)
+                query["auth_type"] = "rerequest";
         }
 
         var url = $"https://www.facebook.com/{GraphVersion}/dialog/oauth?" +
@@ -75,7 +81,7 @@ class FacebookService
 
         var pages = await GetManagedPagesAsync(userToken, cancellationToken);
         if (pages.Count == 0)
-            return FacebookAuthOutcome.Failed("No Facebook Pages found. Create a Page for your author brand and make sure you are an admin, then try again.");
+            return FacebookAuthOutcome.Failed("No Facebook Pages found. " + MetaBusinessIntegrationHelp);
 
         if (brandContext)
         {
@@ -181,16 +187,24 @@ class FacebookService
 
     public async Task<List<FacebookPage>> GetManagedPagesAsync(string userAccessToken, CancellationToken cancellationToken = default)
     {
+        var (pages, _) = await TryGetManagedPagesAsync(userAccessToken, cancellationToken);
+        return pages;
+    }
+
+    public async Task<(List<FacebookPage> Pages, string? Error)> TryGetManagedPagesAsync(
+        string userAccessToken, CancellationToken cancellationToken = default)
+    {
         var url = GraphUrl("me/accounts") +
                   "?fields=id,name,access_token,username" +
                   $"&access_token={Uri.EscapeDataString(userAccessToken)}";
 
         var response = await _http.GetAsync(url, cancellationToken);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
         if (!response.IsSuccessStatusCode)
-            return [];
+            return ([], DescribeGraphError(body, "Could not list your Facebook Pages from Meta."));
 
-        var payload = await response.Content.ReadFromJsonAsync<FacebookPagesResponse>(cancellationToken: cancellationToken);
-        return payload?.Data?
+        var payload = System.Text.Json.JsonSerializer.Deserialize<FacebookPagesResponse>(body);
+        var pages = payload?.Data?
             .Where(p => !string.IsNullOrWhiteSpace(p.Id) && !string.IsNullOrWhiteSpace(p.AccessToken))
             .Select(p => new FacebookPage(
                 p.Id!,
@@ -198,6 +212,11 @@ class FacebookService
                 p.Username?.Trim() ?? p.Id!,
                 p.AccessToken!))
             .ToList() ?? [];
+
+        if (pages.Count == 0)
+            return ([], "Meta returned no Facebook Pages for this login. " + MetaBusinessIntegrationHelp);
+
+        return (pages, null);
     }
 
     async Task<(bool Success, bool NeedsRefresh, string Error)> TryPostPhotoAsync(

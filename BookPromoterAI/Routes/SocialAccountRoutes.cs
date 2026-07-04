@@ -384,7 +384,10 @@ static class SocialAccountRoutes
 
             if (string.IsNullOrWhiteSpace(code))
             {
-                return Results.Redirect($"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Invalid Facebook login response. Try again.")}");
+                var noCodeNotice = SocialAccountKinds.IsBrand(pending.Kind)
+                    ? FacebookService.MetaBusinessIntegrationHelp
+                    : "Invalid Facebook login response. Try again.";
+                return Results.Redirect($"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(noCodeNotice)}");
             }
 
             if (SocialAccountKinds.IsBrand(pending.Kind) && !OwnerAccount.IsOwnerEmail(

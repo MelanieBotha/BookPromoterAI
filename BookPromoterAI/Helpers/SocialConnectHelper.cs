@@ -265,13 +265,15 @@ static class SocialConnectHelper
             : "";
         var brandSteps = brandContext
             ? """
-                <div class="notice">
-                    <strong>Before you continue:</strong>
+                <div class="notice error">
+                    <strong>Stuck on &ldquo;Continue as BookPromoter AI?&rdquo;</strong>
+                    <p>The blue <strong>Continue</strong> button loops forever — do not click it.</p>
                     <ol class="plan-features">
-                        <li>Open <a href="https://www.facebook.com/settings?tab=business_tools&amp;section=active" target="_blank" rel="noopener">Facebook Business integrations</a> and remove <strong>AuthorPromoter AI</strong> if listed.</li>
-                        <li>Sign in as your <strong>personal</strong> Facebook account (Melanie Botha) — the one that admins the Book Promoter AI Page.</li>
-                        <li>On the Meta dialog, click <strong>Edit settings</strong> — never <strong>Continue</strong>.</li>
-                        <li>On <strong>Choose Pages</strong>, select <strong>Book Promoter AI</strong> only.</li>
+                        <li>Open <a href="https://www.facebook.com/settings?tab=business_tools&amp;section=active" target="_blank" rel="noopener">Business integrations</a> → remove <strong>AuthorPromoter AI</strong> if listed → confirm <strong>Active: 0</strong>.</li>
+                        <li>On the Meta screen click <strong>Edit settings</strong> (grey button), not Continue.</li>
+                        <li>Or click <strong>Not BookPromoter AI? Log into another account</strong> and sign in as <strong>Melanie Botha</strong> (your personal account — not the business portfolio).</li>
+                        <li>On <strong>Choose Pages</strong>, tick <strong>Book Promoter AI</strong> only → Save.</li>
+                        <li>Success = your browser returns to <strong>bookpromoterai.us</strong> (not back to facebook.com).</li>
                     </ol>
                 </div>
                 """
@@ -292,9 +294,8 @@ static class SocialConnectHelper
                 : brandContext
                     ? $"""
                 {brandSteps}
-                <p class="muted">If Facebook keeps showing &ldquo;Continue as BookPromoter AI?&rdquo;, you must click <strong>Edit settings</strong> and re-select the Page. Clicking <strong>Continue</strong> will loop back without connecting.</p>
                 <div class="form-actions">
-                    <a class="button" href="{H.Encode(connectHref)}" style="background:#1877F2">Continue to Facebook sign-in</a>
+                    <a class="button" href="{H.Encode(connectHref)}" style="background:#1877F2">I removed the integration — open Meta sign-in</a>
                     <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
                 </div>
                 """
