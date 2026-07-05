@@ -443,6 +443,47 @@ class AppStoreDb
         return account;
     }
 
+    /// <summary>Replace any existing OAuth account for the same platform/kind (used on reconnect).</summary>
+    public SocialAccount UpsertOAuthSocialAccountForUser(int userId, SocialAccount account, string? accountKind = null)
+    {
+        if (userId <= 0) throw new InvalidOperationException("Invalid user.");
+        var kind = accountKind ?? account.AccountKind;
+        if (string.IsNullOrWhiteSpace(kind)) kind = SocialAccountKinds.Author;
+
+        using var db = Db();
+        var user = db.Users.AsNoTracking().FirstOrDefault(u => u.Id == userId)
+            ?? throw new InvalidOperationException("User not found.");
+        if (SocialAccountKinds.IsBrand(kind) && !OwnerAccount.IsOwnerEmail(user.Email))
+            throw new InvalidOperationException("Only the owner can add BookPromoter AI brand accounts.");
+
+        var saveUserId = SocialAccountKinds.IsBrand(kind) ? BrandDataUserId() : userId;
+        var platform = account.Platform.Trim();
+        var existing = db.SocialAccounts
+            .Where(a => a.UserId == saveUserId && a.AccountKind == kind && a.Platform == platform)
+            .ToList();
+        if (existing.Count > 0)
+            db.SocialAccounts.RemoveRange(existing);
+
+        var dbAcc = new DbSocialAccount
+        {
+            UserId = saveUserId,
+            Platform = platform,
+            DisplayName = account.DisplayName,
+            Handle = account.Handle,
+            IsConnected = account.IsConnected,
+            ConnectedViaOAuth = account.ConnectedViaOAuth,
+            AccountKind = kind,
+            AccessToken = account.AccessToken ?? account.SimulatedAccessToken,
+            RefreshToken = account.RefreshToken,
+            ExternalAccountId = account.ExternalAccountId
+        };
+        db.SocialAccounts.Add(dbAcc);
+        db.SaveChanges();
+        account.Id = dbAcc.Id;
+        account.AccountKind = kind;
+        return account;
+    }
+
     public void UpdateSocialAccount(SocialAccount account, string? accountKind = null)
     {
         var kind = accountKind ?? account.AccountKind;

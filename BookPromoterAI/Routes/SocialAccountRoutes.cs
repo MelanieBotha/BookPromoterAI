@@ -49,7 +49,7 @@ static class SocialAccountRoutes
                 AccountKind = kind
             }, kind);
             if (SocialAccountKinds.IsAuthor(kind))
-                store.AddSchedule(new SocialSchedule { Platform = finalPlatform, PostsPerWeek = 1, RequiresApproval = true });
+            store.AddSchedule(new SocialSchedule { Platform = finalPlatform, PostsPerWeek = 1, RequiresApproval = true });
             return Results.Redirect(returnUrl);
         });
 
@@ -72,7 +72,7 @@ static class SocialAccountRoutes
             account.Handle = form["handle"].ToString();
             store.UpdateSocialAccount(account, kind);
             if (SocialAccountKinds.IsAuthor(kind))
-                store.AddSchedule(new SocialSchedule { Platform = finalPlatform, PostsPerWeek = 1, RequiresApproval = true });
+            store.AddSchedule(new SocialSchedule { Platform = finalPlatform, PostsPerWeek = 1, RequiresApproval = true });
             return Results.Redirect(returnUrl);
         });
 
@@ -439,7 +439,7 @@ static class SocialAccountRoutes
             }
 
             var connection = outcome.Connection;
-            store.AddSocialAccountForUser(pending.UserId, new SocialAccount
+            store.UpsertOAuthSocialAccountForUser(pending.UserId, new SocialAccount
             {
                 Platform = "Facebook",
                 DisplayName = connection.Page.Name,
@@ -499,7 +499,7 @@ static class SocialAccountRoutes
             }
 
             await FacebookPagePickStateStore.TakeAsync(cache, token);
-            store.AddSocialAccountForUser(pending.UserId, new SocialAccount
+            store.UpsertOAuthSocialAccountForUser(pending.UserId, new SocialAccount
             {
                 Platform = "Facebook",
                 DisplayName = page.Name,
@@ -698,7 +698,7 @@ static class SocialAccountRoutes
                 SimulatedAccessToken = simulatedToken
             }, kind);
             if (SocialAccountKinds.IsAuthor(kind))
-                store.AddSchedule(new SocialSchedule { Platform = platformName, PostsPerWeek = 1, RequiresApproval = true });
+            store.AddSchedule(new SocialSchedule { Platform = platformName, PostsPerWeek = 1, RequiresApproval = true });
             return Results.Redirect(returnUrl);
         });
     }

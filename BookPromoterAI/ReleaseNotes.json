@@ -1,4 +1,13 @@
 {
+  "1.9.58": {
+    "title": "BookPromoter AI v1.9.58 — What's new",
+    "updated": [
+      "Brand Facebook reconnect replaces the old Page instead of adding a duplicate",
+      "Brand OAuth refuses wrong Pages (e.g. Melanie Botha Novels) and shows an in-app Page picker"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.9.57": {
     "title": "BookPromoter AI v1.9.57 — What's new",
     "updated": [

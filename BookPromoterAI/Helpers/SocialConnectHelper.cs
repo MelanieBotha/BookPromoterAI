@@ -273,7 +273,9 @@ static class SocialConnectHelper
                         <li>On the Meta screen click <strong>Edit settings</strong> (grey button), not Continue.</li>
                         <li>Or click <strong>Not BookPromoter AI? Log into another account</strong> and sign in as <strong>Melanie Botha</strong> (your personal account — not the business portfolio).</li>
                         <li>On <strong>Choose Pages</strong>, tick <strong>Book Promoter AI</strong> only → Save.</li>
-                        <li>Success = your browser returns to <strong>bookpromoterai.us</strong> (not back to facebook.com).</li>
+                        <li>Meta may show <strong>Continue as BookPromoter AI?</strong> one more time — click the blue <strong>Continue</strong> button <em>only after</em> you completed Edit settings and Save. Your browser should land on <strong>bookpromoterai.us</strong>.</li>
+                        <li>If Continue loops on facebook.com, click <strong>Not BookPromoter AI?</strong> and sign in as <strong>Melanie Botha</strong> (personal account), then repeat Edit settings.</li>
+                        <li>On BookPromoter AI, <strong>remove</strong> any old Facebook brand account first (wrong Page ID), then connect again.</li>
                     </ol>
                 </div>
                 """
@@ -322,6 +324,11 @@ static class SocialConnectHelper
 
     public static string FacebookPagePickPage(FacebookPagePickPending pending, string token, string? notice = null)
     {
+        var brandContext = SocialAccountKinds.IsBrand(pending.Kind);
+        var heading = brandContext ? "Choose the Book Promoter AI Page" : "Choose your author Facebook Page";
+        var intro = brandContext
+            ? "Pick <strong>Book Promoter AI</strong> (Page ID should start with 1210…). Do not pick Melanie Botha Novels or other author Pages."
+            : "BookPromoter AI posts to a Facebook <strong>Page</strong>, not your personal profile. Pick the Page you use for your author brand.";
         var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<div class="notice error">{H.Encode(notice)}</div>""";
         var options = new StringBuilder();
         foreach (var page in pending.Pages)
@@ -338,9 +345,9 @@ static class SocialConnectHelper
         }
 
         return $"""
-            <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>Choose your author Facebook Page</h1></div></section>
+            <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>{heading}</h1></div></section>
             <section class="panel oauth-panel">
-                <p class="muted">BookPromoter AI posts to a Facebook <strong>Page</strong>, not your personal profile. Pick the Page you use for your author brand.</p>
+                <p class="muted">{intro}</p>
                 {noticeHtml}
                 <form method="post" action="/social-accounts/connect/Facebook/select-page" class="stacked-form">
                     <input type="hidden" name="token" value="{H.Encode(token)}">

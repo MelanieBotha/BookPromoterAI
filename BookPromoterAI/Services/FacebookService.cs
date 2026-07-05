@@ -85,10 +85,18 @@ class FacebookService
 
         if (brandContext)
         {
-            var page = PickBrandPage(pages);
-            return page is null
-                ? FacebookAuthOutcome.Failed("Could not select a Facebook Page to connect.")
-                : FacebookAuthOutcome.Connected(new FacebookPageConnection(page, userToken));
+            var brandPages = pages.Where(IsBookPromoterBrandPage).ToList();
+            if (brandPages.Count == 1)
+                return FacebookAuthOutcome.Connected(new FacebookPageConnection(brandPages[0], userToken));
+            if (brandPages.Count > 1)
+                return FacebookAuthOutcome.NeedsPageSelection(brandPages, userToken);
+            if (pages.Count > 1)
+                return FacebookAuthOutcome.NeedsPageSelection(pages, userToken);
+            if (pages.Count == 1)
+                return FacebookAuthOutcome.Failed(
+                    $"Meta only granted \"{pages[0].Name}\" (not Book Promoter AI). On Facebook click Edit settings → Choose Pages → tick Book Promoter AI only. " +
+                    MetaBusinessIntegrationHelp);
+            return FacebookAuthOutcome.Failed("Could not select the Book Promoter AI Page.");
         }
 
         var authorPages = pages.Where(p => !IsBookPromoterBrandPage(p)).ToList();
@@ -310,16 +318,10 @@ class FacebookService
         return (false, false, DescribePostError(status, body));
     }
 
-    static FacebookPage? PickBrandPage(IReadOnlyList<FacebookPage> pages)
-    {
-        if (pages.Count == 0) return null;
-        var brand = pages.FirstOrDefault(IsBookPromoterBrandPage);
-        return brand ?? pages[0];
-    }
-
     public static bool IsBookPromoterBrandPage(FacebookPage page) =>
         page.Name.Contains("Book Promoter", StringComparison.OrdinalIgnoreCase) ||
-        page.Name.Contains("BookPromoter", StringComparison.OrdinalIgnoreCase);
+        page.Name.Contains("BookPromoter", StringComparison.OrdinalIgnoreCase) ||
+        page.Id == "1210277848829044";
 
     static string DescribeGraphError(string body, string fallback)
     {
