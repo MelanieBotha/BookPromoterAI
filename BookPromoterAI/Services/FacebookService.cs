@@ -36,7 +36,7 @@ class FacebookService
     static string GraphUrl(string path) =>
         $"https://graph.facebook.com/{GraphVersion}/{path.TrimStart('/')}";
 
-    public (string AuthorizeUrl, string State) BuildAuthorizationUrl(string redirectUri, bool brandContext = false)
+    public (string AuthorizeUrl, string State) BuildAuthorizationUrl(string redirectUri, bool brandContext = false, bool forceScope = false)
     {
         var state = Guid.NewGuid().ToString("N");
         var query = new Dictionary<string, string>
@@ -47,24 +47,25 @@ class FacebookService
             ["response_type"] = "code"
         };
 
-        // Brand MUST use Login for Business config_id — scope OAuth triggers Meta's
-        // "Continue as BookPromoter AI?" business-integration loop that never redirects back.
-        if (brandContext)
+        var useConfigLogin = !forceScope && (
+            brandContext ||
+            _settings.FacebookUsesConfigLogin);
+
+        if (useConfigLogin)
         {
             if (!AppSettings.IsValidFacebookLoginConfigId(_settings.FacebookLoginConfigId))
-                throw new InvalidOperationException("Facebook Login Config ID is required for brand Page connect.");
+                throw new InvalidOperationException(
+                    brandContext
+                        ? "Facebook Login Config ID is required for brand Page connect."
+                        : "Facebook Login Config ID is not configured.");
             query["config_id"] = _settings.FacebookLoginConfigId.Trim();
-        }
-        else if (_settings.FacebookUsesConfigLogin)
-        {
-            if (!AppSettings.IsValidFacebookLoginConfigId(_settings.FacebookLoginConfigId))
-                throw new InvalidOperationException("Facebook Login Config ID is not configured.");
-            query["config_id"] = _settings.FacebookLoginConfigId.Trim();
+            query["override_default_response_type"] = "true";
         }
         else
         {
             query["scope"] = Scopes;
-            query["auth_type"] = "rerequest";
+            if (!brandContext)
+                query["auth_type"] = "rerequest";
         }
 
         var url = $"https://www.facebook.com/{GraphVersion}/dialog/oauth?" +

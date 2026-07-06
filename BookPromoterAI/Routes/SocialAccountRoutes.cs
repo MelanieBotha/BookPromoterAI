@@ -380,7 +380,8 @@ static class SocialAccountRoutes
                 return Results.Redirect($"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Facebook API credentials are not configured.")}");
 
             var brandOAuth = SocialAccountKinds.IsBrand(kind);
-            if (brandOAuth && !settings.IsBrandFacebookOAuthReady)
+            var forceScope = string.Equals(form["mode"].ToString(), "scope", StringComparison.OrdinalIgnoreCase);
+            if (brandOAuth && !forceScope && !settings.IsBrandFacebookOAuthReady)
             {
                 return Results.Redirect($"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Add Facebook__LoginConfigId in Railway for brand Page connect.")}");
             }
@@ -391,7 +392,7 @@ static class SocialAccountRoutes
             }
 
             var callbackUrl = PublicUrl.FacebookCallbackUrl(request, settings);
-            var (authorizeUrl, state) = facebookService.BuildAuthorizationUrl(callbackUrl, brandOAuth);
+            var (authorizeUrl, state) = facebookService.BuildAuthorizationUrl(callbackUrl, brandOAuth, forceScope);
             await FacebookOAuthStateStore.SaveAsync(cache, state, new FacebookOAuthPending
             {
                 UserId = saveUserId,

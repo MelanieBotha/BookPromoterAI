@@ -1,4 +1,12 @@
 {
+  "1.9.60": {
+    "title": "BookPromoter AI v1.9.60 — What's new",
+    "updated": [
+      "Fix Facebook Login for Business OAuth (override_default_response_type) and add scope fallback for owner brand connect"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.9.59": {
     "title": "BookPromoter AI v1.9.59 — What's new",
     "updated": [

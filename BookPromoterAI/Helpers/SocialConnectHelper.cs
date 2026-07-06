@@ -298,6 +298,12 @@ static class SocialConnectHelper
                         <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
                     </div>
                 </form>
+                <p class="muted small-text">If Meta shows &ldquo;Sorry, something went wrong&rdquo;, verify <code>Facebook__LoginConfigId</code> in Railway matches Meta → Facebook Login for Business → Configurations. Or use fallback below.</p>
+                <form method="post" action="/social-accounts/connect/Facebook/start" class="form" style="margin-top:1rem">
+                    <input type="hidden" name="return" value="{H.Encode(returnUrl)}">
+                    <input type="hidden" name="mode" value="scope">
+                    <button class="button secondary" type="submit">Fallback: standard Page login (use Edit settings on Meta)</button>
+                </form>
                 """;
         var connectBlock = !configured
             ? """
