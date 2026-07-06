@@ -3,7 +3,7 @@ namespace BookPromoterAI;
 /// <summary>Splits book excerpts into timed sentences for narrated video subtitles.</summary>
 static class ReadAloudScript
 {
-    public const int MaxWords = 150;
+    public const int MaxWords = TikTokVideoLimits.MaxExcerptWords;
 
     public static ReadAloudPlan Build(string excerpt, double totalDurationMs)
     {

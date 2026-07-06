@@ -94,7 +94,7 @@ static class TikTokPage
             ? $"""
                 <section class="panel tiktok-studio">
                     <h2>Create a book promo video</h2>
-                    <p class="muted small-text">Promo: animated caption beats. Narrated: built-in read-aloud voice reads your excerpt while the cover animates — no ElevenLabs or paid API.</p>
+                    <p class="muted small-text">TikTok-length videos (60 seconds). Promo: animated captions. Narrated: read-aloud voice with synced subtitles — no ElevenLabs.</p>
                     <div class="tiktok-studio-layout">
                         <div class="tiktok-studio-controls form">
                             <label>Book
@@ -107,7 +107,7 @@ static class TikTokPage
                                 </select>
                             </label>
                             <label id="tiktok-excerpt-wrap" style="display:none">Read-aloud excerpt
-                                <textarea id="tiktok-excerpt" rows="5" placeholder="Paste a chapter sample (~60–90 sec). Add a saved excerpt under Books, or edit here."></textarea>
+                                <textarea id="tiktok-excerpt" rows="5" placeholder="Paste a chapter sample (up to ~155 words for a 60s TikTok)."></textarea>
                                 <span class="muted small-text">Built-in speech on our server — no ElevenLabs or paid voice API.</span>
                             </label>
                             <label>Video title
@@ -135,7 +135,7 @@ static class TikTokPage
                 <div>
                     <p class="eyebrow">Book promos</p>
                     <h1>Videos</h1>
-                    <p class="muted">Create short vertical book promos. Download and post to your favorite video platform.</p>
+                    <p class="muted">Create 60-second vertical book promos for TikTok, Reels, and Shorts.</p>
                 </div>
             </section>
             {notice}
@@ -183,18 +183,19 @@ static class TikTokPage
             coverImg.crossOrigin = 'anonymous';
             var animFrame = null;
             var recordStart = 0;
-            var durationMs = 18000;
+            var durationMs = 60000;
+            var maxDurationMs = 60000;
             var currentScript = null;
             var videoStyle = 'promo';
             var narratedAnimFrame = null;
-            var ctaTailMs = 2500;
+            var ctaTailMs = 4000;
 
             var scenes = [
-                { id: 'hook', start: 0, end: 2000 },
-                { id: 'cover', start: 2000, end: 7000 },
-                { id: 'chunks', start: 7000, end: 12000 },
-                { id: 'hashtags', start: 12000, end: 16000 },
-                { id: 'cta', start: 16000, end: 18000 }
+                { id: 'hook', start: 0, end: 8000 },
+                { id: 'cover', start: 8000, end: 22000 },
+                { id: 'chunks', start: 22000, end: 42000 },
+                { id: 'hashtags', start: 42000, end: 52000 },
+                { id: 'cta', start: 52000, end: 60000 }
             ];
 
             function bookById(id) {
@@ -458,7 +459,16 @@ static class TikTokPage
                 else animatePreview();
             }
 
+            function clampSpeechMs(ms) {
+                return Math.min(ms, maxDurationMs - ctaTailMs);
+            }
+
+            function totalVideoMs(speechMs) {
+                return Math.min(maxDurationMs, clampSpeechMs(speechMs) + ctaTailMs);
+            }
+
             function drawNarratedFrame(elapsedMs, beats, speechMs, script) {
+                speechMs = clampSpeechMs(speechMs);
                 var progress = speechMs > 0 ? Math.min(1, elapsedMs / speechMs) : 0;
                 drawCoverBg(progress * 0.85, 0.42);
                 drawGradientFooter();
@@ -494,8 +504,8 @@ static class TikTokPage
             function estimateBeatsFromText(text) {
                 var parts = text.split(/[.!?]+\s*/).filter(function (s) { return s.trim(); });
                 if (!parts.length) parts = [text];
-                var wpm = 150;
-                var totalMs = (text.split(/\s+/).length / wpm) * 60 * 1000;
+                var wpm = 165;
+                var totalMs = clampSpeechMs((text.split(/\s+/).length / wpm) * 60 * 1000);
                 var totalChars = Math.max(1, parts.join('').length);
                 var cursor = 0;
                 return parts.map(function (p) {
@@ -512,7 +522,7 @@ static class TikTokPage
                 var excerpt = document.getElementById('tiktok-excerpt').value.trim();
                 var beats = estimateBeatsFromText(excerpt || 'Sample read-aloud preview.');
                 var speechMs = beats.length ? beats[beats.length - 1].endMs : 12000;
-                var totalMs = speechMs + ctaTailMs;
+                var totalMs = totalVideoMs(speechMs);
                 var script = currentScript || { title: '', author: '', cta: 'Link in bio 📚', link: '' };
                 var start = performance.now();
                 function tick(now) {
@@ -546,7 +556,7 @@ static class TikTokPage
                     return;
                 }
                 btn.disabled = true;
-                status.textContent = 'Creating video (about 18 seconds)...';
+                status.textContent = 'Creating video (60 seconds)...';
                 if (animFrame) cancelAnimationFrame(animFrame);
 
                 var stream = canvas.captureStream(30);
@@ -607,7 +617,7 @@ static class TikTokPage
                         var raw = atob(data.wavBase64);
                         var bytes = new Uint8Array(raw.length);
                         for (var i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-                        return recordNarratedWithAudio(bytes.buffer, data.beats, data.durationMs, bookId, title, caption, status, btn);
+                        return recordNarratedWithAudio(bytes.buffer, data.beats, clampSpeechMs(data.durationMs), bookId, title, caption, status, btn);
                     })
                     .catch(function () {
                         status.textContent = 'Could not generate speech. Try again.';
@@ -618,7 +628,8 @@ static class TikTokPage
 
             function recordNarratedWithAudio(arrayBuffer, beats, speechMs, bookId, title, caption, status, btn) {
                 var script = currentScript || { title: '', author: '', cta: 'Link in bio 📚', link: '' };
-                var totalMs = speechMs + ctaTailMs;
+                speechMs = clampSpeechMs(speechMs);
+                var totalMs = totalVideoMs(speechMs);
                 var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 return audioCtx.decodeAudioData(arrayBuffer).then(function (audioBuffer) {
                     status.textContent = 'Recording narrated video...';
@@ -641,6 +652,8 @@ static class TikTokPage
                     };
                     var startAt = audioCtx.currentTime;
                     source.start(0);
+                    if (speechMs < audioBuffer.duration * 1000)
+                        source.stop(startAt + speechMs / 1000);
                     recorder.start(200);
                     function tick() {
                         var elapsedMs = (audioCtx.currentTime - startAt) * 1000;

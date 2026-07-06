@@ -31,11 +31,12 @@ static class TikTokRoutes
             if (wav is null)
                 return Results.Json(new { error = error ?? "Could not generate speech." });
 
-            var plan = ReadAloudScript.Build(text, durationMs);
+            var plan = ReadAloudScript.Build(text, TikTokVideoLimits.ClampSpeechMs(durationMs));
             return Results.Json(new
             {
                 wavBase64 = Convert.ToBase64String(wav),
-                durationMs,
+                durationMs = TikTokVideoLimits.ClampSpeechMs(durationMs),
+                maxDurationMs = TikTokVideoLimits.MaxDurationMs,
                 beats = plan.Beats.Select(b => new { text = b.Text, startMs = b.StartMs, endMs = b.EndMs })
             });
         });

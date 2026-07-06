@@ -70,9 +70,9 @@ static class BooksPage
                 var words = textarea.value.trim().length === 0 ? [] : textarea.value.trim().split(/\s+/);
                 var count = words.length;
                 var label = document.getElementById('excerpt-word-count');
-                if (count > 150) { words = words.slice(0, 150); textarea.value = words.join(' '); count = 150; }
-                label.textContent = count + ' / 150 words';
-                label.style.color = count >= 150 ? '#b91c1c' : '';
+                if (count > 155) { words = words.slice(0, 155); textarea.value = words.join(' '); count = 155; }
+                label.textContent = count + ' / 155 words';
+                label.style.color = count >= 155 ? '#b91c1c' : '';
             }
             document.addEventListener('DOMContentLoaded', function () {
                 var field = document.getElementById('description-field');
@@ -98,7 +98,7 @@ static class BooksPage
                         <textarea name="description" id="description-field" oninput="updateWordCount(this)">{H.Encode(description)}</textarea>
                         <span id="word-count" class="small-text muted"></span>
                     </label>
-                    <label>Read-aloud excerpt (150 words max — for narrated videos)
+                    <label>Read-aloud excerpt (155 words max — fits a 60s TikTok)
                         <textarea name="readAloudExcerpt" id="excerpt-field" oninput="updateExcerptWordCount(this)" placeholder="Paste a short chapter sample or opening scene. Used on the Videos tab for AI read-aloud promos.">{H.Encode(readAloudExcerpt)}</textarea>
                         <span id="excerpt-word-count" class="small-text muted"></span>
                     </label>
