@@ -1,4 +1,13 @@
 {
+  "1.11.5": {
+    "title": "BookPromoter AI v1.11.5 — What's new",
+    "updated": [
+      "Weekly videos still generate when read-aloud is unavailable — FFmpeg caption promo fallback from your book description",
+      "Docker image uses Ubuntu jammy with verified espeak/ffmpeg; Nixpacks apt fallback for Railway"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.11.4": {
     "title": "BookPromoter AI v1.11.4 — What's new",
     "updated": [

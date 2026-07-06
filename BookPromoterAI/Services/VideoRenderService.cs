@@ -39,7 +39,8 @@ class VideoRenderService
 
             var (wav, durationMs, speechError) = await _speech.SynthesizeAsync(narrationText, cancellationToken);
             if (wav is null)
-                return (false, null, speechError ?? "Speech synthesis failed.");
+                return await RenderCaptionPromoVideoAsync(
+                    coverPath, narrationText, uploadsDir, speechError, cancellationToken);
 
             var wavPath = Path.Combine(workDir, "speech.wav");
             await File.WriteAllBytesAsync(wavPath, wav, cancellationToken);
@@ -133,6 +134,64 @@ class VideoRenderService
                  $"subtitles='{srtFilter}':force_style='FontName=Arial,FontSize=22,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,BorderStyle=3,Alignment=2'";
 
         var args = $"-y -loop 1 -i \"{coverPath}\" -i \"{wavPath}\" -vf \"{vf}\" -c:v libvpx-vp9 -b:v 2M -c:a libopus -pix_fmt yuv420p -shortest \"{outPath}\"";
+        var psi = new ProcessStartInfo
+        {
+            FileName = ffmpeg,
+            Arguments = args,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        using var process = Process.Start(psi);
+        if (process is null) return false;
+        await process.WaitForExitAsync(cancellationToken);
+        return process.ExitCode == 0;
+    }
+
+    async Task<(bool Ok, string? VideoUrl, string? Error)> RenderCaptionPromoVideoAsync(
+        string coverPath,
+        string narrationText,
+        string uploadsDir,
+        string? speechError,
+        CancellationToken cancellationToken)
+    {
+        var ffmpeg = FfmpegPath();
+        if (ffmpeg is null)
+            return (false, null, speechError ?? "Video tools are not available on this server.");
+
+        var workDir = Path.GetDirectoryName(coverPath) ?? Path.GetTempPath();
+        var speechMs = TikTokVideoLimits.MaxSpeechMs;
+        var plan = ReadAloudScript.Build(narrationText, speechMs);
+        var totalSec = TikTokVideoLimits.MaxDurationMs / 1000.0;
+        var frames = (int)Math.Ceiling(totalSec * 30);
+
+        var srtPath = Path.Combine(workDir, "subs-promo.srt");
+        await File.WriteAllTextAsync(srtPath, BuildSrt(plan), Encoding.UTF8, cancellationToken);
+
+        var outName = $"bookpromo-{Guid.NewGuid():N}.webm";
+        var outPath = Path.Combine(uploadsDir, outName);
+        Directory.CreateDirectory(uploadsDir);
+
+        var ok = await RunFfmpegCaptionOnlyAsync(coverPath, srtPath, outPath, frames, cancellationToken);
+        if (!ok || !File.Exists(outPath))
+            return (false, null, speechError ?? "Could not render caption video. FFmpeg may be missing on the server.");
+
+        return (true, $"/uploads/{outName}", null);
+    }
+
+    async Task<bool> RunFfmpegCaptionOnlyAsync(
+        string coverPath, string srtPath, string outPath, int frames, CancellationToken cancellationToken)
+    {
+        var ffmpeg = FfmpegPath();
+        if (ffmpeg is null) return false;
+
+        var srtFilter = srtPath.Replace("\\", "/").Replace(":", "\\:");
+        var vf = $"scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280," +
+                 $"zoompan=z='min(zoom+0.0010,1.22)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={frames}:s=720x1280:fps=30," +
+                 $"subtitles='{srtFilter}':force_style='FontName=DejaVu Sans,FontSize=22,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,BorderStyle=3,Alignment=2'";
+
+        var args = $"-y -loop 1 -i \"{coverPath}\" -f lavfi -i anullsrc=channel_layout=mono:sample_rate=44100 " +
+                   $"-vf \"{vf}\" -c:v libvpx-vp9 -b:v 2M -c:a libopus -pix_fmt yuv420p -t {TikTokVideoLimits.MaxDurationMs / 1000.0} \"{outPath}\"";
         var psi = new ProcessStartInfo
         {
             FileName = ffmpeg,

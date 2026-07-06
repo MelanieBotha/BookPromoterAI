@@ -1,0 +1,3 @@
+# Fallback when Railway builds with Nixpacks instead of Dockerfile
+[phases.setup]
+aptPkgs = ["espeak-ng", "libespeak-ng1", "libttspico-utils", "ffmpeg", "fonts-dejavu-core", "fontconfig"]

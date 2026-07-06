@@ -123,7 +123,7 @@ static class TikTokPage
             {studio}
             <section class="panel">
                 <h2>This week's videos</h2>
-                <p class="muted small-text">{H.Encode(currentWeekLabel)} — one 60-second narrated video per book (from your book description and cover). Refreshes every Monday.</p>
+                <p class="muted small-text">{H.Encode(currentWeekLabel)} — one 60-second video per book from your description and cover (read-aloud voice when available, otherwise animated captions). Refreshes every Monday.</p>
                 <div class="tiktok-video-list" id="videos-week">
                     {thisWeekRows}
                 </div>

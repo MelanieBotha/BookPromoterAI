@@ -6,13 +6,18 @@ COPY BookPromoterAI/ BookPromoterAI/
 WORKDIR /src/BookPromoterAI
 RUN dotnet publish -c Release -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy
+ARG APP_RELEASE=1.11.5
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
        espeak-ng \
        libespeak-ng1 \
        libttspico-utils \
        ffmpeg \
+       fonts-dejavu-core \
+       fontconfig \
+    && espeak-ng --version \
+    && ffmpeg -version \
     && test -x /usr/bin/espeak-ng \
     && test -x /usr/bin/ffmpeg \
     && rm -rf /var/lib/apt/lists/*
