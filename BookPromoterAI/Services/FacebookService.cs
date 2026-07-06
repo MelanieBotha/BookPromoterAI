@@ -16,7 +16,7 @@ class FacebookService
     public const string GraphVersion = "v22.0";
 
     public const string MetaBusinessIntegrationHelp =
-        "Remove AuthorPromoter AI at facebook.com/settings?tab=business_tools if listed. Brand connect uses Facebook Login for Business — sign in with your personal Facebook account (Melanie Botha) that admins the Book Promoter AI Page, not the BookPromoter AI business portfolio.";
+        "Wrong Facebook account: log out of the BookPromoter business portfolio and sign in as Melanie Botha (personal). Remove AuthorPromoter AI at facebook.com/settings?tab=business_tools. On Meta click Edit settings (not Continue), pick Book Promoter AI Page only.";
 
     readonly HttpClient _http;
     readonly AppSettings _settings;
@@ -36,7 +36,8 @@ class FacebookService
     static string GraphUrl(string path) =>
         $"https://graph.facebook.com/{GraphVersion}/{path.TrimStart('/')}";
 
-    public (string AuthorizeUrl, string State) BuildAuthorizationUrl(string redirectUri, bool brandContext = false, bool forceScope = false)
+    public (string AuthorizeUrl, string State, string FlowLabel) BuildAuthorizationUrl(
+        string redirectUri, bool brandContext = false, bool forceScope = false, bool forceConfig = false)
     {
         var state = Guid.NewGuid().ToString("N");
         var query = new Dictionary<string, string>
@@ -47,37 +48,66 @@ class FacebookService
             ["response_type"] = "code"
         };
 
-        var useConfigLogin = !forceScope && (
-            brandContext ||
-            _settings.FacebookUsesConfigLogin);
+        // Scope mode (Railway default) matches v1.9.44/57 — the last working owner connect path.
+        // Config_id is only used when OAuthMode=config or the user explicitly picks Login for Business.
+        var useConfigLogin = !forceScope && (forceConfig || _settings.FacebookUsesConfigLogin);
 
+        string flowLabel;
         if (useConfigLogin)
         {
             if (!AppSettings.IsValidFacebookLoginConfigId(_settings.FacebookLoginConfigId))
                 throw new InvalidOperationException(
                     brandContext
-                        ? "Facebook Login Config ID is required for brand Page connect."
+                        ? "Facebook Login Config ID is required for Login for Business."
                         : "Facebook Login Config ID is not configured.");
             query["config_id"] = _settings.FacebookLoginConfigId.Trim();
-            query["override_default_response_type"] = "true";
-            if (brandContext)
-            {
-                // Bypass Meta's stale "Continue as BookPromoter AI?" business-integration loop.
-                query["auth_type"] = "reauthenticate";
-                query["auth_nonce"] = state;
-            }
+            // Meta User access token configs: config_id only (+ standard oauth params).
+            // Do NOT send override_default_response_type or auth_type — both break User token configs.
+            flowLabel = "Login for Business (config_id)";
         }
         else
         {
             query["scope"] = Scopes;
+            // Never add auth_type for brand scope — Meta's Continue dialog loops without returning a code.
             if (!brandContext)
                 query["auth_type"] = "rerequest";
+            flowLabel = "Page permissions (scope)";
         }
 
         var url = $"https://www.facebook.com/{GraphVersion}/dialog/oauth?" +
                   string.Join("&", query.Select(kv =>
                       $"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(kv.Value)}"));
-        return (url, state);
+        return (url, state, flowLabel);
+    }
+
+    /// <summary>Non-secret OAuth diagnostics for owner troubleshooting.</summary>
+    public FacebookOAuthDiagnostics DescribeOAuth(string redirectUri, bool brandContext, bool forceScope, bool forceConfig)
+    {
+        try
+        {
+            var (_, _, flow) = BuildAuthorizationUrl(redirectUri, brandContext, forceScope, forceConfig);
+            return new FacebookOAuthDiagnostics(
+                true,
+                flow,
+                redirectUri,
+                MaskId(_settings.FacebookAppId),
+                AppSettings.IsValidFacebookLoginConfigId(_settings.FacebookLoginConfigId)
+                    ? MaskId(_settings.FacebookLoginConfigId)
+                    : "(not set)",
+                _settings.FacebookOAuthMode,
+                null);
+        }
+        catch (Exception ex)
+        {
+            return new FacebookOAuthDiagnostics(false, "", redirectUri, MaskId(_settings.FacebookAppId), "", _settings.FacebookOAuthMode, ex.Message);
+        }
+    }
+
+    static string MaskId(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "(missing)";
+        var id = value.Trim();
+        return id.Length > 8 ? $"{id[..4]}...{id[^4..]}" : id;
     }
 
     public async Task<FacebookAuthOutcome> CompleteAuthorizationAsync(
@@ -390,6 +420,15 @@ record FacebookPage(string Id, string Name, string Handle, string AccessToken);
 record FacebookPageConnection(FacebookPage Page, string UserAccessToken);
 
 record FacebookTokenUpdate(string PageAccessToken, string UserAccessToken);
+
+record FacebookOAuthDiagnostics(
+    bool Ready,
+    string FlowLabel,
+    string RedirectUri,
+    string AppIdMasked,
+    string ConfigIdMasked,
+    string OAuthMode,
+    string? Error);
 
 enum FacebookAuthStatus { Failed, Connected, NeedsPageSelection }
 

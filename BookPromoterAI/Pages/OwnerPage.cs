@@ -329,7 +329,8 @@ static class OwnerPage
                         <li><code>Facebook__AppSecret</code></li>
                         <li><code>Facebook__LoginConfigId</code></li>
                     </ul>
-                    <p class="muted">App stays <strong>Unpublished</strong> for testing as admin. Test brand posting from <strong>Owner → Brand Social → Connect Facebook</strong>. If Meta shows &ldquo;Continue as BookPromoter AI?&rdquo;, click <strong>Edit settings</strong> and select the <strong>Book Promoter AI</strong> Page — do not click Continue.</p>
+                    <p class="muted">App stays <strong>Unpublished</strong> for testing as admin. Test brand posting from <strong>Owner → Brand Social → Connect Facebook</strong>.</p>
+                    <p class="muted"><strong>Login Configuration token type must be User access token</strong> (not System user). If Meta shows &ldquo;Continue as BookPromoter AI?&rdquo; you are logged into the business portfolio — log out and use your personal Facebook account (Melanie Botha).</p>
                 </div>
             </details>
 

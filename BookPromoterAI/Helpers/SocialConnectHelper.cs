@@ -261,18 +261,19 @@ static class SocialConnectHelper
             ? string.Join(" ", PublicUrl.FacebookCallbackUrlsForMeta(settings).Select(u => $"<code>{H.Encode(u)}</code>"))
             : $"<code>https://bookpromoterai.us{FacebookService.CallbackPath}</code>";
         var activeCallback = request is not null && settings is not null
-            ? $"""<p class="notice">OAuth: <strong>{H.Encode(brandContext ? "Login for Business (config_id)" : settings.FacebookUsesConfigLogin ? "config_id" : "scope")}</strong>. Redirect URI: <code>{H.Encode(PublicUrl.FacebookCallbackUrl(request, settings))}</code></p>"""
+            ? BuildFacebookOAuthDiagnostics(settings, request, brandContext)
             : "";
         var brandSteps = brandContext
             ? """
-                <div class="notice">
-                    <strong>Before connecting</strong>
+                <div class="notice error">
+                    <strong>Critical — use the right Facebook account</strong>
+                    <p>If the top-right of Facebook shows <strong>BookPromoter</strong> or &ldquo;Continue as BookPromoter AI?&rdquo;, you are on the <em>business portfolio</em> account. That causes an endless loop.</p>
                     <ol class="plan-features">
-                        <li>Remove <strong>AuthorPromoter AI</strong> from <a href="https://www.facebook.com/settings?tab=business_tools&amp;section=active" target="_blank" rel="noopener">Business integrations → Active</a> (must show <strong>0 active</strong>).</li>
-                        <li>Click <strong>Open Meta Login for Business</strong> below — Meta should show Choose Pages, not &ldquo;Continue as BookPromoter AI?&rdquo;</li>
-                        <li>If Meta still shows Continue, click <strong>Edit settings</strong> (never Continue), pick <strong>Book Promoter AI</strong> only, Save, then finish.</li>
-                        <li>Sign in as <strong>Melanie Botha</strong> (personal account). If Meta says BookPromoter AI, click <strong>Not BookPromoter AI? Log into another account</strong>.</li>
-                        <li>Success = browser returns to <strong>bookpromoterai.us</strong> (not stuck on facebook.com).</li>
+                        <li>Open <a href="https://www.facebook.com/logout.php" target="_blank" rel="noopener">facebook.com/logout</a> (or click <strong>Not BookPromoter AI? Log into another account</strong> on Meta&rsquo;s dialog).</li>
+                        <li>Sign in as <strong>Melanie Botha</strong> (your personal profile — the one that admins the Book Promoter AI Page).</li>
+                        <li>Remove <strong>AuthorPromoter AI</strong> from <a href="https://www.facebook.com/settings?tab=business_tools&amp;section=active" target="_blank" rel="noopener">Business integrations → Active</a> (must be <strong>0 active</strong>).</li>
+                        <li>On Meta&rsquo;s dialog: click <strong>Edit settings</strong> (never Continue alone) → tick <strong>Book Promoter AI</strong> only → Save.</li>
+                        <li>Success = browser returns to <strong>bookpromoterai.us</strong>.</li>
                     </ol>
                 </div>
                 """
@@ -286,25 +287,46 @@ static class SocialConnectHelper
                 """
             : settings?.IsBrandFacebookOAuthReady != true
                 ? """
-                    <p class="notice error">Brand Facebook connect requires <code>Facebook__LoginConfigId</code> in Railway (Facebook Login for Business configuration in Meta).</p>
-                    <p class="muted">Owner: open <strong>Owner → Facebook API</strong>, copy the Configuration ID from Meta, add it in Railway, redeploy, then try again.</p>
+                    <p class="notice error">Facebook API credentials are not configured yet.</p>
+                    <p class="muted">Owner: open <strong>Owner → Facebook API</strong> for setup steps.</p>
                     <a class="button secondary" href="/owner-promos?section=owner-social">Back</a>
                     """
-                : $"""
+                : settings.FacebookUsesConfigLogin
+                    ? $"""
                 {brandSteps}
                 <form method="post" action="/social-accounts/connect/Facebook/start" class="form">
                     <input type="hidden" name="return" value="{H.Encode(returnUrl)}">
+                    <input type="hidden" name="mode" value="config">
                     <div class="form-actions">
                         <button class="button" type="submit" style="background:#1877F2">Open Meta Login for Business</button>
                         <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
                     </div>
                 </form>
-                <p class="muted small-text">If Meta shows &ldquo;Sorry, something went wrong&rdquo;, verify <code>Facebook__LoginConfigId</code> in Railway matches Meta → Facebook Login for Business → Configurations. Or use fallback below.</p>
                 <form method="post" action="/social-accounts/connect/Facebook/start" class="form" style="margin-top:1rem">
                     <input type="hidden" name="return" value="{H.Encode(returnUrl)}">
                     <input type="hidden" name="mode" value="scope">
-                    <button class="button secondary" type="submit">Fallback: standard Page login (use Edit settings on Meta)</button>
+                    <button class="button secondary" type="submit">Try standard Page login instead</button>
                 </form>
+                """
+                    : $"""
+                {brandSteps}
+                <form method="post" action="/social-accounts/connect/Facebook/start" class="form">
+                    <input type="hidden" name="return" value="{H.Encode(returnUrl)}">
+                    <input type="hidden" name="mode" value="scope">
+                    <div class="form-actions">
+                        <button class="button" type="submit" style="background:#1877F2">Connect Book Promoter AI Page</button>
+                        <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
+                    </div>
+                </form>
+                {(settings.HasFacebookLoginConfigId
+                    ? $"""
+                <form method="post" action="/social-accounts/connect/Facebook/start" class="form" style="margin-top:1rem">
+                    <input type="hidden" name="return" value="{H.Encode(returnUrl)}">
+                    <input type="hidden" name="mode" value="config">
+                    <button class="button secondary" type="submit">Alternate: Login for Business (config_id)</button>
+                </form>
+                """
+                    : "")}
                 """;
         var connectBlock = !configured
             ? """
@@ -422,6 +444,34 @@ static class SocialConnectHelper
                 {noticeHtml}
                 {connectBlock}
             </section>
+            """;
+    }
+
+    static string BuildFacebookOAuthDiagnostics(AppSettings settings, HttpRequest request, bool brandContext)
+    {
+        var redirect = PublicUrl.FacebookCallbackUrl(request, settings);
+        var facebook = request.HttpContext.RequestServices.GetRequiredService<FacebookService>();
+        var scopeDiag = facebook.DescribeOAuth(redirect, brandContext, forceScope: true, forceConfig: false);
+        var configDiag = settings.HasFacebookLoginConfigId
+            ? facebook.DescribeOAuth(redirect, brandContext, forceScope: false, forceConfig: true)
+            : null;
+        var defaultFlow = settings.FacebookUsesConfigLogin ? configDiag : scopeDiag;
+        var configLine = configDiag is null
+            ? ""
+            : $"""<li><strong>Login for Business:</strong> {(configDiag.Ready ? H.Encode(configDiag.FlowLabel) : H.Encode(configDiag.Error ?? "not ready"))} · config {H.Encode(configDiag.ConfigIdMasked)}</li>""";
+        return $"""
+            <details class="notice" style="margin-top:1rem">
+                <summary><strong>OAuth diagnostics (v{H.Encode(AppVersion.Display)})</strong></summary>
+                <ul class="plan-features small-text">
+                    <li><strong>Railway OAuth mode:</strong> <code>{H.Encode(settings.FacebookOAuthMode)}</code> (scope = recommended)</li>
+                    <li><strong>App ID:</strong> <code>{H.Encode(scopeDiag.AppIdMasked)}</code> (expect 1820…6321)</li>
+                    <li><strong>Redirect URI:</strong> <code>{H.Encode(redirect)}</code></li>
+                    <li><strong>Default connect:</strong> {(defaultFlow?.Ready == true ? H.Encode(defaultFlow.FlowLabel) : H.Encode(defaultFlow?.Error ?? "not ready"))}</li>
+                    <li><strong>Page permissions (scope):</strong> {(scopeDiag.Ready ? "ready" : H.Encode(scopeDiag.Error ?? "not ready"))}</li>
+                    {configLine}
+                    <li><strong>Meta Login Configuration</strong> must use token type <em>User access token</em> (not System user) and Assets = Pages.</li>
+                </ul>
+            </details>
             """;
     }
 }

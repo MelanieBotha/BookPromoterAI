@@ -1,4 +1,12 @@
 {
+  "1.9.62": {
+    "title": "BookPromoter AI v1.9.62 — What's new",
+    "updated": [
+      "Fix Facebook OAuth: revert to scope-first brand connect, correct Login for Business URL params, add diagnostics"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.9.61": {
     "title": "BookPromoter AI v1.9.61 — What's new",
     "updated": [

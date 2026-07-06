@@ -73,8 +73,9 @@ class AppSettings
 
     public bool HasFacebookLoginConfigId => IsValidFacebookLoginConfigId(FacebookLoginConfigId);
 
-    /// <summary>Owner brand Page connect requires Login for Business config_id (avoids Meta Continue loop).</summary>
-    public bool IsBrandFacebookOAuthReady => IsFacebookConfigured && HasFacebookLoginConfigId;
+    /// <summary>Owner brand Page connect — scope mode only needs App ID + secret.</summary>
+    public bool IsBrandFacebookOAuthReady =>
+        IsFacebookConfigured && (!FacebookUsesConfigLogin || HasFacebookLoginConfigId);
 
     public static bool IsValidFacebookLoginConfigId(string? value) =>
         !string.IsNullOrWhiteSpace(value) &&
