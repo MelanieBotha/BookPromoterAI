@@ -266,12 +266,13 @@ static class SocialConnectHelper
         var brandSteps = brandContext
             ? """
                 <div class="notice">
-                    <strong>Owner brand connect uses Facebook Login for Business</strong> (not the old scope login that loops on &ldquo;Continue as BookPromoter AI?&rdquo;).
+                    <strong>Before connecting</strong>
                     <ol class="plan-features">
-                        <li>Remove <strong>AuthorPromoter AI</strong> from <a href="https://www.facebook.com/settings?tab=business_tools&amp;section=active" target="_blank" rel="noopener">Business integrations</a> if listed.</li>
-                        <li>Click the button below — Meta will show <strong>Login for Business</strong> (Choose Pages → Review → Save).</li>
+                        <li>Remove <strong>AuthorPromoter AI</strong> from <a href="https://www.facebook.com/settings?tab=business_tools&amp;section=active" target="_blank" rel="noopener">Business integrations → Active</a> (must show <strong>0 active</strong>).</li>
+                        <li>Click <strong>Open Meta Login for Business</strong> below — Meta should show Choose Pages, not &ldquo;Continue as BookPromoter AI?&rdquo;</li>
+                        <li>If Meta still shows Continue, click <strong>Edit settings</strong> (never Continue), pick <strong>Book Promoter AI</strong> only, Save, then finish.</li>
                         <li>Sign in as <strong>Melanie Botha</strong> (personal account). If Meta says BookPromoter AI, click <strong>Not BookPromoter AI? Log into another account</strong>.</li>
-                        <li>Select <strong>Book Promoter AI</strong> Page only → Save → you must return to <strong>bookpromoterai.us</strong>.</li>
+                        <li>Success = browser returns to <strong>bookpromoterai.us</strong> (not stuck on facebook.com).</li>
                     </ol>
                 </div>
                 """

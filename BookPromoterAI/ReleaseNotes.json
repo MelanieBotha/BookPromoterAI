@@ -1,4 +1,12 @@
 {
+  "1.9.61": {
+    "title": "BookPromoter AI v1.9.61 — What's new",
+    "updated": [
+      "Force fresh Meta re-authentication for owner brand Facebook connect to break Continue loop"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.9.60": {
     "title": "BookPromoter AI v1.9.60 — What's new",
     "updated": [

@@ -60,6 +60,12 @@ class FacebookService
                         : "Facebook Login Config ID is not configured.");
             query["config_id"] = _settings.FacebookLoginConfigId.Trim();
             query["override_default_response_type"] = "true";
+            if (brandContext)
+            {
+                // Bypass Meta's stale "Continue as BookPromoter AI?" business-integration loop.
+                query["auth_type"] = "reauthenticate";
+                query["auth_nonce"] = state;
+            }
         }
         else
         {
