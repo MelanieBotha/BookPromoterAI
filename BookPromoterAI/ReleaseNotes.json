@@ -1,4 +1,12 @@
 {
+  "1.9.59": {
+    "title": "BookPromoter AI v1.9.59 — What's new",
+    "updated": [
+      "Owner brand Facebook connect now uses Facebook Login for Business (config_id) to stop the Meta Continue loop"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.9.58": {
     "title": "BookPromoter AI v1.9.58 — What's new",
     "updated": [

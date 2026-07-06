@@ -16,7 +16,7 @@ class FacebookService
     public const string GraphVersion = "v22.0";
 
     public const string MetaBusinessIntegrationHelp =
-        "Remove AuthorPromoter AI at facebook.com/settings?tab=business_tools first. On Meta's dialog click Edit settings (not Continue — it loops). Or click Not BookPromoter AI? and sign in with your personal Facebook account that admins the Book Promoter AI Page.";
+        "Remove AuthorPromoter AI at facebook.com/settings?tab=business_tools if listed. Brand connect uses Facebook Login for Business — sign in with your personal Facebook account (Melanie Botha) that admins the Book Promoter AI Page, not the BookPromoter AI business portfolio.";
 
     readonly HttpClient _http;
     readonly AppSettings _settings;
@@ -47,19 +47,24 @@ class FacebookService
             ["response_type"] = "code"
         };
 
-        if (_settings.FacebookUsesConfigLogin && brandContext)
+        // Brand MUST use Login for Business config_id — scope OAuth triggers Meta's
+        // "Continue as BookPromoter AI?" business-integration loop that never redirects back.
+        if (brandContext)
         {
-            if (string.IsNullOrWhiteSpace(_settings.FacebookLoginConfigId))
+            if (!AppSettings.IsValidFacebookLoginConfigId(_settings.FacebookLoginConfigId))
+                throw new InvalidOperationException("Facebook Login Config ID is required for brand Page connect.");
+            query["config_id"] = _settings.FacebookLoginConfigId.Trim();
+        }
+        else if (_settings.FacebookUsesConfigLogin)
+        {
+            if (!AppSettings.IsValidFacebookLoginConfigId(_settings.FacebookLoginConfigId))
                 throw new InvalidOperationException("Facebook Login Config ID is not configured.");
-            query["config_id"] = _settings.FacebookLoginConfigId;
+            query["config_id"] = _settings.FacebookLoginConfigId.Trim();
         }
         else
         {
-            // Do NOT add auth_type for brand — Meta's "Continue as BookPromoter AI?" dialog spins
-            // and never returns an authorization code when auth_type is set.
             query["scope"] = Scopes;
-            if (!brandContext)
-                query["auth_type"] = "rerequest";
+            query["auth_type"] = "rerequest";
         }
 
         var url = $"https://www.facebook.com/{GraphVersion}/dialog/oauth?" +

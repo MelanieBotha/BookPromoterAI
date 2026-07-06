@@ -160,8 +160,23 @@ static class SocialAccountRoutes
             if (PostLimits.IsFacebook(platformName))
             {
                 var notice = request.Query["notice"].ToString();
+                var brandOAuth = SocialAccountKinds.IsBrand(kind);
                 if (!settings.IsFacebookConfigured)
                 {
+                    return Results.Content(
+                        H.RenderPage(http, "Connect Facebook", SocialConnectHelper.FacebookSetupPage(returnUrl, notice, settings, request), store),
+                        "text/html");
+                }
+
+                if (brandOAuth)
+                {
+                    if (!settings.IsBrandFacebookOAuthReady)
+                    {
+                        return Results.Content(
+                            H.RenderPage(http, "Connect Facebook", SocialConnectHelper.FacebookSetupPage(returnUrl,
+                                "Brand Facebook connect requires Facebook__LoginConfigId in Railway (Facebook Login for Business). See Owner → Facebook API.", settings, request), store),
+                            "text/html");
+                    }
                     return Results.Content(
                         H.RenderPage(http, "Connect Facebook", SocialConnectHelper.FacebookSetupPage(returnUrl, notice, settings, request), store),
                         "text/html");
@@ -175,16 +190,8 @@ static class SocialAccountRoutes
                         "text/html");
                 }
 
-                var brandOAuth = SocialAccountKinds.IsBrand(kind);
-                if (brandOAuth && !string.Equals(request.Query["go"], "1", StringComparison.Ordinal))
-                {
-                    return Results.Content(
-                        H.RenderPage(http, "Connect Facebook", SocialConnectHelper.FacebookSetupPage(returnUrl, notice, settings, request), store),
-                        "text/html");
-                }
-
                 var callbackUrl = PublicUrl.FacebookCallbackUrl(request, settings);
-                var (authorizeUrl, state) = facebookService.BuildAuthorizationUrl(callbackUrl, brandOAuth);
+                var (authorizeUrl, state) = facebookService.BuildAuthorizationUrl(callbackUrl, brandContext: false);
                 await FacebookOAuthStateStore.SaveAsync(cache, state, new FacebookOAuthPending
                 {
                     UserId = saveUserId,
@@ -348,6 +355,51 @@ static class SocialAccountRoutes
             if (SocialAccountKinds.IsAuthor(pending.Kind))
                 store.AddScheduleForUser(pending.UserId, new SocialSchedule { Platform = "LinkedIn", PostsPerWeek = 1, RequiresApproval = true });
             return Results.Redirect(returnUrl);
+        });
+
+        app.MapPost("/social-accounts/connect/Facebook/start", async (
+            HttpRequest request,
+            AppStoreDb store,
+            AppSettings settings,
+            FacebookService facebookService,
+            IDistributedCache cache) =>
+        {
+            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
+            var form = await request.ReadFormAsync();
+            var returnUrl = SocialConnectHelper.ResolveReturnUrl(request, form["return"].ToString());
+            var kind = SocialConnectHelper.ResolveAccountKind(returnUrl);
+            if (SocialAccountKinds.IsBrand(kind) && !store.IsOwner) return Results.Redirect("/my-account");
+            if (store.CheckSocialAccountLimit(kind) is not null) return Results.Redirect(returnUrl);
+
+            var userId = store.GetCurrentDbUser()?.Id ?? 0;
+            if (userId == 0) return Results.Redirect("/start");
+            var saveUserId = SocialAccountKinds.IsBrand(kind) ? store.PrimaryOwnerUserId() : userId;
+            if (saveUserId == 0) return Results.Redirect("/start");
+
+            if (!settings.IsFacebookConfigured)
+                return Results.Redirect($"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Facebook API credentials are not configured.")}");
+
+            var brandOAuth = SocialAccountKinds.IsBrand(kind);
+            if (brandOAuth && !settings.IsBrandFacebookOAuthReady)
+            {
+                return Results.Redirect($"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Add Facebook__LoginConfigId in Railway for brand Page connect.")}");
+            }
+
+            if (!brandOAuth && !settings.IsFacebookOAuthReady)
+            {
+                return Results.Redirect($"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Facebook OAuth is not ready.")}");
+            }
+
+            var callbackUrl = PublicUrl.FacebookCallbackUrl(request, settings);
+            var (authorizeUrl, state) = facebookService.BuildAuthorizationUrl(callbackUrl, brandOAuth);
+            await FacebookOAuthStateStore.SaveAsync(cache, state, new FacebookOAuthPending
+            {
+                UserId = saveUserId,
+                ReturnUrl = returnUrl,
+                Kind = kind,
+                RedirectUri = callbackUrl
+            });
+            return Results.Redirect(authorizeUrl);
         });
 
         app.MapGet(FacebookService.CallbackPath, async (

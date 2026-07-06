@@ -261,26 +261,44 @@ static class SocialConnectHelper
             ? string.Join(" ", PublicUrl.FacebookCallbackUrlsForMeta(settings).Select(u => $"<code>{H.Encode(u)}</code>"))
             : $"<code>https://bookpromoterai.us{FacebookService.CallbackPath}</code>";
         var activeCallback = request is not null && settings is not null
-            ? $"""<p class="notice">OAuth mode: <strong>{H.Encode(settings.FacebookUsesConfigLogin ? "config_id (Login for Business)" : "scope (Page permissions)")}</strong>. Redirect URI: <code>{H.Encode(PublicUrl.FacebookCallbackUrl(request, settings))}</code></p>"""
+            ? $"""<p class="notice">OAuth: <strong>{H.Encode(brandContext ? "Login for Business (config_id)" : settings.FacebookUsesConfigLogin ? "config_id" : "scope")}</strong>. Redirect URI: <code>{H.Encode(PublicUrl.FacebookCallbackUrl(request, settings))}</code></p>"""
             : "";
         var brandSteps = brandContext
             ? """
-                <div class="notice error">
-                    <strong>Stuck on &ldquo;Continue as BookPromoter AI?&rdquo;</strong>
-                    <p>The blue <strong>Continue</strong> button loops forever — do not click it.</p>
+                <div class="notice">
+                    <strong>Owner brand connect uses Facebook Login for Business</strong> (not the old scope login that loops on &ldquo;Continue as BookPromoter AI?&rdquo;).
                     <ol class="plan-features">
-                        <li>Open <a href="https://www.facebook.com/settings?tab=business_tools&amp;section=active" target="_blank" rel="noopener">Business integrations</a> → remove <strong>AuthorPromoter AI</strong> if listed → confirm <strong>Active: 0</strong>.</li>
-                        <li>On the Meta screen click <strong>Edit settings</strong> (grey button), not Continue.</li>
-                        <li>Or click <strong>Not BookPromoter AI? Log into another account</strong> and sign in as <strong>Melanie Botha</strong> (your personal account — not the business portfolio).</li>
-                        <li>On <strong>Choose Pages</strong>, tick <strong>Book Promoter AI</strong> only → Save.</li>
-                        <li>Meta may show <strong>Continue as BookPromoter AI?</strong> one more time — click the blue <strong>Continue</strong> button <em>only after</em> you completed Edit settings and Save. Your browser should land on <strong>bookpromoterai.us</strong>.</li>
-                        <li>If Continue loops on facebook.com, click <strong>Not BookPromoter AI?</strong> and sign in as <strong>Melanie Botha</strong> (personal account), then repeat Edit settings.</li>
-                        <li>On BookPromoter AI, <strong>remove</strong> any old Facebook brand account first (wrong Page ID), then connect again.</li>
+                        <li>Remove <strong>AuthorPromoter AI</strong> from <a href="https://www.facebook.com/settings?tab=business_tools&amp;section=active" target="_blank" rel="noopener">Business integrations</a> if listed.</li>
+                        <li>Click the button below — Meta will show <strong>Login for Business</strong> (Choose Pages → Review → Save).</li>
+                        <li>Sign in as <strong>Melanie Botha</strong> (personal account). If Meta says BookPromoter AI, click <strong>Not BookPromoter AI? Log into another account</strong>.</li>
+                        <li>Select <strong>Book Promoter AI</strong> Page only → Save → you must return to <strong>bookpromoterai.us</strong>.</li>
                     </ol>
                 </div>
                 """
             : "";
         var connectHref = $"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&go=1";
+        var brandConnectBlock = !configured
+            ? """
+                <p class="notice error">Facebook API credentials are not configured yet. The app owner must add them in Railway before authors can connect.</p>
+                <p class="muted">Owner: open <strong>Owner → Facebook API</strong> for setup steps.</p>
+                <a class="button secondary" href="/my-account">Back</a>
+                """
+            : settings?.IsBrandFacebookOAuthReady != true
+                ? """
+                    <p class="notice error">Brand Facebook connect requires <code>Facebook__LoginConfigId</code> in Railway (Facebook Login for Business configuration in Meta).</p>
+                    <p class="muted">Owner: open <strong>Owner → Facebook API</strong>, copy the Configuration ID from Meta, add it in Railway, redeploy, then try again.</p>
+                    <a class="button secondary" href="/owner-promos?section=owner-social">Back</a>
+                    """
+                : $"""
+                {brandSteps}
+                <form method="post" action="/social-accounts/connect/Facebook/start" class="form">
+                    <input type="hidden" name="return" value="{H.Encode(returnUrl)}">
+                    <div class="form-actions">
+                        <button class="button" type="submit" style="background:#1877F2">Open Meta Login for Business</button>
+                        <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
+                    </div>
+                </form>
+                """;
         var connectBlock = !configured
             ? """
                 <p class="notice error">Facebook API credentials are not configured yet. The app owner must add them in Railway before authors can connect.</p>
@@ -294,13 +312,7 @@ static class SocialConnectHelper
                     <a class="button secondary" href="/my-account">Back</a>
                     """
                 : brandContext
-                    ? $"""
-                {brandSteps}
-                <div class="form-actions">
-                    <a class="button" href="{H.Encode(connectHref)}" style="background:#1877F2">I removed the integration — open Meta sign-in</a>
-                    <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
-                </div>
-                """
+                    ? brandConnectBlock
                     : $"""
                 <p class="muted">You will sign in with Facebook as yourself, then connect a <strong>Facebook Page</strong> for your author brand (not your personal news feed). If Facebook shows a previous connection, click <strong>Edit settings</strong> and pick your author Page — not the BookPromoter AI business Page.</p>
                 <div class="form-actions">

@@ -71,7 +71,12 @@ class AppSettings
     public bool FacebookUsesConfigLogin =>
         string.Equals(FacebookOAuthMode, "config", StringComparison.OrdinalIgnoreCase);
 
-    static bool IsValidFacebookLoginConfigId(string? value) =>
+    public bool HasFacebookLoginConfigId => IsValidFacebookLoginConfigId(FacebookLoginConfigId);
+
+    /// <summary>Owner brand Page connect requires Login for Business config_id (avoids Meta Continue loop).</summary>
+    public bool IsBrandFacebookOAuthReady => IsFacebookConfigured && HasFacebookLoginConfigId;
+
+    public static bool IsValidFacebookLoginConfigId(string? value) =>
         !string.IsNullOrWhiteSpace(value) &&
         value != "YOUR_FACEBOOK_LOGIN_CONFIG_ID" &&
         value.All(char.IsDigit);
