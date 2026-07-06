@@ -206,16 +206,37 @@ static class OwnerRoutes
             return Results.Redirect("/owner-promos");
         });
 
+        app.MapPost("/owner/facebook-diagnostics", async (
+            HttpRequest request,
+            HttpContext http,
+            AppStoreDb store,
+            AppSettings settings,
+            FacebookService facebook,
+            ReleaseNotesCatalog releaseNotes) =>
+        {
+            if (OwnerGuard(store) is { } guard) return guard;
+            var form = await request.ReadFormAsync();
+            var runProbePost = form.ContainsKey("runProbePost");
+            var includeAuthors = form.ContainsKey("includeAuthors");
+            var diagnostics = await store.RunFacebookPostingDiagnosticsAsync(facebook, includeAuthors, runProbePost);
+            var html = FacebookDiagnosticsHtml.RenderPanel(
+                diagnostics,
+                "/owner/facebook-diagnostics",
+                sectionAnchor: "facebook-diagnostics",
+                showAuthorAccountsOption: true);
+            return RenderOwner(http, store, settings, releaseNotes, activeSection: "facebook-api", facebookDiagnosticsHtml: html);
+        });
+
         app.MapGet("/owner-login", (AppStoreDb store) => OwnerGuard(store) ?? Results.Redirect("/owner-promos"));
         app.MapPost("/owner-login", (AppStoreDb store) => OwnerGuard(store) ?? Results.Redirect("/owner-promos"));
     }
 
-    static IResult RenderOwner(HttpContext http, AppStoreDb store, AppSettings settings, ReleaseNotesCatalog releaseNotes, string notice = "", string? activeSection = null)
+    static IResult RenderOwner(HttpContext http, AppStoreDb store, AppSettings settings, ReleaseNotesCatalog releaseNotes, string notice = "", string? activeSection = null, string facebookDiagnosticsHtml = "")
     {
         try
         {
             return Results.Content(
-                H.RenderPage(http, "Owner", OwnerPage.Render(store, notice, PublicUrl.Base(http.Request, settings), releaseNotes, activeSection), store),
+                H.RenderPage(http, "Owner", OwnerPage.Render(store, notice, PublicUrl.Base(http.Request, settings), releaseNotes, activeSection, facebookDiagnosticsHtml), store),
                 "text/html");
         }
         catch (Exception ex)

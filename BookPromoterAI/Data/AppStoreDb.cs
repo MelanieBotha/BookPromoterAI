@@ -1562,6 +1562,87 @@ class AppStoreDb
         }
     }
 
+    public async Task<IReadOnlyList<FacebookPostingDiagnostic>> RunFacebookPostingDiagnosticsAsync(
+        FacebookService facebook,
+        bool includeAllAuthorAccounts,
+        bool runProbePost,
+        CancellationToken cancellationToken = default)
+    {
+        var results = new List<FacebookPostingDiagnostic>();
+        using var db = Db();
+
+        if (IsOwner)
+        {
+            var owner = db.Users.AsNoTracking().FirstOrDefault(u => u.Email == OwnerAccount.NormalizedEmail);
+            if (owner is not null)
+            {
+                var brandAccounts = db.SocialAccounts.AsNoTracking()
+                    .Where(a => a.UserId == owner.Id && a.AccountKind == SocialAccountKinds.Brand)
+                    .ToList();
+                foreach (var dbAcc in brandAccounts.Where(a => PostLimits.IsFacebook(a.Platform)))
+                {
+                    var account = ToModel(dbAcc);
+                    var lastFail = LastFailedPostingMessage(db, owner.Id, PostingLogKinds.Brand, account.Platform);
+                    results.Add(await facebook.DiagnoseAccountAsync(account, "Brand", lastFail, runProbePost, cancellationToken));
+                }
+            }
+
+            if (includeAllAuthorAccounts)
+            {
+                var authorRows = await (
+                    from a in db.SocialAccounts.AsNoTracking()
+                    join u in db.Users.AsNoTracking() on a.UserId equals u.Id
+                    where (a.AccountKind == SocialAccountKinds.Author || a.AccountKind == "")
+                        && a.IsConnected
+                    select new { Account = a, u.Email }
+                ).ToListAsync(cancellationToken);
+
+                foreach (var row in authorRows.Where(x => PostLimits.IsFacebook(x.Account.Platform)))
+                {
+                    var account = ToModel(row.Account);
+                    var lastFail = LastFailedPostingMessage(db, row.Account.UserId, PostingLogKinds.Author, account.Platform);
+                    var diag = await facebook.DiagnoseAccountAsync(account, "Author", lastFail, runProbePost, cancellationToken);
+                    diag.UserEmail = row.Email;
+                    results.Add(diag);
+                }
+            }
+        }
+        else
+        {
+            var uid = CurrentUserId();
+            if (uid == 0) return results;
+
+            var authorAccounts = db.SocialAccounts.AsNoTracking()
+                .Where(a => a.UserId == uid && (a.AccountKind == SocialAccountKinds.Author || a.AccountKind == ""))
+                .ToList();
+            foreach (var dbAcc in authorAccounts.Where(a => PostLimits.IsFacebook(a.Platform)))
+            {
+                var account = ToModel(dbAcc);
+                var lastFail = LastFailedPostingMessage(db, uid, PostingLogKinds.Author, account.Platform);
+                results.Add(await facebook.DiagnoseAccountAsync(account, "Author", lastFail, runProbePost, cancellationToken));
+            }
+        }
+
+        return results;
+    }
+
+    static string? LastFailedPostingMessage(AppDbContext db, int userId, string logKind, string platform)
+    {
+        var query = db.PostingLog.AsNoTracking()
+            .Where(l => l.UserId == userId && !l.Success);
+        if (logKind == PostingLogKinds.Brand)
+            query = query.Where(l => l.LogKind == PostingLogKinds.Brand);
+        else
+            query = query.Where(l => l.LogKind == PostingLogKinds.Author || l.LogKind == "");
+
+        return query
+            .AsEnumerable()
+            .Where(l => PostLimits.PlatformsMatch(l.Platform, platform))
+            .OrderByDescending(l => l.AttemptedAt)
+            .Select(l => l.Message)
+            .FirstOrDefault();
+    }
+
     // ── Team ───────────────────────────────────────────────────────────
     public List<TeamMember> TeamMembers
     {
@@ -3037,8 +3118,24 @@ class AppStoreDb
             var postText = AppPromoGenerator.GeneratePromoPost(schedule.Platform, baseUrl, promoSeed);
             if (string.IsNullOrWhiteSpace(postText)) continue;
 
+            var accountModel = ToModel(account);
+            if (PostLimits.IsFacebook(accountModel.Platform) && !accountModel.IsLiveConnection)
+            {
+                db.PostingLog.Add(new DbPostingLogEntry
+                {
+                    UserId = owner.Id,
+                    Platform = schedule.Platform,
+                    BookTitle = "BookPromoter AI",
+                    Success = false,
+                    Message = "Facebook not live — missing Page token. Reconnect from Owner → Brand Social.",
+                    AttemptedAt = now,
+                    LogKind = PostingLogKinds.Brand
+                });
+                continue;
+            }
+
             var outcome = await postingService.PostAsync(
-                ToModel(account),
+                accountModel,
                 postText,
                 brandMedia: BuildBrandPostMedia(baseUrl));
             var result = outcome.Result;
@@ -3315,12 +3412,29 @@ class AppStoreDb
 
         foreach (var account in accounts)
         {
+            var model = ToModel(account);
+            if (PostLimits.IsFacebook(model.Platform) && !model.IsLiveConnection)
+            {
+                db.PostingLog.Add(new DbPostingLogEntry
+                {
+                    UserId = owner.Id,
+                    Platform = account.Platform,
+                    BookTitle = "BookPromoter AI",
+                    Success = false,
+                    Message = "Facebook not live — missing Page token. Reconnect from Owner → Brand Social.",
+                    AttemptedAt = now,
+                    LogKind = PostingLogKinds.Brand
+                });
+                failed++;
+                continue;
+            }
+
             var promoSeed = now.Ticks.GetHashCode() ^ account.Id * 17;
             var postText = AppPromoGenerator.GeneratePromoPost(account.Platform, appBaseUrl, promoSeed);
             if (string.IsNullOrWhiteSpace(postText)) continue;
 
             var outcome = await postingService.PostAsync(
-                ToModel(account),
+                model,
                 postText,
                 brandMedia: BuildBrandPostMedia(appBaseUrl));
             var result = outcome.Result;

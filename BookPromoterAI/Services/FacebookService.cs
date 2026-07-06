@@ -405,6 +405,248 @@ class FacebookService
         catch { return null; }
     }
 
+    /// <summary>Live check: token validity, Page access, and optional unpublished probe post.</summary>
+    public async Task<FacebookPostingDiagnostic> DiagnoseAccountAsync(
+        SocialAccount account,
+        string context,
+        string? lastLogMessage = null,
+        bool runProbePost = false,
+        CancellationToken cancellationToken = default)
+    {
+        var pageId = account.ExternalAccountId?.Trim() ?? "";
+        var pageName = string.IsNullOrWhiteSpace(account.DisplayName) ? "(unknown Page)" : account.DisplayName.Trim();
+        var diag = new FacebookPostingDiagnostic
+        {
+            Context = context,
+            PageName = pageName,
+            PageId = pageId,
+            IsLiveConnection = account.IsLiveConnection,
+            LastLogMessage = lastLogMessage
+        };
+
+        if (!PostLimits.IsFacebook(account.Platform))
+        {
+            diag.Status = "skip";
+            diag.Summary = "Not a Facebook account.";
+            return diag;
+        }
+
+        if (!account.IsConnected)
+        {
+            diag.Status = "error";
+            diag.Summary = "Facebook is not connected.";
+            diag.Recommendation = "Connect Facebook from My Account (author) or Owner → Brand Social (brand).";
+            return diag;
+        }
+
+        if (!account.IsLiveConnection)
+        {
+            diag.Status = "error";
+            diag.Summary = "Connected but not live — missing Page token or Page ID.";
+            diag.Recommendation = "Remove this Facebook connection and reconnect with Sign in with Facebook.";
+            return diag;
+        }
+
+        if (context == "Brand" && !IsBookPromoterBrandPage(new FacebookPage(pageId, pageName, account.Handle, account.AccessToken ?? "")))
+        {
+            diag.Status = "warn";
+            diag.Summary = $"Page ID {pageId} is not Book Promoter AI (expected 1210277848829044).";
+            diag.Recommendation = "Owner brand must use Book Promoter AI Page only. Remove and reconnect from Owner → Brand Social.";
+        }
+
+        if (context == "Author" && IsBookPromoterBrandPage(new FacebookPage(pageId, pageName, account.Handle, account.AccessToken ?? "")))
+        {
+            diag.Status = "warn";
+            diag.Summary = "This is the Book Promoter AI brand Page — use your author Page for book posts.";
+            diag.Recommendation = "Remove and reconnect from My Account → choose your author Page, not Book Promoter AI.";
+        }
+
+        if (!_settings.IsFacebookConfigured)
+        {
+            diag.Status = "error";
+            diag.Summary = "Facebook API credentials are not configured on the server.";
+            diag.Recommendation = "Owner: add Facebook__AppId and Facebook__AppSecret in Railway.";
+            return diag;
+        }
+
+        var pageToken = account.AccessToken!;
+        var tokenInfo = await DebugTokenAsync(pageToken, cancellationToken);
+        if (tokenInfo is null)
+        {
+            diag.Status = "error";
+            diag.Summary = "Could not verify Page access token with Meta.";
+            diag.Recommendation = "Reconnect Facebook. If this persists, check Railway Facebook__AppSecret.";
+            return diag;
+        }
+
+        diag.TokenValid = tokenInfo.IsValid;
+        diag.TokenExpiresAt = tokenInfo.ExpiresAt;
+        diag.Scopes = tokenInfo.Scopes;
+
+        if (!tokenInfo.IsValid)
+        {
+            diag.Status = "error";
+            diag.Summary = tokenInfo.Error ?? "Page access token is invalid or expired.";
+            diag.Recommendation = "Reconnect Facebook in My Account or Owner → Brand Social.";
+            return diag;
+        }
+
+        if (!tokenInfo.Scopes.Any(s => s.Contains("pages_manage_posts", StringComparison.OrdinalIgnoreCase)))
+        {
+            diag.Status = "error";
+            diag.Summary = "Token is valid but pages_manage_posts permission is missing.";
+            diag.Recommendation = "Meta → Use cases → Manage everything on your Page → ensure pages_manage_posts is Ready. Then reconnect.";
+        }
+
+        var (pageOk, pageError) = await VerifyPageAccessAsync(pageId, pageToken, cancellationToken);
+        if (!pageOk)
+        {
+            diag.Status = "error";
+            diag.Summary = pageError ?? "Cannot access this Page with the stored token.";
+            diag.Recommendation = "Reconnect Facebook and select the correct Page.";
+            return diag;
+        }
+
+        if (runProbePost)
+        {
+            var probe = await TryProbeFeedPostAsync(pageId, pageToken, cancellationToken);
+            diag.ProbePostOk = probe.Success;
+            diag.ProbePostMessage = probe.Message;
+
+            if (!probe.Success)
+            {
+                diag.Status = ClassifyPostingError(probe.Message);
+                diag.Summary = probe.Message;
+                diag.Recommendation = RecommendForMetaError(probe.Message, context);
+                return diag;
+            }
+        }
+
+        if (diag.Status == "warn")
+        {
+            diag.Summary ??= "Token valid but Page choice may be wrong.";
+            return diag;
+        }
+
+        diag.Status = "ok";
+        diag.Summary = runProbePost
+            ? "Token valid and probe post succeeded (unpublished test)."
+            : "Token valid and Page is reachable. Run live test to confirm posting.";
+        return diag;
+    }
+
+    static string ClassifyPostingError(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message)) return "error";
+        if (message.Contains("identity", StringComparison.OrdinalIgnoreCase))
+            return "meta_identity";
+        if (message.Contains("expired", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("access token", StringComparison.OrdinalIgnoreCase))
+            return "token";
+        return "error";
+    }
+
+    static string RecommendForMetaError(string? message, string context)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+            return "Try Post now again or reconnect Facebook.";
+
+        if (message.Contains("identity", StringComparison.OrdinalIgnoreCase))
+            return context == "Author"
+                ? "Open the Facebook app on your phone as the Page admin. Complete “Confirm your identity” for your author Page, then retry."
+                : "Open the Facebook app as the Book Promoter AI Page admin. Complete Meta identity confirmation, then retry from Owner → Brand Social.";
+
+        if (message.Contains("pages_manage_posts", StringComparison.OrdinalIgnoreCase))
+            return "Meta → Use cases → Customize → enable pages_manage_posts (Ready for testing), then reconnect.";
+
+        if (message.Contains("expired", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("access token", StringComparison.OrdinalIgnoreCase))
+            return "Reconnect Facebook — the Page token expired.";
+
+        return "Reconnect Facebook. If the error persists, remove AuthorPromoter AI from facebook.com/settings?tab=business_tools and connect again.";
+    }
+
+    async Task<FacebookTokenDebugInfo?> DebugTokenAsync(string inputToken, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(inputToken) || !_settings.IsFacebookConfigured) return null;
+
+        var appToken = $"{_settings.FacebookAppId}|{_settings.FacebookAppSecret}";
+        var url = GraphUrl("debug_token") +
+                  $"?input_token={Uri.EscapeDataString(inputToken)}" +
+                  $"&access_token={Uri.EscapeDataString(appToken)}";
+
+        var response = await _http.GetAsync(url, cancellationToken);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            return new FacebookTokenDebugInfo(false, null, [], DescribeGraphError(body, "Token debug failed."));
+
+        try
+        {
+            var payload = System.Text.Json.JsonSerializer.Deserialize<FacebookDebugTokenResponse>(body);
+            var data = payload?.Data;
+            if (data is null)
+                return new FacebookTokenDebugInfo(false, null, [], "Meta returned no token debug data.");
+
+            DateTime? expires = data.ExpiresAt is > 0
+                ? DateTimeOffset.FromUnixTimeSeconds(data.ExpiresAt.Value).UtcDateTime
+                : null;
+            return new FacebookTokenDebugInfo(
+                data.IsValid == true,
+                expires,
+                data.Scopes ?? [],
+                data.Error?.Message);
+        }
+        catch
+        {
+            return new FacebookTokenDebugInfo(false, null, [], "Could not parse Meta token debug response.");
+        }
+    }
+
+    async Task<(bool Ok, string? Error)> VerifyPageAccessAsync(string pageId, string pageToken, CancellationToken cancellationToken)
+    {
+        var url = GraphUrl($"{pageId}") +
+                  "?fields=id,name" +
+                  $"&access_token={Uri.EscapeDataString(pageToken)}";
+
+        var response = await _http.GetAsync(url, cancellationToken);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (response.IsSuccessStatusCode) return (true, null);
+        return (false, DescribeGraphError(body, "Page token cannot access this Page."));
+    }
+
+    async Task<(bool Success, string Message)> TryProbeFeedPostAsync(
+        string pageId, string pageToken, CancellationToken cancellationToken)
+    {
+        using var content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["message"] = "BookPromoter AI connection test — safe to delete.",
+            ["published"] = "false",
+            ["access_token"] = pageToken
+        });
+
+        var response = await _http.PostAsync(GraphUrl($"{pageId}/feed"), content, cancellationToken);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (response.IsSuccessStatusCode)
+            return (true, "Unpublished probe post accepted by Meta.");
+
+        return (false, DescribeGraphError(body, DescribePostError(response.StatusCode, body)));
+    }
+
+    sealed class FacebookDebugTokenResponse
+    {
+        [JsonPropertyName("data")] public FacebookDebugTokenData? Data { get; set; }
+    }
+
+    sealed class FacebookDebugTokenData
+    {
+        [JsonPropertyName("is_valid")] public bool? IsValid { get; set; }
+        [JsonPropertyName("expires_at")] public long? ExpiresAt { get; set; }
+        [JsonPropertyName("scopes")] public List<string>? Scopes { get; set; }
+        [JsonPropertyName("error")] public FacebookGraphError? Error { get; set; }
+    }
+
+    sealed record FacebookTokenDebugInfo(bool IsValid, DateTime? ExpiresAt, IReadOnlyList<string> Scopes, string? Error);
+
     public static bool IsBookPromoterBrandPage(FacebookPage page) =>
         page.Name.Contains("Book Promoter", StringComparison.OrdinalIgnoreCase) ||
         page.Name.Contains("BookPromoter", StringComparison.OrdinalIgnoreCase) ||
@@ -495,4 +737,22 @@ record FacebookAuthOutcome(
 
     public static FacebookAuthOutcome NeedsPageSelection(IReadOnlyList<FacebookPage> pages, string userAccessToken) =>
         new(FacebookAuthStatus.NeedsPageSelection, null, null, pages, userAccessToken);
+}
+
+class FacebookPostingDiagnostic
+{
+    public string Context { get; set; } = "";
+    public string PageName { get; set; } = "";
+    public string PageId { get; set; } = "";
+    public bool IsLiveConnection { get; set; }
+    public string Status { get; set; } = "pending";
+    public string Summary { get; set; } = "";
+    public string? Recommendation { get; set; }
+    public string? LastLogMessage { get; set; }
+    public string? UserEmail { get; set; }
+    public bool? TokenValid { get; set; }
+    public DateTime? TokenExpiresAt { get; set; }
+    public IReadOnlyList<string> Scopes { get; set; } = [];
+    public bool? ProbePostOk { get; set; }
+    public string? ProbePostMessage { get; set; }
 }

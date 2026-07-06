@@ -3,11 +3,21 @@ namespace BookPromoterAI;
 
 static class MyAccountPage
 {
-    public static string Render(AppStoreDb store, string notice, SocialAccount? editingAccount = null)
+    public static string Render(AppStoreDb store, string notice, SocialAccount? editingAccount = null, string facebookDiagnosticsHtml = "")
     {
         var plan = store.CurrentPlan;
         var planName = plan?.Name ?? store.AccessType;
         var userCode = store.CurrentUserCode ?? "N/A";
+
+        if (string.IsNullOrWhiteSpace(facebookDiagnosticsHtml)
+            && store.IsFacebookOAuthReady
+            && store.AuthorSocialAccounts.Any(a => PostLimits.IsFacebook(a.Platform)))
+        {
+            facebookDiagnosticsHtml = FacebookDiagnosticsHtml.RenderPanel(
+                [],
+                "/my-account/facebook-diagnostics",
+                "facebook-diagnostics");
+        }
 
         // ── Account Details ──────────────────────────────────────────
         var accountSection = $"""
@@ -115,6 +125,7 @@ static class MyAccountPage
                     {(store.AuthorSocialAccounts.Count > 0 ? """<button class="button" type="submit">Save Posting Schedule</button>""" : "")}
                 </form>
                 <p class="muted small-text">For <strong>Facebook</strong>: use your personal account and your author Page — not a Meta Business portfolio login. Owner brand Pages are connected on the <a href="/owner-promos?section=owner-social">Owner</a> page only.</p>
+                {facebookDiagnosticsHtml}
                 <div class="connect-buttons">
                     {connectButtons}
                 </div>

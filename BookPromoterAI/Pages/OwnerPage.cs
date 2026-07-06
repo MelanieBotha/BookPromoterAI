@@ -3,10 +3,17 @@ namespace BookPromoterAI;
 
 static class OwnerPage
 {
-    public static string Render(AppStoreDb store, string notice = "", string appBaseUrl = "", ReleaseNotesCatalog? releaseNotes = null, string? activeSection = null)
+    public static string Render(AppStoreDb store, string notice = "", string appBaseUrl = "", ReleaseNotesCatalog? releaseNotes = null, string? activeSection = null, string facebookDiagnosticsHtml = "")
     {
         if (string.IsNullOrWhiteSpace(appBaseUrl))
             appBaseUrl = "https://bookpromoterai.us";
+
+        if (string.IsNullOrWhiteSpace(facebookDiagnosticsHtml))
+            facebookDiagnosticsHtml = FacebookDiagnosticsHtml.RenderPanel(
+                [],
+                "/owner/facebook-diagnostics",
+                "facebook-diagnostics",
+                showAuthorAccountsOption: true);
 
         var open = (string id) => SectionOpen(id, activeSection);
 
@@ -331,6 +338,7 @@ static class OwnerPage
                     </ul>
                     <p class="muted">App stays <strong>Unpublished</strong> for testing as admin. Test brand posting from <strong>Owner → Brand Social → Connect Facebook</strong>.</p>
                     <p class="muted"><strong>Login Configuration token type must be User access token</strong> (not System user). If Meta shows &ldquo;Continue as BookPromoter AI?&rdquo; you are logged into the business portfolio — log out and use your personal Facebook account (Melanie Botha).</p>
+                    {facebookDiagnosticsHtml}
                 </div>
             </details>
 
