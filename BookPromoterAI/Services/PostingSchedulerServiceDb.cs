@@ -41,6 +41,10 @@ class PostingSchedulerServiceDb : BackgroundService
                     settings.SendGridApiKey,
                     settings.SendGridSenderEmail,
                     settings.SendGridSenderName);
+                var generator = new PostGenerator();
+                var uploads = scope.ServiceProvider.GetRequiredService<UploadPaths>();
+                var videoRenderer = scope.ServiceProvider.GetRequiredService<VideoRenderService>();
+                await store.RunWeeklyVideoPipelineAsync(generator, videoRenderer, uploads.Path, baseUrl, stoppingToken);
             }
             catch { /* log and continue */ }
 

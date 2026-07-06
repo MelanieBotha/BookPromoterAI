@@ -78,7 +78,7 @@ class XService
         if (first.Success)
             return (PostingResult.LiveOk(imageBytes is { Length: > 0 }
                 ? "Posted to X with logo."
-                : "Posted to X."), null);
+                : "Posted to X.", first.PostId), null);
 
         if (!first.NeedsRefresh || string.IsNullOrWhiteSpace(tokens.RefreshToken))
             return (PostingResult.Failure(first.Error), null);
@@ -98,7 +98,7 @@ class XService
         if (retry.Success)
             return (PostingResult.LiveOk(imageBytes is { Length: > 0 }
                 ? "Posted to X with logo."
-                : "Posted to X."), refreshed);
+                : "Posted to X.", retry.PostId), refreshed);
 
         return (PostingResult.Failure(retry.Error), refreshed);
     }
@@ -181,7 +181,7 @@ class XService
             : new XUser(payload.Data.Id, payload.Data.Username ?? "", payload.Data.Name ?? "");
     }
 
-    async Task<(bool Success, bool NeedsRefresh, string Error)> TryPostTweetAsync(
+    async Task<(bool Success, bool NeedsRefresh, string Error, string? PostId)> TryPostTweetAsync(
         string accessToken, string postText, string? mediaId, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "/2/tweets");
@@ -191,20 +191,47 @@ class XService
             : JsonContent.Create(new { text = postText, media = new { media_ids = new[] { mediaId } } });
 
         var response = await _http.SendAsync(request, cancellationToken);
-        if (response.IsSuccessStatusCode)
-            return (true, false, "");
-
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (response.IsSuccessStatusCode)
+        {
+            var postId = ParseTweetId(body);
+            return (true, false, "", postId);
+        }
+
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-            return (false, true, "X session expired.");
+            return (false, true, "X session expired.", null);
 
         if (body.Contains("duplicate", StringComparison.OrdinalIgnoreCase))
-            return (false, false, "X rejected the post as a duplicate.");
+            return (false, false, "X rejected the post as a duplicate.", null);
 
         if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-            return (false, false, "X API access denied. Confirm your developer app has write access and the connected account is allowed to post.");
+            return (false, false, "X API access denied. Confirm your developer app has write access and the connected account is allowed to post.", null);
 
-        return (false, false, DescribePostError(response.StatusCode, body));
+        return (false, false, DescribePostError(response.StatusCode, body), null);
+    }
+
+    public async Task<SocialPostMetrics?> TryGetPostMetricsAsync(
+        string tweetId, string accessToken, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(tweetId)) return null;
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"/2/tweets/{Uri.EscapeDataString(tweetId)}?tweet.fields=public_metrics");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        var response = await _http.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode) return null;
+        var payload = await response.Content.ReadFromJsonAsync<XTweetMetricsResponse>(cancellationToken: cancellationToken);
+        var metrics = payload?.Data?.PublicMetrics;
+        if (metrics is null) return null;
+        return new SocialPostMetrics(metrics.LikeCount + metrics.ReplyCount, null);
+    }
+
+    static string? ParseTweetId(string body)
+    {
+        try
+        {
+            var payload = System.Text.Json.JsonSerializer.Deserialize<XTweetCreateResponse>(body);
+            return payload?.Data?.Id;
+        }
+        catch { return null; }
     }
 
     HttpRequestMessage BuildTokenRequest()
@@ -261,6 +288,33 @@ class XService
     sealed class XMediaUploadResponse
     {
         [JsonPropertyName("media_id_string")] public string? MediaIdString { get; set; }
+    }
+
+    sealed class XTweetCreateResponse
+    {
+        [JsonPropertyName("data")] public XTweetCreateData? Data { get; set; }
+    }
+
+    sealed class XTweetCreateData
+    {
+        [JsonPropertyName("id")] public string? Id { get; set; }
+    }
+
+    sealed class XTweetMetricsResponse
+    {
+        [JsonPropertyName("data")] public XTweetMetricsData? Data { get; set; }
+    }
+
+    sealed class XTweetMetricsData
+    {
+        [JsonPropertyName("public_metrics")] public XTweetPublicMetrics? PublicMetrics { get; set; }
+    }
+
+    sealed class XTweetPublicMetrics
+    {
+        [JsonPropertyName("like_count")] public int LikeCount { get; set; }
+        [JsonPropertyName("reply_count")] public int ReplyCount { get; set; }
+        [JsonPropertyName("impression_count")] public int ImpressionCount { get; set; }
     }
 }
 

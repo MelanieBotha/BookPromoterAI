@@ -98,10 +98,14 @@ static class OwnerPromoPage
         {
             var statusClass = entry.Success ? "available" : "used";
             var statusText = entry.Success ? "Posted" : "Failed";
+            var clicks = entry.ClickCount is int clickCount ? clickCount.ToString() : "—";
+            var likes = entry.Success ? entry.LikeCount.ToString() : "—";
             brandLogRows.Append($"""
                 <div class="promo-row">
                     <span>{H.Encode(entry.Platform)} &middot; {H.Encode(entry.BookTitle)}</span>
                     <span>{AppTimeZone.FormatWithZone(entry.AttemptedAt, "MMM d, HH:mm")} &middot; {H.Encode(entry.Message)}</span>
+                    <span class="muted">{clicks}</span>
+                    <span class="muted">{likes}</span>
                     <span class="status {statusClass}">{statusText}</span>
                 </div>
                 """);
@@ -109,11 +113,43 @@ static class OwnerPromoPage
         if (store.OwnerBrandPostingLog.Count == 0)
             brandLogRows.Append("""<p class="muted">No brand posting activity yet. Post manually below or enable Auto-post on a connected brand account.</p>""");
 
+        var promoClickRows = new StringBuilder();
+        var promoClicks = store.OwnerBookPromoClicksByPlatform();
+        foreach (var (platform, clicks) in promoClicks)
+        {
+            promoClickRows.Append($"""
+                <div class="promo-row">
+                    <span>{H.Encode(platform)}</span>
+                    <span class="muted">Book link clicks from author promos</span>
+                    <span><strong>{clicks}</strong></span>
+                </div>
+                """);
+        }
+        if (promoClicks.Count == 0)
+            promoClickRows.Append("""<p class="muted">No tracked book-link clicks from social posts yet.</p>""");
+
         var brandPostingLogSection = $"""
             <h3 style="margin-top:24px">Brand posting activity log</h3>
-            <p class="muted small-text">Recent BookPromoter AI brand posts (app promos and release updates). Author book posts appear on each user's My Account page.</p>
-            <div class="promo-table">
+            <p class="muted small-text">Recent BookPromoter AI brand posts. Likes and clicks refresh from connected platforms when you open this page (about hourly). Author book promos use tracking links — see totals below.</p>
+            <div class="promo-table brand-metrics-table">
+                <div class="promo-header">
+                    <strong>Post</strong>
+                    <strong>When</strong>
+                    <strong>Clicks</strong>
+                    <strong>Likes</strong>
+                    <strong>Status</strong>
+                </div>
                 {brandLogRows}
+            </div>
+            <h3 style="margin-top:24px">Book promo link clicks (all authors)</h3>
+            <p class="muted small-text">Clicks on book store links attributed to each social platform via tracking URLs in posted ads.</p>
+            <div class="promo-table">
+                <div class="promo-header">
+                    <strong>Platform</strong>
+                    <strong>Source</strong>
+                    <strong>Clicks</strong>
+                </div>
+                {promoClickRows}
             </div>
             """;
 

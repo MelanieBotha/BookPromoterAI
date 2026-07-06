@@ -77,6 +77,8 @@ builder.Services.AddFacebook();
 builder.Services.AddReddit();
 builder.Services.AddTikTok();
 builder.Services.AddSingleton<LocalSpeechService>();
+builder.Services.AddSingleton<SocialPostMetricsService>();
+builder.Services.AddSingleton<VideoRenderService>();
 builder.Services.AddScoped<SocialPostingService>();
 
 var generator = new PostGenerator();

@@ -78,7 +78,7 @@ class LinkedInService
         if (first.Success)
             return (PostingResult.LiveOk(imageBytes is { Length: > 0 }
                 ? "Posted to LinkedIn with logo."
-                : "Posted to LinkedIn."), null);
+                : "Posted to LinkedIn.", first.PostId), null);
 
         if (!first.NeedsRefresh || string.IsNullOrWhiteSpace(tokens.RefreshToken))
             return (PostingResult.Failure(first.Error), null);
@@ -98,7 +98,7 @@ class LinkedInService
         if (retry.Success)
             return (PostingResult.LiveOk(imageBytes is { Length: > 0 }
                 ? "Posted to LinkedIn with logo."
-                : "Posted to LinkedIn."), refreshed);
+                : "Posted to LinkedIn.", retry.PostId), refreshed);
 
         return (PostingResult.Failure(retry.Error), refreshed);
     }
@@ -213,7 +213,7 @@ class LinkedInService
         return new LinkedInUser(payload.Sub, handle, name);
     }
 
-    async Task<(bool Success, bool NeedsRefresh, string Error)> TryPostAsync(
+    async Task<(bool Success, bool NeedsRefresh, string Error, string? PostId)> TryPostAsync(
         string accessToken, string personId, string postText, string? imageAssetUrn, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, UgcPostsUrl);
@@ -258,16 +258,52 @@ class LinkedInService
 
         var response = await _http.SendAsync(request, cancellationToken);
         if (response.IsSuccessStatusCode)
-            return (true, false, "");
+        {
+            var postId = response.Headers.TryGetValues("x-restli-id", out var ids)
+                ? ids.FirstOrDefault()
+                : null;
+            if (!string.IsNullOrWhiteSpace(postId) && !postId.StartsWith("urn:", StringComparison.OrdinalIgnoreCase))
+                postId = $"urn:li:share:{postId}";
+            return (true, false, "", postId);
+        }
 
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-            return (false, true, "LinkedIn session expired.");
+            return (false, true, "LinkedIn session expired.", null);
 
         if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-            return (false, false, "LinkedIn API access denied. Confirm your developer app has Share on LinkedIn enabled and w_member_social scope.");
+            return (false, false, "LinkedIn API access denied. Confirm your developer app has Share on LinkedIn enabled and w_member_social scope.", null);
 
-        return (false, false, DescribePostError(response.StatusCode, body));
+        return (false, false, DescribePostError(response.StatusCode, body), null);
+    }
+
+    public async Task<SocialPostMetrics?> TryGetPostMetricsAsync(
+        string shareUrn, string accessToken, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(shareUrn)) return null;
+        var encoded = Uri.EscapeDataString(shareUrn);
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"https://api.linkedin.com/v2/socialActions/{encoded}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        var response = await _http.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode) return null;
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(body);
+            var likes = doc.RootElement.TryGetProperty("likesSummary", out var likesEl)
+                && likesEl.TryGetProperty("totalLikes", out var total)
+                ? total.GetInt32()
+                : 0;
+            var comments = doc.RootElement.TryGetProperty("commentsSummary", out var commentsEl)
+                && commentsEl.TryGetProperty("totalFirstLevelComments", out var ct)
+                ? ct.GetInt32()
+                : 0;
+            return new SocialPostMetrics(likes + comments, null);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     static string DescribePostError(System.Net.HttpStatusCode status, string detail)

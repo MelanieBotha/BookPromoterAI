@@ -364,12 +364,13 @@ class PostingResult
     public bool Success { get; init; }
     public bool IsSimulated { get; init; }
     public string Message { get; init; } = "";
+    public string? ExternalPostId { get; init; }
 
     /// <summary>True only when content was sent to a real platform API (not simulated).</summary>
     public bool PostedToFeed => Success && !IsSimulated;
 
-    public static PostingResult LiveOk(string message = "Posted successfully.") =>
-        new() { Success = true, IsSimulated = false, Message = message };
+    public static PostingResult LiveOk(string message = "Posted successfully.", string? externalPostId = null) =>
+        new() { Success = true, IsSimulated = false, Message = message, ExternalPostId = externalPostId };
 
     public static PostingResult SimulatedOk(string message) =>
         new() { Success = true, IsSimulated = true, Message = message };

@@ -1,4 +1,14 @@
 {
+  "1.11.0": {
+    "title": "BookPromoter AI v1.11.0 — What's new",
+    "updated": [
+      "Videos tab: one 60-second narrated promo per book auto-generates every week from your description, excerpt, and cover",
+      "This week's videos appear at the top — download and copy the caption when ready to post",
+      "Owner promo log shows clicks and likes on brand posts (when platforms return metrics)"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.9.70": {
     "title": "BookPromoter AI v1.9.70 — What's new",
     "updated": [

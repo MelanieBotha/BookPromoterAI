@@ -7,16 +7,21 @@ static class TikTokRoutes
         app.MapGet("/tiktok", (HttpRequest request) =>
             Results.Redirect("/videos" + request.QueryString));
 
-        app.MapGet("/videos", (HttpRequest request, HttpContext http, AppStoreDb store) =>
+        app.MapGet("/videos", async (HttpRequest request, HttpContext http, AppStoreDb store, PostGenerator generator, AppSettings settings, VideoRenderService renderer, UploadPaths uploads) =>
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
+            var baseUrl = PublicUrl.Base(request, settings);
+            var queued = store.EnsureWeeklyVideos(generator, baseUrl);
+            await store.RenderPendingVideosAsync(renderer, uploads.Path, baseUrl);
             var notice = request.Query["created"] == "1"
                 ? """<div class="notice success">Video created! Download it below and post to social media when you are ready.</div>"""
                 : request.Query["uploaded"] == "1"
                     ? """<div class="notice success">Video uploaded.</div>"""
                     : request.Query["error"] == "1"
                         ? $"""<div class="notice error">{H.Encode(request.Query["msg"].ToString())}</div>"""
-                        : "";
+                        : queued > 0
+                            ? $"""<div class="notice success">Queued {queued} new video(s) for this week — they will appear below when rendering finishes (usually within a few minutes).</div>"""
+                            : "";
             return Results.Content(
                 H.RenderPage(http, "Videos", TikTokPage.Render(store, generator, notice), store),
                 "text/html");

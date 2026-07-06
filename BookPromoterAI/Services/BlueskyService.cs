@@ -87,10 +87,12 @@ class BlueskyService
         var response = await _http.SendAsync(request, cancellationToken);
         if (response.IsSuccessStatusCode)
         {
+            var successBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            var uri = ParseBlueskyPostUri(successBody);
             var message = uploadedBlob is not null
                 ? "Posted to Bluesky with cover image."
                 : "Posted to Bluesky.";
-            return (PostingResult.LiveOk(message), session, false);
+            return (PostingResult.LiveOk(message, uri), session, false);
         }
 
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -208,6 +210,33 @@ class BlueskyService
         if (detail.Contains("InvalidRequest", StringComparison.OrdinalIgnoreCase) && detail.Contains("record", StringComparison.OrdinalIgnoreCase))
             return "Bluesky rejected the post format. Try regenerating the ad.";
         return $"Bluesky error ({(int)status}). Try again or reconnect your account.";
+    }
+
+    public async Task<SocialPostMetrics?> TryGetPostMetricsAsync(
+        string postUri, BlueskySession session, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(postUri)) return null;
+        var url = $"/xrpc/app.bsky.feed.getPosts?uris={Uri.EscapeDataString(postUri)}";
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessJwt);
+        var response = await _http.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode) return null;
+        var json = JsonNode.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+        var post = json?["posts"]?.AsArray().FirstOrDefault();
+        if (post is null) return null;
+        var likes = post["likeCount"]?.GetValue<int>() ?? 0;
+        var replies = post["replyCount"]?.GetValue<int>() ?? 0;
+        return new SocialPostMetrics(likes + replies, null);
+    }
+
+    static string? ParseBlueskyPostUri(string body)
+    {
+        try
+        {
+            var json = JsonNode.Parse(body);
+            return json?["uri"]?.GetValue<string>();
+        }
+        catch { return null; }
     }
 
     sealed class BlueskySessionResponse

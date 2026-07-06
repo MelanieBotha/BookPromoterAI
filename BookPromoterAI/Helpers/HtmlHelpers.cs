@@ -422,6 +422,7 @@ details[open].ad-week-collapsible .ad-week-heading::after{transform:rotate(180de
 .tiktok-player{max-width:180px;max-height:320px;border-radius:8px;background:#000}
 .tiktok-video-row{align-items:center}
 .tiktok-video-list{display:flex;flex-direction:column;gap:16px}
+.tiktok-video-placeholder{min-height:200px;max-width:180px;display:grid;place-items:center;padding:16px;border-radius:8px;background:var(--soft);font-size:13px;text-align:center}
 .tiktok-studio-layout{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
 .tiktok-studio-controls{flex:1;min-width:260px}
 .tiktok-studio-preview-wrap{text-align:center}
@@ -481,10 +482,11 @@ textarea{min-height:120px}
 .notice.success{background:#dcfce7;color:#166534;border:1px solid #86efac}
 .notice.error{background:#fee2e2;color:#991b1b;border:1px solid #fca5a5}
 .status{border-radius:999px;padding:6px 10px;font-size:13px;font-weight:700}
-.status.available{background:#ccfbf1;color:#115e59}.status.used{background:#e5e7eb;color:#4b5563}
+.status.available{background:#ccfbf1;color:#115e59}.status.pending{background:#fef3c7;color:#92400e}.status.used{background:#e5e7eb;color:#4b5563}
 .promo-table{display:grid;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .promo-header,.promo-row{display:grid;grid-template-columns:1.4fr 1.4fr 120px;gap:12px;align-items:center;padding:12px 14px}
 .promo-table-actions .promo-header,.promo-table-actions .promo-row{grid-template-columns:1.1fr 1.4fr 90px 80px}
+.brand-metrics-table .promo-header,.brand-metrics-table .promo-row{grid-template-columns:1.2fr 1.5fr 72px 72px 92px}
 .promo-row.plan-row{grid-template-columns:1fr 1.6fr 1fr}
 .mailing-history-header,.mailing-history-row{grid-template-columns:1.2fr 2fr 1fr auto}
 .email-body-view{margin-top:12px;padding:16px;background:var(--soft);border:1px solid var(--line);border-radius:8px;white-space:pre-line;line-height:1.6}

@@ -164,13 +164,13 @@ class FacebookService
         {
             var photo = await TryPostPhotoAsync(connection.Page.Id, connection.Page.AccessToken, postText, photoUrl, photoBytes, photoMime, cancellationToken);
             if (photo.Success)
-                return (PostingResult.LiveOk("Posted to Facebook Page with book cover."), null);
+                return (PostingResult.LiveOk("Posted to Facebook Page with book cover.", photo.PostId), null);
 
             if (!photo.NeedsRefresh)
             {
                 var textOnly = await TryPostToPageFeedAsync(connection.Page.Id, connection.Page.AccessToken, postText, link: null, cancellationToken);
                 if (textOnly.Success)
-                    return (PostingResult.LiveOk($"Posted to Facebook Page (text only — {photo.Error})"), null);
+                    return (PostingResult.LiveOk($"Posted to Facebook Page (text only — {photo.Error})", textOnly.PostId), null);
             }
 
             if (!photo.NeedsRefresh || string.IsNullOrWhiteSpace(connection.UserAccessToken))
@@ -180,7 +180,7 @@ class FacebookService
         {
             var feed = await TryPostToPageFeedAsync(connection.Page.Id, connection.Page.AccessToken, postText, link: null, cancellationToken);
             if (feed.Success)
-                return (PostingResult.LiveOk("Posted to Facebook Page."), null);
+                return (PostingResult.LiveOk("Posted to Facebook Page.", feed.PostId), null);
 
             if (!feed.NeedsRefresh || string.IsNullOrWhiteSpace(connection.UserAccessToken))
                 return (PostingResult.Failure(feed.Error), null);
@@ -196,7 +196,7 @@ class FacebookService
             : await TryPostToPageFeedAsync(refreshedPage.Id, refreshedPage.AccessToken, postText, link: null, cancellationToken);
         if (retry.Success)
         {
-            return (PostingResult.LiveOk(hasPhoto ? "Posted to Facebook Page with book cover." : "Posted to Facebook Page."),
+            return (PostingResult.LiveOk(hasPhoto ? "Posted to Facebook Page with book cover." : "Posted to Facebook Page.", retry.PostId),
                 new FacebookTokenUpdate(refreshedPage.AccessToken, connection.UserAccessToken));
         }
 
@@ -205,7 +205,7 @@ class FacebookService
             var retryText = await TryPostToPageFeedAsync(refreshedPage.Id, refreshedPage.AccessToken, postText, link: null, cancellationToken);
             if (retryText.Success)
             {
-                return (PostingResult.LiveOk($"Posted to Facebook Page (text only — {retry.Error})"),
+                return (PostingResult.LiveOk($"Posted to Facebook Page (text only — {retry.Error})", retryText.PostId),
                     new FacebookTokenUpdate(refreshedPage.AccessToken, connection.UserAccessToken));
             }
         }
@@ -296,7 +296,7 @@ class FacebookService
         return (pages, null);
     }
 
-    async Task<(bool Success, bool NeedsRefresh, string Error)> TryPostPhotoAsync(
+    async Task<(bool Success, bool NeedsRefresh, string Error, string? PostId)> TryPostPhotoAsync(
         string pageId,
         string pageAccessToken,
         string postText,
@@ -315,10 +315,10 @@ class FacebookService
         if (!string.IsNullOrWhiteSpace(photoUrl))
             return await TryPostPhotoUrlAsync(pageId, pageAccessToken, postText, photoUrl, cancellationToken);
 
-        return (false, false, "Book cover image could not be attached.");
+        return (false, false, "Book cover image could not be attached.", null);
     }
 
-    async Task<(bool Success, bool NeedsRefresh, string Error)> TryPostPhotoUrlAsync(
+    async Task<(bool Success, bool NeedsRefresh, string Error, string? PostId)> TryPostPhotoUrlAsync(
         string pageId, string pageAccessToken, string postText, string photoUrl, CancellationToken cancellationToken)
     {
         using var content = new FormUrlEncodedContent(new Dictionary<string, string>
@@ -329,14 +329,14 @@ class FacebookService
         });
 
         var response = await _http.PostAsync(GraphUrl($"{pageId}/photos"), content, cancellationToken);
-        if (response.IsSuccessStatusCode)
-            return (true, false, "");
-
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (response.IsSuccessStatusCode)
+            return (true, false, "", ParseFacebookCreatedId(body));
+
         return ClassifyPostFailure(response.StatusCode, body);
     }
 
-    async Task<(bool Success, bool NeedsRefresh, string Error)> TryPostPhotoBytesAsync(
+    async Task<(bool Success, bool NeedsRefresh, string Error, string? PostId)> TryPostPhotoBytesAsync(
         string pageId, string pageAccessToken, string postText, byte[] photoBytes, string? photoMime, CancellationToken cancellationToken)
     {
         using var form = new MultipartFormDataContent();
@@ -348,14 +348,14 @@ class FacebookService
         form.Add(imageContent, "source", "cover.jpg");
 
         var response = await _http.PostAsync(GraphUrl($"{pageId}/photos"), form, cancellationToken);
-        if (response.IsSuccessStatusCode)
-            return (true, false, "");
-
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (response.IsSuccessStatusCode)
+            return (true, false, "", ParseFacebookCreatedId(body));
+
         return ClassifyPostFailure(response.StatusCode, body);
     }
 
-    async Task<(bool Success, bool NeedsRefresh, string Error)> TryPostToPageFeedAsync(
+    async Task<(bool Success, bool NeedsRefresh, string Error, string? PostId)> TryPostToPageFeedAsync(
         string pageId, string pageAccessToken, string postText, string? link, CancellationToken cancellationToken)
     {
         var fields = new Dictionary<string, string>
@@ -368,14 +368,84 @@ class FacebookService
 
         using var content = new FormUrlEncodedContent(fields);
         var response = await _http.PostAsync(GraphUrl($"{pageId}/feed"), content, cancellationToken);
-        if (response.IsSuccessStatusCode)
-            return (true, false, "");
-
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (response.IsSuccessStatusCode)
+            return (true, false, "", ParseFacebookCreatedId(body));
+
         return ClassifyPostFailure(response.StatusCode, body);
     }
 
-    static (bool Success, bool NeedsRefresh, string Error) ClassifyPostFailure(System.Net.HttpStatusCode status, string body)
+    public async Task<SocialPostMetrics?> TryGetPostMetricsAsync(
+        string postId, string pageAccessToken, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(postId)) return null;
+        var fields = Uri.EscapeDataString("likes.summary(true),comments.summary(true),shares");
+        var url = GraphUrl($"{postId}?fields={fields}&access_token={Uri.EscapeDataString(pageAccessToken)}");
+        var response = await _http.GetAsync(url, cancellationToken);
+        if (!response.IsSuccessStatusCode) return null;
+
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(body);
+            var root = doc.RootElement;
+            var likes = root.TryGetProperty("likes", out var likesEl) && likesEl.TryGetProperty("summary", out var sum)
+                ? sum.TryGetProperty("total_count", out var c) ? c.GetInt32() : 0
+                : 0;
+            var comments = root.TryGetProperty("comments", out var commentsEl) && commentsEl.TryGetProperty("summary", out var csum)
+                ? csum.TryGetProperty("total_count", out var cc) ? cc.GetInt32() : 0
+                : 0;
+            var shares = root.TryGetProperty("shares", out var sharesEl) && sharesEl.TryGetProperty("count", out var sc)
+                ? sc.GetInt32()
+                : 0;
+            int? clicks = await TryGetPostClickCountAsync(postId, pageAccessToken, cancellationToken);
+            return new SocialPostMetrics(likes + comments, clicks);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    async Task<int?> TryGetPostClickCountAsync(string postId, string pageAccessToken, CancellationToken cancellationToken)
+    {
+        var url = GraphUrl($"{postId}/insights/post_clicks?access_token={Uri.EscapeDataString(pageAccessToken)}");
+        var response = await _http.GetAsync(url, cancellationToken);
+        if (!response.IsSuccessStatusCode) return null;
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(body);
+            if (!doc.RootElement.TryGetProperty("data", out var data) || data.GetArrayLength() == 0)
+                return null;
+            var values = data[0].GetProperty("values");
+            if (values.GetArrayLength() == 0) return null;
+            return values[0].TryGetProperty("value", out var v) ? v.GetInt32() : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    static string? ParseFacebookCreatedId(string body)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(body);
+            if (doc.RootElement.TryGetProperty("post_id", out var postId))
+            {
+                var s = postId.GetString();
+                if (!string.IsNullOrWhiteSpace(s)) return s;
+            }
+            if (doc.RootElement.TryGetProperty("id", out var id))
+                return id.GetString();
+        }
+        catch { /* ignore */ }
+        return null;
+    }
+
+    static (bool Success, bool NeedsRefresh, string Error, string? PostId) ClassifyPostFailure(System.Net.HttpStatusCode status, string body)
     {
         var message = DescribeGraphError(body, "");
         var code = TryParseGraphErrorCode(body);
@@ -385,14 +455,14 @@ class FacebookService
             body.Contains("expired", StringComparison.OrdinalIgnoreCase) ||
             body.Contains("Session has expired", StringComparison.OrdinalIgnoreCase) ||
             message.Contains("access token", StringComparison.OrdinalIgnoreCase))
-            return (false, true, string.IsNullOrWhiteSpace(message) ? "Facebook Page token expired." : message);
+            return (false, true, string.IsNullOrWhiteSpace(message) ? "Facebook Page token expired." : message, null);
 
         if (status == System.Net.HttpStatusCode.Forbidden || code == 200)
             return (false, false, string.IsNullOrWhiteSpace(message)
                 ? "Facebook API access denied. Confirm pages_manage_posts is enabled and reconnect your Page."
-                : message);
+                : message, null);
 
-        return (false, false, DescribePostError(status, body));
+        return (false, false, DescribePostError(status, body), null);
     }
 
     static int? TryParseGraphErrorCode(string body)

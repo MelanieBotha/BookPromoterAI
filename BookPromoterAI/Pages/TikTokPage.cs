@@ -8,6 +8,8 @@ static class TikTokPage
     public static string Render(AppStoreDb store, PostGenerator generator, string notice = "")
     {
         var videos = store.TikTokVideos;
+        var thisWeekVideos = store.TikTokVideosThisWeek;
+        var (_, _, currentWeekLabel) = AdWeek.For(DateTime.UtcNow);
         var books = store.Books;
 
         var bookOptions = new StringBuilder();
@@ -48,43 +50,21 @@ static class TikTokPage
 
         var videoRows = new StringBuilder();
         foreach (var video in videos)
-        {
-            var statusLabel = video.Status switch
-            {
-                TikTokVideoStatuses.Ready => "Ready to post",
-                TikTokVideoStatuses.Sent => "Posted",
-                _ => video.Status
-            };
-            var captionBlock = !string.IsNullOrWhiteSpace(video.Caption)
-                ? $"""
-                    <p class="muted small-text tiktok-caption-preview">{H.Encode(video.Caption)}</p>
-                    <button type="button" class="button small secondary" onclick="copyTikTokCaption(this)" data-caption="{H.Encode(video.Caption)}">Copy caption</button>
-                    """
-                : "";
+            videoRows.Append(RenderVideoRow(video));
 
-            videoRows.Append($"""
-                <article class="book-row tiktok-video-row">
-                    <div>
-                        <strong>{H.Encode(video.Title)}</strong>
-                        <p class="muted">{H.Encode(video.BookTitle)}</p>
-                        <small class="status available">{H.Encode(statusLabel)}</small>
-                        {captionBlock}
-                    </div>
-                    <div class="tiktok-video-preview">
-                        <video src="{H.Encode(video.VideoUrl)}" controls preload="metadata" class="tiktok-player"></video>
-                    </div>
-                    <div class="row-actions">
-                        <a class="button small" href="{H.Encode(video.VideoUrl)}" download>Download</a>
-                        <form method="post" action="/videos/delete/{video.Id}" style="display:inline" onsubmit="return confirm('Remove this video?');">
-                            <button class="danger-button small" type="submit">Remove</button>
-                        </form>
-                    </div>
-                </article>
-                """);
-        }
+        var thisWeekRows = new StringBuilder();
+        foreach (var video in thisWeekVideos)
+            thisWeekRows.Append(RenderVideoRow(video));
+
+        if (thisWeekVideos.Count == 0)
+            thisWeekRows.Append("""<p class="muted">Weekly videos generate automatically for each book with a cover. Add books with covers, then check back in a few minutes.</p>""");
+
+        var refreshScript = thisWeekVideos.Any(v => v.Status == TikTokVideoStatuses.Rendering)
+            ? """<script>setTimeout(() => location.reload(), 45000);</script>"""
+            : "";
 
         if (videos.Count == 0)
-            videoRows.Append("""<p class="muted">No videos yet. Create one below from a book cover and AI caption.</p>""");
+            videoRows.Append("""<p class="muted">No videos yet. Your weekly batch will appear above, or create one manually below.</p>""");
 
         var noBooksNotice = hasBooks
             ? ""
@@ -135,14 +115,21 @@ static class TikTokPage
                 <div>
                     <p class="eyebrow">Book promos</p>
                     <h1>Videos</h1>
-                    <p class="muted">Create 60-second vertical book promos for TikTok, Reels, and Shorts.</p>
+                    <p class="muted">60-second book promos auto-generate every week. Download and post to TikTok, Reels, or Shorts.</p>
                 </div>
             </section>
             {notice}
             {noBooksNotice}
             {studio}
             <section class="panel">
-                <h2>Your videos</h2>
+                <h2>This week's videos</h2>
+                <p class="muted small-text">{H.Encode(currentWeekLabel)} — one 60-second narrated video per book (from your description, excerpt, and cover). Refreshes every Monday.</p>
+                <div class="tiktok-video-list">
+                    {thisWeekRows}
+                </div>
+            </section>
+            <section class="panel">
+                <h2>All videos</h2>
                 <div class="tiktok-video-list">
                     {videoRows}
                 </div>
@@ -166,6 +153,68 @@ static class TikTokPage
                     <button class="button secondary" type="submit">Upload video</button>
                 </form>
             </details>
+            {refreshScript}
+            """;
+    }
+
+    static string RenderVideoRow(TikTokVideo video)
+    {
+        var statusLabel = video.Status switch
+        {
+            TikTokVideoStatuses.Ready => "Ready to download",
+            TikTokVideoStatuses.Rendering => "Generating…",
+            TikTokVideoStatuses.Failed => "Failed",
+            TikTokVideoStatuses.Sent => "Posted",
+            _ => video.Status
+        };
+        var statusClass = video.Status switch
+        {
+            TikTokVideoStatuses.Ready => "available",
+            TikTokVideoStatuses.Rendering => "pending",
+            TikTokVideoStatuses.Failed => "used",
+            _ => "available"
+        };
+        var captionBlock = !string.IsNullOrWhiteSpace(video.Caption)
+            ? $"""
+                <p class="muted small-text tiktok-caption-preview">{H.Encode(video.Caption)}</p>
+                <button type="button" class="button small secondary" onclick="copyTikTokCaption(this)" data-caption="{H.Encode(video.Caption)}">Copy caption</button>
+                """
+            : "";
+        var weekNote = video.AutoGenerated && !string.IsNullOrWhiteSpace(video.WeekLabel)
+            ? $"""<p class="muted small-text">{H.Encode(video.WeekLabel)}</p>"""
+            : "";
+        var errorNote = video.Status == TikTokVideoStatuses.Failed && !string.IsNullOrWhiteSpace(video.ErrorMessage)
+            ? $"""<p class="notice error small-text">{H.Encode(video.ErrorMessage)}</p>"""
+            : "";
+        var preview = video.Status == TikTokVideoStatuses.Ready && !string.IsNullOrWhiteSpace(video.VideoUrl)
+            ? $"""<video src="{H.Encode(video.VideoUrl)}" controls preload="metadata" class="tiktok-player"></video>"""
+            : video.Status == TikTokVideoStatuses.Rendering
+                ? """<div class="tiktok-video-placeholder muted">Rendering 60s video with read-aloud voice…</div>"""
+                : """<div class="tiktok-video-placeholder muted">No preview</div>""";
+        var download = video.Status == TikTokVideoStatuses.Ready && !string.IsNullOrWhiteSpace(video.VideoUrl)
+            ? $"""<a class="button small" href="{H.Encode(video.VideoUrl)}" download>Download</a>"""
+            : "";
+
+        return $"""
+            <article class="book-row tiktok-video-row">
+                <div>
+                    <strong>{H.Encode(video.Title)}</strong>
+                    <p class="muted">{H.Encode(video.BookTitle)}</p>
+                    {weekNote}
+                    <small class="status {statusClass}">{H.Encode(statusLabel)}</small>
+                    {errorNote}
+                    {captionBlock}
+                </div>
+                <div class="tiktok-video-preview">
+                    {preview}
+                </div>
+                <div class="row-actions">
+                    {download}
+                    <form method="post" action="/videos/delete/{video.Id}" style="display:inline" onsubmit="return confirm('Remove this video?');">
+                        <button class="danger-button small" type="submit">Remove</button>
+                    </form>
+                </div>
+            </article>
             """;
     }
 

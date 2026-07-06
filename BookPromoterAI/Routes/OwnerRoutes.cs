@@ -4,11 +4,12 @@ static class OwnerRoutes
 {
     public static void Map(WebApplication app)
     {
-        app.MapGet("/owner-promos", (HttpContext http, AppStoreDb store, AppSettings settings, ReleaseNotesCatalog releaseNotes) =>
+        app.MapGet("/owner-promos", async (HttpContext http, AppStoreDb store, AppSettings settings, ReleaseNotesCatalog releaseNotes, SocialPostMetricsService metrics) =>
         {
             if (OwnerGuard(store) is { } guard) return guard;
             var baseUrl = PublicUrl.Base(http.Request, settings);
             store.EnsureWeeklyOwnerBrandMailingDraft(baseUrl);
+            await store.RefreshOwnerBrandPostMetricsAsync(metrics);
             var section = http.Request.Query["section"].ToString();
             return RenderOwner(http, store, settings, releaseNotes, activeSection: section);
         });
