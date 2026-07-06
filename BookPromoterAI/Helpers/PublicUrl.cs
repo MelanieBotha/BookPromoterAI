@@ -23,10 +23,22 @@ static class PublicUrl
 
     public static string FacebookCallbackUrl(HttpRequest request, AppSettings? settings = null)
     {
-        if (settings is not null && !string.IsNullOrWhiteSpace(settings.PublicBaseUrl))
-            return FacebookService.CallbackUrl(settings.PublicBaseUrl.TrimEnd('/'));
-        return $"{FacebookOAuthBase(request)}{FacebookService.CallbackPath}";
+        var local = $"{FacebookOAuthBase(request)}{FacebookService.CallbackPath}";
+        if (settings is null || string.IsNullOrWhiteSpace(settings.PublicBaseUrl))
+            return local;
+
+        // Keep OAuth on the browser's current host so the session cookie survives the round trip.
+        if (IsAllowedOAuthHost(request.Host.Host))
+            return local;
+
+        return FacebookService.CallbackUrl(settings.PublicBaseUrl.TrimEnd('/'));
     }
+
+    static bool IsAllowedOAuthHost(string host) =>
+        host.Equals("bookpromoterai.us", StringComparison.OrdinalIgnoreCase)
+        || host.Equals("www.bookpromoterai.us", StringComparison.OrdinalIgnoreCase)
+        || host.Contains("railway.app", StringComparison.OrdinalIgnoreCase)
+        || host.Equals("localhost", StringComparison.OrdinalIgnoreCase);
 
     static string EffectiveScheme(HttpRequest request, bool forceHttps = false)
     {

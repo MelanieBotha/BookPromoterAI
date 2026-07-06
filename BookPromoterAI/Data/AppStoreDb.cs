@@ -2476,6 +2476,17 @@ class AppStoreDb
         return new(true, "Logged in.");
     }
 
+    /// <summary>Re-establish app login after OAuth when the session cookie was lost (cross-host redirect, mobile browser, etc.).</summary>
+    public bool RestoreLoginSessionForUserId(int userId)
+    {
+        if (IsLoggedIn || userId <= 0) return IsLoggedIn;
+        var email = GetUserEmailById(userId);
+        if (string.IsNullOrWhiteSpace(email)) return false;
+        LoggedInEmail = email.Trim().ToLowerInvariant();
+        ClearUserCache();
+        return true;
+    }
+
     public void Logout()
     {
         LoggedInEmail = null;

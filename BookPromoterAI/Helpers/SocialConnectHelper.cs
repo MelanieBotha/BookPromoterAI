@@ -248,53 +248,36 @@ static class SocialConnectHelper
     public static string FacebookSetupPage(string returnUrl, string notice, AppSettings? settings, HttpRequest? request = null)
     {
         var brandContext = IsBrandContext(returnUrl);
-        var heading = brandContext
-            ? "Connect Book Promoter AI on Facebook"
-            : "Connect your Facebook Page";
-        var intro = brandContext
-            ? "Sign in with Facebook to post to your <strong>Book Promoter AI</strong> Page for app promotions."
-            : "Sign in with your <strong>personal Facebook account</strong> (not a business portfolio), then choose the <strong>author Page</strong> you manage. Meta does not allow apps to post to personal profile timelines — only to Pages.";
         var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<div class="notice error">{H.Encode(notice)}</div>""";
         var configured = settings?.IsFacebookConfigured == true;
         var oauthReady = settings?.IsFacebookOAuthReady == true;
+
+        if (!brandContext)
+            return AuthorFacebookConnectPage(returnUrl, noticeHtml, configured, oauthReady);
+
+        var heading = "Connect Book Promoter AI on Facebook";
+        var intro = "Sign in with Facebook to post to your <strong>Book Promoter AI</strong> Page for app promotions.";
         var callbackUrls = settings is not null
             ? string.Join(" ", PublicUrl.FacebookCallbackUrlsForMeta(settings).Select(u => $"<code>{H.Encode(u)}</code>"))
             : $"<code>https://bookpromoterai.us{FacebookService.CallbackPath}</code>";
         var activeCallback = request is not null && settings is not null
-            ? BuildFacebookOAuthDiagnostics(settings, request, brandContext)
+            ? BuildFacebookOAuthDiagnostics(settings, request, brandContext: true)
             : "";
-        var brandSteps = brandContext
-            ? """
-                <div class="notice error">
-                    <strong>Critical — use the right Facebook account</strong>
-                    <p>If the top-right of Facebook shows <strong>BookPromoter</strong> or &ldquo;Continue as BookPromoter AI?&rdquo;, you are on the <em>business portfolio</em> account. That causes an endless loop.</p>
-                    <ol class="plan-features">
-                        <li>Open <a href="https://www.facebook.com/logout.php" target="_blank" rel="noopener">facebook.com/logout</a> (or click <strong>Not BookPromoter AI? Log into another account</strong> on Meta&rsquo;s dialog).</li>
-                        <li>Sign in as <strong>Melanie Botha</strong> (your personal profile — the one that admins the Book Promoter AI Page).</li>
-                        <li>Remove <strong>AuthorPromoter AI</strong> from <a href="https://www.facebook.com/settings?tab=business_tools&amp;section=active" target="_blank" rel="noopener">Business integrations → Active</a> (must be <strong>0 active</strong>).</li>
-                        <li>On Meta&rsquo;s dialog: click <strong>Edit settings</strong> (never Continue alone) → tick <strong>Book Promoter AI</strong> only → Save.</li>
-                        <li><strong>Book Promoter AI missing from the list?</strong> That Page is linked to your Meta Business portfolio — the app must request <code>business_management</code> (v1.9.63+). Also confirm Melanie Botha (personal) has <strong>Full control</strong> on the Page in <a href="https://business.facebook.com/settings/pages" target="_blank" rel="noopener">Business Suite → Pages → Book Promoter AI → Page access</a>.</li>
-                        <li>Do <strong>not</strong> connect <strong>Melanie Botha Novels</strong> for brand posting — that is your author Page, not Book Promoter AI.</li>
-                        <li>Success = browser returns to <strong>bookpromoterai.us</strong>.</li>
-                    </ol>
-                </div>
-                """
-            : "";
-        var authorSteps = !brandContext
-            ? """
-                <div class="notice">
-                    <p><strong>Use your personal Facebook account — not a business portfolio.</strong> Authors connect a Facebook <strong>Page</strong> only. You should see <em>Choose Pages</em> — not <em>Choose Businesses</em>. If Meta asks for Businesses, click Back and reconnect from My Account (not Owner).</p>
-                    <p class="muted small-text">You do not need Meta Business Manager. If your author Page is only on a business portfolio, create or claim a Page under your personal profile first.</p>
-                    <ol class="plan-features">
-                        <li>Sign in with your <strong>personal Facebook</strong> (the profile that manages your author Page).</li>
-                        <li>If Meta shows <strong>Reconnect</strong> or <strong>Continue</strong>, click <strong>Edit settings</strong> first.</li>
-                        <li>Select <strong>your author Page</strong> only — not Book Promoter AI (Owner brand only).</li>
-                        <li>If stuck in a loop, remove <strong>AuthorPromoter AI</strong> from <a href="https://www.facebook.com/settings?tab=business_tools&amp;section=active" target="_blank" rel="noopener">Business integrations</a>, then try again.</li>
-                    </ol>
-                </div>
-                """
-            : "";
-        var connectHref = $"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&go=1";
+        var brandSteps = """
+            <div class="notice error">
+                <strong>Critical — use the right Facebook account</strong>
+                <p>If the top-right of Facebook shows <strong>BookPromoter</strong> or &ldquo;Continue as BookPromoter AI?&rdquo;, you are on the <em>business portfolio</em> account. That causes an endless loop.</p>
+                <ol class="plan-features">
+                    <li>Open <a href="https://www.facebook.com/logout.php" target="_blank" rel="noopener">facebook.com/logout</a> (or click <strong>Not BookPromoter AI? Log into another account</strong> on Meta&rsquo;s dialog).</li>
+                    <li>Sign in as <strong>Melanie Botha</strong> (your personal profile — the one that admins the Book Promoter AI Page).</li>
+                    <li>Remove <strong>AuthorPromoter AI</strong> from <a href="https://www.facebook.com/settings?tab=business_tools&amp;section=active" target="_blank" rel="noopener">Business integrations → Active</a> (must be <strong>0 active</strong>).</li>
+                    <li>On Meta&rsquo;s dialog: click <strong>Edit settings</strong> (never Continue alone) → tick <strong>Book Promoter AI</strong> only → Save.</li>
+                    <li><strong>Book Promoter AI missing from the list?</strong> That Page is linked to your Meta Business portfolio — the app must request <code>business_management</code> (v1.9.63+). Also confirm Melanie Botha (personal) has <strong>Full control</strong> on the Page in <a href="https://business.facebook.com/settings/pages" target="_blank" rel="noopener">Business Suite → Pages → Book Promoter AI → Page access</a>.</li>
+                    <li>Do <strong>not</strong> connect <strong>Melanie Botha Novels</strong> for brand posting — that is your author Page, not Book Promoter AI.</li>
+                    <li>Success = browser returns to <strong>bookpromoterai.us</strong>.</li>
+                </ol>
+            </div>
+            """;
         var brandConnectBlock = !configured
             ? """
                 <p class="notice error">Facebook API credentials are not configured yet. The app owner must add them in Railway before authors can connect.</p>
@@ -344,28 +327,6 @@ static class SocialConnectHelper
                 """
                     : "")}
                 """;
-        var connectBlock = !configured
-            ? """
-                <p class="notice error">Facebook API credentials are not configured yet. The app owner must add them in Railway before authors can connect.</p>
-                <p class="muted">Owner: open <strong>Owner → Facebook API</strong> for setup steps.</p>
-                <a class="button secondary" href="/my-account">Back</a>
-                """
-            : !oauthReady
-                ? """
-                    <p class="notice error">Facebook App ID and secret are set, but OAuth is not ready.</p>
-                    <p class="muted">Scope mode (default) only needs App ID + secret. Config mode also needs <code>Facebook__LoginConfigId</code> in Railway.</p>
-                    <a class="button secondary" href="/my-account">Back</a>
-                    """
-                : brandContext
-                    ? brandConnectBlock
-                    : $"""
-                {authorSteps}
-                <p class="muted">Connect the Facebook <strong>Page</strong> you use for your author brand. Personal profile timelines cannot be used — only Pages.</p>
-                <div class="form-actions">
-                    <a class="button" href="{H.Encode(connectHref)}" style="background:#1877F2">Sign in with Facebook</a>
-                    <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
-                </div>
-                """;
         return $"""
             <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>{heading}</h1></div></section>
             <section class="panel oauth-panel">
@@ -374,6 +335,32 @@ static class SocialConnectHelper
                 <p class="muted">{intro}</p>
                 <p class="muted small-text">Add these OAuth redirect URLs in your Meta app (we use the host you are browsing): {callbackUrls}</p>
                 {activeCallback}
+                {noticeHtml}
+                {brandConnectBlock}
+            </section>
+            """;
+    }
+
+    static string AuthorFacebookConnectPage(string returnUrl, string noticeHtml, bool configured, bool oauthReady)
+    {
+        var connectBlock = !configured || !oauthReady
+            ? """
+                <p class="notice error">Facebook is not available right now. Please try again later.</p>
+                <a class="button secondary" href="/my-account">Back to My Account</a>
+                """
+            : $"""
+                <form method="post" action="/social-accounts/connect/Facebook/start" class="form">
+                    <input type="hidden" name="return" value="{H.Encode(returnUrl)}">
+                    <div class="form-actions">
+                        <button class="button" type="submit" style="background:#1877F2">Sign in with Facebook</button>
+                        <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
+                    </div>
+                </form>
+                """;
+        return $"""
+            <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>Connect your Facebook Page</h1></div></section>
+            <section class="panel oauth-panel">
+                <div class="oauth-platform-badge" style="background:#1877F2">f</div>
                 {noticeHtml}
                 {connectBlock}
             </section>

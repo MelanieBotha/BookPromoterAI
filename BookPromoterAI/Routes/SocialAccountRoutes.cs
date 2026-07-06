@@ -188,28 +188,35 @@ static class SocialAccountRoutes
                 {
                     return Results.Content(
                         H.RenderPage(http, "Connect Facebook", SocialConnectHelper.FacebookSetupPage(returnUrl,
-                            "Facebook Login Configuration ID is missing. Owner: add Facebook__LoginConfigId in Railway (see Owner → Facebook API).", settings, request), store),
+                            "Facebook is not ready yet. Try again later or contact support.", settings, request), store),
                         "text/html");
                 }
 
-                // Author: show instructions first; only redirect when user clicks through (go=1).
-                if (!brandOAuth && request.Query["go"].ToString() != "1")
+                // Author: go straight to Meta unless we need to show a message from a failed attempt.
+                if (!brandOAuth)
                 {
+                    if (string.IsNullOrWhiteSpace(notice))
+                    {
+                        var callbackUrl = PublicUrl.FacebookCallbackUrl(request, settings);
+                        var (authorizeUrl, state, _) = facebookService.BuildAuthorizationUrl(callbackUrl, brandContext: false);
+                        await FacebookOAuthStateStore.SaveAsync(cache, state, new FacebookOAuthPending
+                        {
+                            UserId = saveUserId,
+                            ReturnUrl = returnUrl,
+                            Kind = kind,
+                            RedirectUri = callbackUrl
+                        });
+                        return Results.Redirect(authorizeUrl);
+                    }
+
                     return Results.Content(
                         H.RenderPage(http, "Connect Facebook", SocialConnectHelper.FacebookSetupPage(returnUrl, notice, settings, request), store),
                         "text/html");
                 }
 
-                var callbackUrl = PublicUrl.FacebookCallbackUrl(request, settings);
-                var (authorizeUrl, state, _) = facebookService.BuildAuthorizationUrl(callbackUrl, brandContext: false);
-                await FacebookOAuthStateStore.SaveAsync(cache, state, new FacebookOAuthPending
-                {
-                    UserId = saveUserId,
-                    ReturnUrl = returnUrl,
-                    Kind = kind,
-                    RedirectUri = callbackUrl
-                });
-                return Results.Redirect(authorizeUrl);
+                return Results.Content(
+                    H.RenderPage(http, "Connect Facebook", SocialConnectHelper.FacebookSetupPage(returnUrl, notice, settings, request), store),
+                    "text/html");
             }
 
             if (PostLimits.IsReddit(platformName))
@@ -441,6 +448,8 @@ static class SocialAccountRoutes
                 return Results.Redirect($"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Facebook login expired. Try connecting again.")}");
             }
 
+            store.RestoreLoginSessionForUserId(pending.UserId);
+
             if (!string.IsNullOrWhiteSpace(error))
             {
                 var notice = error.Equals("access_denied", StringComparison.OrdinalIgnoreCase)
@@ -531,7 +540,6 @@ static class SocialAccountRoutes
             AppStoreDb store,
             IDistributedCache cache) =>
         {
-            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
             var token = request.Query["token"].ToString();
             var notice = request.Query["notice"].ToString();
             var pending = await FacebookPagePickStateStore.PeekAsync(cache, token);
@@ -539,6 +547,9 @@ static class SocialAccountRoutes
             {
                 return Results.Redirect($"/social-accounts/connect/Facebook?return=/my-account&notice={Uri.EscapeDataString("Page selection expired. Try connecting again.")}");
             }
+
+            store.RestoreLoginSessionForUserId(pending.UserId);
+            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
 
             return Results.Content(
                 H.RenderPage(http, "Choose Facebook Page", SocialConnectHelper.FacebookPagePickPage(pending, token, notice), store),
@@ -550,7 +561,6 @@ static class SocialAccountRoutes
             AppStoreDb store,
             IDistributedCache cache) =>
         {
-            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
             var form = await request.ReadFormAsync();
             var token = form["token"].ToString();
             var pageId = form["pageId"].ToString();
@@ -560,6 +570,9 @@ static class SocialAccountRoutes
             {
                 return Results.Redirect($"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Page selection expired. Try connecting again.")}");
             }
+
+            store.RestoreLoginSessionForUserId(pending.UserId);
+            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
 
             var page = pending.Pages.FirstOrDefault(p => p.Id == pageId);
             if (page is null)
