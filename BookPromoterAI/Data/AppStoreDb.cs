@@ -3179,7 +3179,7 @@ class AppStoreDb
         if (nextAt <= DateTime.UtcNow)
             return "Auto-post checks every 5 minutes — due now.";
 
-        return $"Next auto-post slot: ~{nextAt:ddd MMM d, HH:mm} UTC";
+        return $"Next auto-post slot: ~{AppTimeZone.FormatWithZone(nextAt, "ddd MMM d, HH:mm")}";
     }
 
     // ── Client matching ────────────────────────────────────────────────

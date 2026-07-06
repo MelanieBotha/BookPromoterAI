@@ -1,4 +1,12 @@
 {
+  "1.9.69": {
+    "title": "BookPromoter AI v1.9.69 — What's new",
+    "updated": [
+      "App timestamps now display in San Jose / Pacific time (PST/PDT) instead of UTC — posting log, ad library, auto-post schedule, and mailing list"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.9.68": {
     "title": "BookPromoter AI v1.9.68 — What's new",
     "updated": [

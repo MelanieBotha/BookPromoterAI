@@ -221,7 +221,7 @@ static class AdLibraryPage
                 <div class="post-card-header">
                     <div>
                         <strong>{H.Encode(ad.BookTitle)}</strong>
-                        <small>Scheduled {scheduledAt:ddd MMM d, HH:mm} UTC</small>
+                        <small>Scheduled {AppTimeZone.FormatWithZone(scheduledAt, "ddd MMM d, HH:mm")}</small>
                     </div>
                     {statusBadge}
                 </div>

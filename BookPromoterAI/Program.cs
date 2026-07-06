@@ -11,6 +11,7 @@ if (!string.IsNullOrWhiteSpace(port))
     builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
 var appSettings = AppSettings.FromConfiguration(builder.Configuration);
+AppTimeZone.Configure(appSettings.DisplayTimeZoneId);
 builder.Services.AddSingleton(appSettings);
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>

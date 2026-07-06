@@ -206,7 +206,7 @@ static class DashboardPage
     static string RenderPlatformStatusLine(string platform, GeneratedAd? ad) =>
         ad?.PostStatus switch
         {
-            "Posted" => $"""<span class="status available">Posted</span> <span class="muted">· {H.Encode(platform)}{(ad.PostedAt is DateTime posted ? $" · {posted:ddd MMM d, HH:mm} UTC" : "")}</span>""",
+            "Posted" => $"""<span class="status available">Posted</span> <span class="muted">· {H.Encode(platform)}{(ad.PostedAt is DateTime posted ? $" · {AppTimeZone.FormatWithZone(posted, "ddd MMM d, HH:mm")}" : "")}</span>""",
             "Failed" => $"""<span class="status used">Failed</span> <span class="muted">· {H.Encode(platform)}</span>""",
             _ when ad is not null => $"""{H.Encode(platform)} <span class="muted">· Pending</span>""",
             _ => H.Encode(platform)

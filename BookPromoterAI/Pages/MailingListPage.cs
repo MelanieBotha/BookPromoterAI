@@ -130,7 +130,7 @@ static class MailingListPage
                     <h2 style="margin:0">Sent Email</h2>
                     <a class="button secondary small" href="/mailing-list">Close</a>
                 </div>
-                <p class="muted small-text">Sent {viewedCampaign.SentAt:MMMM d, yyyy 'at' HH:mm} UTC &middot; {viewedCampaign.RecipientCount} recipient(s){(viewedCampaign.FailedCount > 0 ? $" &middot; {viewedCampaign.FailedCount} failed" : "")}</p>
+                <p class="muted small-text">Sent {AppTimeZone.FormatWithZone(viewedCampaign.SentAt, "MMMM d, yyyy 'at' HH:mm")} &middot; {viewedCampaign.RecipientCount} recipient(s){(viewedCampaign.FailedCount > 0 ? $" &middot; {viewedCampaign.FailedCount} failed" : "")}</p>
                 <p><strong>Subject:</strong> {H.Encode(viewedCampaign.Subject)}</p>
                 <div class="email-body-view">{H.Encode(viewedCampaign.Body)}</div>
             </section>

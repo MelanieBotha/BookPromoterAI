@@ -52,7 +52,7 @@ static class PostSchedule
 
         var when = ad.ScheduledPostAt ?? ad.GeneratedAt;
         if (when > DateTime.UtcNow)
-            return $"Auto-post scheduled: ~{when:ddd MMM d, HH:mm} UTC";
+            return $"Auto-post scheduled: ~{AppTimeZone.FormatWithZone(when, "ddd MMM d, HH:mm")}";
 
         return "Auto-post checks every 5 minutes — due now.";
     }

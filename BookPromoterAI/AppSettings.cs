@@ -6,6 +6,8 @@ class AppSettings
     public string SendGridSenderEmail { get; init; } = "";
     public string SendGridSenderName { get; init; } = "Book Promoter AI";
     public string PublicBaseUrl { get; init; } = "";
+    /// <summary>IANA time zone for displaying dates in the UI (default: San Jose / Pacific).</summary>
+    public string DisplayTimeZoneId { get; init; } = AppTimeZone.DefaultId;
     public bool ShowSoftLaunchBanner { get; init; } = true;
     public bool RailwayCleanupDone { get; init; }
 
@@ -246,6 +248,7 @@ class AppSettings
             SendGridSenderEmail = config["SendGrid:SenderEmail"] ?? config["SendGrid:FromEmail"] ?? "",
             SendGridSenderName = config["SendGrid:SenderName"] ?? config["SendGrid:FromName"] ?? "Book Promoter AI",
             PublicBaseUrl = config["App:PublicBaseUrl"] ?? "",
+            DisplayTimeZoneId = config["App:DisplayTimeZone"] ?? AppTimeZone.DefaultId,
             ShowSoftLaunchBanner = config.GetValue("Launch:ShowBetaBanner", true),
             RailwayCleanupDone = config.GetValue("Launch:RailwayCleanupDone", false),
             StripeSecretKey = CleanSecret(config["Stripe:SecretKey"]),

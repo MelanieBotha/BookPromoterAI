@@ -131,7 +131,7 @@ static class MyAccountPage
             logRows.Append($"""
                 <div class="promo-row">
                     <span>{H.Encode(entry.Platform)} &middot; {H.Encode(entry.BookTitle)}</span>
-                    <span>{entry.AttemptedAt:MMM d, HH:mm} UTC &middot; {H.Encode(entry.Message)}</span>
+                    <span>{AppTimeZone.FormatWithZone(entry.AttemptedAt, "MMM d, HH:mm")} &middot; {H.Encode(entry.Message)}</span>
                     <span class="status {statusClass}">{statusText}</span>
                 </div>
                 """);

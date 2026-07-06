@@ -18,7 +18,7 @@ static class FeedbackPage
                     <div>
                         <strong>{H.Encode(entry.Category)}</strong>
                         <p>{H.Encode(entry.Message)}</p>
-                        <small>{entry.SubmittedAt:MMM d, yyyy HH:mm} UTC</small>
+                        <small>{AppTimeZone.FormatWithZone(entry.SubmittedAt, "MMM d, yyyy HH:mm")}</small>
                     </div>
                 </article>
                 """);

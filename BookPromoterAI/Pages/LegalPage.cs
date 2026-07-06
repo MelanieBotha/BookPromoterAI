@@ -7,7 +7,7 @@ static class LegalPage
             <header class="legal-header">
                 <p class="eyebrow">Legal</p>
                 <h1>Terms &amp; Conditions</h1>
-                <p class="muted">Last updated: {DateTime.UtcNow:MMMM d, yyyy} (UTC)</p>
+                <p class="muted">Last updated: {AppTimeZone.Format(DateTime.UtcNow, "MMMM d, yyyy")} (Pacific)</p>
                 <p class="legal-intro">
                     Please read these Terms &amp; Conditions (&ldquo;Terms&rdquo;) carefully before using BookPromoter AI.
                     By accessing or using the service, creating an account, or purchasing a subscription, you agree to be bound by these Terms.
@@ -160,7 +160,7 @@ static class LegalPage
             <header class="legal-header">
                 <p class="eyebrow">Legal</p>
                 <h1>Privacy Policy</h1>
-                <p class="muted">Last updated: {DateTime.UtcNow:MMMM d, yyyy} (UTC)</p>
+                <p class="muted">Last updated: {AppTimeZone.Format(DateTime.UtcNow, "MMMM d, yyyy")} (Pacific)</p>
                 <p class="legal-intro">
                     This Privacy Policy explains how BookPromoter AI (&ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;) collects, uses, stores, and shares information when you use
                     <strong>bookpromoterai.us</strong> and related services (the &ldquo;Service&rdquo;). It should be read together with our

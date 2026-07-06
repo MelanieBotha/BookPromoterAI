@@ -169,7 +169,7 @@ static class EmailService
         var ownerUrl = $"{baseUrl}/owner-promos";
         var category = string.IsNullOrWhiteSpace(entry.Category) ? "Suggestion" : entry.Category.Trim();
         var fromEmail = string.IsNullOrWhiteSpace(entry.Email) ? "(not provided)" : entry.Email.Trim();
-        var submitted = entry.SubmittedAt.ToUniversalTime().ToString("MMMM d, yyyy 'at' h:mm tt 'UTC'");
+        var submitted = AppTimeZone.FormatWithZone(entry.SubmittedAt, "MMMM d, yyyy 'at' h:mm tt");
 
         var subject = $"New {category} — BookPromoter AI feedback";
         var plainBody = $"""
