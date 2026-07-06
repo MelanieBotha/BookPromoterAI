@@ -12,15 +12,11 @@ static class VideoCaptionGenerator
         if (!string.IsNullOrWhiteSpace(hook))
             parts.Add(hook.Replace('\n', ' ').Trim());
 
-        if (!string.IsNullOrWhiteSpace(book.ReadAloudExcerpt))
-        {
+        foreach (var sentence in SplitSentences(book.Description))
+            parts.Add(sentence);
+
+        if (parts.Count <= 1 && !string.IsNullOrWhiteSpace(book.ReadAloudExcerpt))
             parts.Add(book.ReadAloudExcerpt.Trim());
-        }
-        else
-        {
-            foreach (var sentence in SplitSentences(book.Description))
-                parts.Add(sentence);
-        }
 
         parts.Add($"If you love {book.GenreOrDefault().ToLowerInvariant()} books, check out {book.Title} by {book.AuthorName}.");
 

@@ -422,6 +422,8 @@ details[open].ad-week-collapsible .ad-week-heading::after{transform:rotate(180de
 .tiktok-player{max-width:180px;max-height:320px;border-radius:8px;background:#000}
 .tiktok-video-row{align-items:center}
 .tiktok-video-list{display:flex;flex-direction:column;gap:16px}
+.tiktok-video-preview{display:flex;flex-direction:column;align-items:center;gap:10px}
+.tiktok-download-btn{margin-top:4px}
 .tiktok-video-placeholder{min-height:200px;max-width:180px;display:grid;place-items:center;padding:16px;border-radius:8px;background:var(--soft);font-size:13px;text-align:center}
 .tiktok-studio-layout{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
 .tiktok-studio-controls{flex:1;min-width:260px}

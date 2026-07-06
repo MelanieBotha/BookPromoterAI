@@ -1,4 +1,14 @@
 {
+  "1.11.3": {
+    "title": "BookPromoter AI v1.11.3 — What's new",
+    "updated": [
+      "Weekly videos narrate your book description (not just excerpt)",
+      "Remove failed weekly videos without them coming back; page stays scrolled in place",
+      "Download button on each ready video; Retry button on failed ones"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.11.2": {
     "title": "BookPromoter AI v1.11.2 — What's new",
     "updated": [

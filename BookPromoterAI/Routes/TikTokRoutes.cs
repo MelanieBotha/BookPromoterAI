@@ -12,19 +12,20 @@ static class TikTokRoutes
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
             var baseUrl = PublicUrl.Base(request, settings);
             var queued = store.EnsureWeeklyVideos(generator, baseUrl);
-            var retried = store.RequeueFailedWeeklyVideos();
             await store.RenderPendingVideosAsync(renderer, uploads.Path, baseUrl);
             var notice = request.Query["created"] == "1"
                 ? """<div class="notice success">Video created! Download it below and post to social media when you are ready.</div>"""
                 : request.Query["uploaded"] == "1"
                     ? """<div class="notice success">Video uploaded.</div>"""
+                    : request.Query["deleted"] == "1"
+                        ? """<div class="notice success">Video removed.</div>"""
+                        : request.Query["retried"] == "1"
+                            ? """<div class="notice success">Video queued to generate again — refresh in a few minutes.</div>"""
                     : request.Query["error"] == "1"
                         ? $"""<div class="notice error">{H.Encode(request.Query["msg"].ToString())}</div>"""
                         : queued > 0
                             ? $"""<div class="notice success">Queued {queued} new video(s) for this week — they will appear below when rendering finishes (usually within a few minutes).</div>"""
-                            : retried > 0
-                                ? $"""<div class="notice success">Retrying {retried} failed video(s) from this week — refresh in a few minutes.</div>"""
-                                : "";
+                            : "";
             return Results.Content(
                 H.RenderPage(http, "Videos", TikTokPage.Render(store, generator, notice), store),
                 "text/html");
@@ -61,11 +62,24 @@ static class TikTokRoutes
             return await SaveVideoAsync(request, store, uploadsDir, "/videos?uploaded=1");
         });
 
-        app.MapPost("/videos/delete/{id:int}", (int id, AppStoreDb store) =>
+        app.MapPost("/videos/delete/{id:int}", (int id, HttpRequest request, AppStoreDb store) =>
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
-            store.DeleteTikTokVideo(id);
-            return Results.Redirect("/videos");
+            var ok = store.DeleteTikTokVideo(id);
+            if (request.Query.ContainsKey("ajax"))
+                return ok ? Results.Json(new { ok = true }) : Results.Json(new { ok = false }, statusCode: 404);
+            return Results.Redirect(ok ? "/videos?deleted=1#videos-week" : "/videos?error=1&msg=" + Uri.EscapeDataString("Could not remove that video."));
+        });
+
+        app.MapPost("/videos/retry/{id:int}", async (int id, HttpRequest request, AppStoreDb store, AppSettings settings, VideoRenderService renderer, UploadPaths uploads) =>
+        {
+            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
+            var retried = store.RetryFailedWeeklyVideo(id, generator);
+            if (retried > 0)
+                await store.RenderPendingVideosAsync(renderer, uploads.Path, PublicUrl.Base(request, settings));
+            if (request.Query.ContainsKey("ajax"))
+                return retried > 0 ? Results.Json(new { ok = true }) : Results.Json(new { ok = false }, statusCode: 404);
+            return Results.Redirect(retried > 0 ? "/videos?retried=1#videos-week" : "/videos?error=1&msg=" + Uri.EscapeDataString("Could not retry that video."));
         });
 
         // Legacy paths (redirect GET only; POST handlers duplicated)
@@ -79,11 +93,11 @@ static class TikTokRoutes
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
             return await SaveVideoAsync(request, store, uploadsDir, "/videos?uploaded=1");
         });
-        app.MapPost("/tiktok/delete/{id:int}", (int id, AppStoreDb store) =>
+        app.MapPost("/tiktok/delete/{id:int}", (int id, HttpRequest request, AppStoreDb store) =>
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
-            store.DeleteTikTokVideo(id);
-            return Results.Redirect("/videos");
+            var ok = store.DeleteTikTokVideo(id);
+            return Results.Redirect(ok ? "/videos?deleted=1#videos-week" : "/videos");
         });
     }
 

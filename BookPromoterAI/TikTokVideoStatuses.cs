@@ -7,4 +7,5 @@ static class TikTokVideoStatuses
     public const string Ready = "Ready";
     public const string Sent = "Sent";
     public const string Failed = "Failed";
+    public const string Removed = "Removed";
 }
