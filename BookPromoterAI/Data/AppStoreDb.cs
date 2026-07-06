@@ -2112,59 +2112,10 @@ class AppStoreDb
         }
 
         db.SaveChanges();
-        ConsolidateOwnerBrandData(db);
+        OwnerBrandDataMigrator.MigrateToPrimaryOwner(db);
+        OwnerBrandDataMigrator.DemoteFormerOwnerAccounts(db);
         SyncAllUsersToOwnerMailingList();
         EnsureMailingListUnsubscribeTokens();
-    }
-
-    static void ConsolidateOwnerBrandData(AppDbContext db)
-    {
-        var primary = db.Users.FirstOrDefault(u => u.Email == OwnerAccount.NormalizedEmail);
-        if (primary is null) return;
-
-        var secondaryOwnerIds = db.Users.AsEnumerable()
-            .Where(u => u.Id != primary.Id && OwnerAccount.IsOwnerEmail(u.Email))
-            .Select(u => u.Id)
-            .ToList();
-        if (secondaryOwnerIds.Count == 0) return;
-
-        var primaryPlatforms = db.SocialAccounts
-            .Where(a => a.UserId == primary.Id && a.AccountKind == SocialAccountKinds.Brand)
-            .Select(a => a.Platform.ToLower())
-            .ToHashSet();
-
-        foreach (var acc in db.SocialAccounts
-            .Where(a => secondaryOwnerIds.Contains(a.UserId) && a.AccountKind == SocialAccountKinds.Brand)
-            .ToList())
-        {
-            if (primaryPlatforms.Contains(acc.Platform.ToLower()))
-                db.SocialAccounts.Remove(acc);
-            else
-            {
-                acc.UserId = primary.Id;
-                primaryPlatforms.Add(acc.Platform.ToLower());
-            }
-        }
-
-        var primarySchedulePlatforms = db.SocialSchedules
-            .Where(s => s.UserId == primary.Id && s.ScheduleKind == SocialScheduleKinds.Brand)
-            .Select(s => s.Platform.ToLower())
-            .ToHashSet();
-
-        foreach (var schedule in db.SocialSchedules
-            .Where(s => secondaryOwnerIds.Contains(s.UserId) && s.ScheduleKind == SocialScheduleKinds.Brand)
-            .ToList())
-        {
-            if (primarySchedulePlatforms.Contains(schedule.Platform.ToLower()))
-                db.SocialSchedules.Remove(schedule);
-            else
-            {
-                schedule.UserId = primary.Id;
-                primarySchedulePlatforms.Add(schedule.Platform.ToLower());
-            }
-        }
-
-        db.SaveChanges();
     }
 
     public PromoCode GenerateAccessCode(string? email = null)

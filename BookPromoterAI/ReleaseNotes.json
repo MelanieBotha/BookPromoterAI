@@ -1,4 +1,13 @@
 {
+  "1.9.68": {
+    "title": "BookPromoter AI v1.9.68 — What's new",
+    "updated": [
+      "Owner account is now bookpromoterai@gmail.com only — brand social accounts, schedules, and mailing list migrate automatically on deploy",
+      "bothamelanief@gmail.com is author-only (My Account) with no Owner settings access"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.9.67": {
     "title": "BookPromoter AI v1.9.67 — What's new",
     "updated": [
