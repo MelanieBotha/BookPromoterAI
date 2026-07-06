@@ -67,7 +67,7 @@ static class SchedulePage
         {
             dropdownOptions.Append($"""<optgroup label="{H.Encode(group.Key)}">""");
             foreach (var (value, _) in group)
-                dropdownOptions.Append($"""<option value="{H.Encode(value)}">{H.Encode(value)}</option>""");
+                dropdownOptions.Append(SocialConnectHelper.RenderPlatformOption(value, settings: store.Settings));
             dropdownOptions.Append("</optgroup>");
         }
         dropdownOptions.Append("""<option value="__custom__">Other (type your own)...</option>""");
@@ -111,7 +111,8 @@ static class SchedulePage
 
             <section class="panel">
                 <h2>Add a Platform</h2>
-                <p class="muted">Select from the list or type your own.</p>
+                <p class="muted">Select from the list or type your own. Greyed-out options are not ready for auto-posting yet.</p>
+                {SocialConnectHelper.NextPlatformHint(store.Settings)}
                 <form method="post" action="/schedule/add-platform" class="inline-form">
                     <label>Platform
                         <select id="platform-select" onchange="onPlatformSelect(this)">

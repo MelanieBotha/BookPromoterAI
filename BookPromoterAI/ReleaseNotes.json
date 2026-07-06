@@ -1,4 +1,12 @@
 {
+  "1.12.1": {
+    "title": "BookPromoter AI v1.12.1 — What's new",
+    "updated": [
+      "Platforms without live auto-posting are greyed out again with coming soon labels (TikTok shows use Videos tab)"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.12.0": {
     "title": "BookPromoter AI v1.12.0 — What's new",
     "updated": [

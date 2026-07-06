@@ -53,6 +53,14 @@ static class SocialConnectHelper
         var buttons = new StringBuilder();
         foreach (var platform in DefaultPlatforms)
         {
+            if (IsPlatformDisabled(platform, settings))
+            {
+                var reason = DisabledPlatformReason(platform, settings);
+                buttons.Append($"""
+                    <span class="button platform-disabled" title="{H.Encode(reason)}">{H.Encode(DisabledPlatformLabel(platform, settings))}</span>
+                    """);
+                continue;
+            }
             var color = SocialPlatforms.Color(platform);
             var href = $"/social-accounts/connect/{Uri.EscapeDataString(platform)}?return={Uri.EscapeDataString(returnUrl)}";
             buttons.Append($"""
@@ -66,6 +74,8 @@ static class SocialConnectHelper
 
     public static string RenderPlatformOption(string value, bool selected = false, AppSettings? settings = null)
     {
+        if (IsPlatformDisabled(value, settings))
+            return $"""<option value="" disabled>{H.Encode(DisabledPlatformLabel(value, settings))}</option>""";
         var sel = selected ? " selected" : "";
         return $"""<option value="{H.Encode(value)}"{sel}>{H.Encode(value)}</option>""";
     }
@@ -110,6 +120,18 @@ static class SocialConnectHelper
 
         if (PostLimits.IsTelegram(platformName))
             return TelegramConnectPage(returnUrl, notice, brandContext);
+
+        if (IsPlatformDisabled(platformName, settings))
+        {
+            var reason = DisabledPlatformReason(platformName, settings);
+            return $"""
+                <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>{H.Encode(DisabledPlatformLabel(platformName, settings))}</h1></div></section>
+                <section class="panel">
+                    <p class="notice error">{H.Encode(char.ToUpper(reason[0]) + reason[1..])}.</p>
+                    <a class="button secondary" href="{H.Encode(returnUrl)}">Back</a>
+                </section>
+                """;
+        }
 
         var brand = SocialPlatforms.Brand(platformName);
         var cancelHref = returnUrl;

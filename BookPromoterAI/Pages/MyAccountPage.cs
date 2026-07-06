@@ -171,8 +171,10 @@ static class MyAccountPage
             options.Append($"""<optgroup label="{H.Encode(group.Key)}">""");
             foreach (var (value, _) in group)
             {
-                var sel = value.Equals(currentPlatform, StringComparison.OrdinalIgnoreCase) ? "selected" : "";
-                options.Append($"""<option value="{H.Encode(value)}" {sel}>{H.Encode(value)}</option>""");
+                if (value.Equals(currentPlatform, StringComparison.OrdinalIgnoreCase))
+                    options.Append(SocialConnectHelper.RenderPlatformOption(value, selected: true, settings: store.Settings));
+                else
+                    options.Append(SocialConnectHelper.RenderPlatformOption(value, settings: store.Settings));
             }
             options.Append("</optgroup>");
         }

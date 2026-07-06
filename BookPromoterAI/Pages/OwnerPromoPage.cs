@@ -160,10 +160,7 @@ static class OwnerPromoPage
         foreach (var platform in SocialConnectHelper.DefaultPlatforms)
         {
             if (alreadyAdded.Contains(platform)) continue;
-            if (SocialConnectHelper.IsPlatformDisabled(platform, settings))
-                platformOptions.Append(SocialConnectHelper.RenderPlatformOption(platform, settings: settings));
-            else
-                platformOptions.Append($"""<option value="{H.Encode(platform)}">{H.Encode(platform)}</option>""");
+            platformOptions.Append(SocialConnectHelper.RenderPlatformOption(platform, settings: settings));
         }
         platformOptions.Append("""<option value="__custom__">Other (type your own)...</option>""");
 

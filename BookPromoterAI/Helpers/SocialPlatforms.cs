@@ -32,6 +32,7 @@ static class SocialPlatforms
         public string Color { get; init; } = "#0f766e";
         public string BadgeInitial { get; init; } = "?";
         public bool ShowOnConnectBar { get; init; } = true;
+        public string DisabledReason { get; init; } = "coming soon";
         public Func<AppSettings, bool>? IsConfigured { get; init; }
     }
 
@@ -39,9 +40,9 @@ static class SocialPlatforms
     [
         // Major Platforms
         D("Facebook", "Major Platforms", Integration.Live, "#1877F2", "f"),
-        D("Reddit", "Major Platforms", Integration.PendingCredentials, "#FF4500", "R", s => s.IsRedditConfigured),
+        D("Reddit", "Major Platforms", Integration.PendingCredentials, "#FF4500", "R", s => s.IsRedditConfigured, disabledReason: "pending Reddit API approval"),
         D("X (Twitter)", "Major Platforms", Integration.Live, "#000000", "X"),
-        D("TikTok", "Major Platforms", Integration.VideoRequired, "#000000", "T", showOnBar: false),
+        D("TikTok", "Major Platforms", Integration.VideoRequired, "#000000", "T", showOnBar: false, disabledReason: "use Videos tab"),
         D("YouTube", "Major Platforms", Integration.VideoRequired, "#FF0000", "YT"),
         D("LinkedIn", "Major Platforms", Integration.Live, "#0A66C2", "in"),
         D("Pinterest", "Major Platforms", Integration.PendingCredentials, "#E60023", "P", s => s.IsPinterestConfigured),
@@ -87,7 +88,7 @@ static class SocialPlatforms
 
     static Definition D(
         string name, string group, Integration integration, string color, string badge,
-        Func<AppSettings, bool>? configured = null, bool showOnBar = true) =>
+        Func<AppSettings, bool>? configured = null, bool showOnBar = true, string? disabledReason = null) =>
         new()
         {
             Name = name,
@@ -96,7 +97,8 @@ static class SocialPlatforms
             Color = color,
             BadgeInitial = badge,
             ShowOnConnectBar = showOnBar,
-            IsConfigured = configured
+            IsConfigured = configured,
+            DisabledReason = disabledReason ?? "coming soon"
         };
 
     static readonly Dictionary<string, Definition> ByName =
@@ -132,8 +134,22 @@ static class SocialPlatforms
 
     public static bool IsConnectPlatform(string? platform) => TryGet(platform, out _);
 
-    /// <summary>Never grey out — authors can always connect; posting goes live as integrations ship.</summary>
-    public static bool IsDisabled(string? platform, AppSettings? settings = null) => false;
+    /// <summary>Grey out platforms without a live connect + auto-post path yet.</summary>
+    public static bool IsDisabled(string? platform, AppSettings? settings = null)
+    {
+        if (!TryGet(platform, out var def)) return false;
+        return def.Integration switch
+        {
+            Integration.Live => false,
+            Integration.AppPassword => false,
+            Integration.WebhookOrToken => false,
+            Integration.PendingCredentials => def.IsConfigured?.Invoke(settings ?? new AppSettings()) != true,
+            Integration.VideoRequired => true,
+            Integration.InProgress => true,
+            Integration.Researching => true,
+            _ => true
+        };
+    }
 
     public static bool IsLive(string? platform, AppSettings? settings = null)
     {
@@ -152,7 +168,11 @@ static class SocialPlatforms
     public static Integration GetIntegration(string? platform) =>
         TryGet(platform, out var def) ? def.Integration : Integration.Researching;
 
-    public static string DisabledReason(string? platform) => "";
+    public static string DisabledReason(string? platform)
+    {
+        if (!TryGet(platform, out var def)) return "coming soon";
+        return def.DisabledReason;
+    }
 
     public static string Color(string? platform) =>
         TryGet(platform, out var def) ? def.Color : "#0f766e";
@@ -162,9 +182,9 @@ static class SocialPlatforms
 
     public static string? NextPlatformName(AppSettings? settings = null)
     {
-        foreach (var def in All.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
+        foreach (var def in All.Where(p => p.ShowOnConnectBar).OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
         {
-            if (def.Integration is Integration.InProgress or Integration.PendingCredentials or Integration.Researching)
+            if (IsDisabled(def.Name, settings))
                 return def.Name;
         }
         return null;
@@ -173,9 +193,9 @@ static class SocialPlatforms
     public static string? NextPlatformAfter(string platformName, AppSettings? settings = null)
     {
         var found = false;
-        foreach (var def in All.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
+        foreach (var def in All.Where(p => p.ShowOnConnectBar).OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
         {
-            if (found && def.Integration is Integration.InProgress or Integration.PendingCredentials or Integration.Researching)
+            if (found && IsDisabled(def.Name, settings))
                 return def.Name;
             if (def.Name.Equals(platformName, StringComparison.OrdinalIgnoreCase))
                 found = true;
