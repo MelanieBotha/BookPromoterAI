@@ -97,6 +97,7 @@ static class SocialAccountRoutes
             LinkedInService linkedInService,
             FacebookService facebookService,
             RedditService redditService,
+            TikTokService tiktokService,
             IDistributedCache cache) =>
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
@@ -232,6 +233,29 @@ static class SocialAccountRoutes
                 return Results.Content(
                     H.RenderPage(http, "Connect Reddit", SocialConnectHelper.RedditSetupPage(returnUrl, notice, settings, request), store),
                     "text/html");
+            }
+
+            if (PostLimits.IsTikTok(platformName))
+            {
+                var notice = request.Query["notice"].ToString();
+                if (!settings.IsTikTokConfigured)
+                {
+                    return Results.Content(
+                        H.RenderPage(http, "Connect TikTok", SocialConnectHelper.TikTokSetupPage(returnUrl, notice, settings), store),
+                        "text/html");
+                }
+
+                var appBaseUrl = PublicUrl.Base(request, settings);
+                var callbackUrl = TikTokService.CallbackUrl(appBaseUrl);
+                var (authorizeUrl, state, verifier) = tiktokService.BuildAuthorizationUrl(callbackUrl);
+                await TikTokOAuthStateStore.SaveAsync(cache, state, new TikTokOAuthPending
+                {
+                    UserId = saveUserId,
+                    ReturnUrl = returnUrl,
+                    Kind = kind,
+                    CodeVerifier = verifier
+                });
+                return Results.Redirect(authorizeUrl);
             }
 
             var connectNotice = request.Query["notice"].ToString();
@@ -697,6 +721,96 @@ static class SocialAccountRoutes
             if (SocialAccountKinds.IsAuthor(pending.Kind))
                 store.AddScheduleForUser(pending.UserId, new SocialSchedule { Platform = "Reddit", PostsPerWeek = 1, RequiresApproval = true });
             return Results.Redirect(returnUrl);
+        });
+
+        app.MapPost("/social-accounts/connect/TikTok/start", async (
+            HttpRequest request,
+            AppStoreDb store,
+            AppSettings settings,
+            TikTokService tiktokService,
+            IDistributedCache cache) =>
+        {
+            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
+            var form = await request.ReadFormAsync();
+            var returnUrl = SocialConnectHelper.ResolveReturnUrl(request, form["return"].ToString());
+            if (store.CheckSocialAccountLimit(SocialAccountKinds.Author) is not null) return Results.Redirect(returnUrl);
+            if (!settings.IsTikTokConfigured)
+                return Results.Redirect($"/social-accounts/connect/TikTok?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("TikTok API credentials are not configured.")}");
+
+            var userId = store.GetCurrentDbUser()?.Id ?? 0;
+            if (userId == 0) return Results.Redirect("/start");
+
+            var appBaseUrl = PublicUrl.Base(request, settings);
+            var callbackUrl = TikTokService.CallbackUrl(appBaseUrl);
+            var (authorizeUrl, state, verifier) = tiktokService.BuildAuthorizationUrl(callbackUrl);
+            await TikTokOAuthStateStore.SaveAsync(cache, state, new TikTokOAuthPending
+            {
+                UserId = userId,
+                ReturnUrl = returnUrl,
+                Kind = SocialAccountKinds.Author,
+                CodeVerifier = verifier
+            });
+            return Results.Redirect(authorizeUrl);
+        });
+
+        app.MapGet(TikTokService.CallbackPath, async (
+            HttpRequest request,
+            HttpContext http,
+            AppStoreDb store,
+            AppSettings settings,
+            TikTokService tiktokService,
+            IDistributedCache cache) =>
+        {
+            var error = request.Query["error"].ToString();
+            var code = request.Query["code"].ToString();
+            var state = request.Query["state"].ToString();
+            var pending = await TikTokOAuthStateStore.TakeAsync(cache, state);
+            var returnUrl = pending?.ReturnUrl ?? SocialConnectHelper.TikTokReturnPath;
+
+            if (pending is null)
+            {
+                return Results.Redirect($"/social-accounts/connect/TikTok?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("TikTok login expired. Try connecting again.")}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(error))
+            {
+                var notice = error.Equals("access_denied", StringComparison.OrdinalIgnoreCase)
+                    ? "TikTok authorization was cancelled."
+                    : "TikTok authorization failed. Try again.";
+                return Results.Redirect($"/social-accounts/connect/TikTok?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(notice)}");
+            }
+
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                return Results.Redirect($"/social-accounts/connect/TikTok?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Invalid TikTok login response. Try again.")}");
+            }
+
+            store.RestoreLoginSessionForUserId(pending.UserId);
+            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
+
+            var callbackUrl = TikTokService.CallbackUrl(PublicUrl.Base(request, settings));
+            var (ok, connectError, tokens, user) = await tiktokService.CompleteAuthorizationAsync(
+                code, callbackUrl, pending.CodeVerifier);
+            if (!ok || tokens is null || user is null)
+            {
+                return Results.Redirect($"/social-accounts/connect/TikTok?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(connectError)}");
+            }
+
+            store.AddSocialAccountForUser(pending.UserId, new SocialAccount
+            {
+                Platform = "TikTok",
+                DisplayName = user.DisplayName,
+                Handle = user.Username,
+                IsConnected = true,
+                ConnectedViaOAuth = true,
+                AccountKind = SocialAccountKinds.Author,
+                AccessToken = tokens.AccessToken,
+                RefreshToken = tokens.RefreshToken,
+                ExternalAccountId = user.OpenId
+            }, SocialAccountKinds.Author);
+
+            var successUrl = returnUrl.Contains('?') ? $"{returnUrl}&connected=1" : $"{returnUrl}?connected=1";
+            return Results.Redirect(successUrl);
         });
 
         app.MapPost("/social-accounts/oauth-callback/{platform}", async (string platform, HttpRequest request, HttpContext http, AppStoreDb store, BlueskyService bluesky) =>

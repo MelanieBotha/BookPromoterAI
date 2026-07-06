@@ -25,6 +25,8 @@ static class SocialPlatforms
         public string DisabledReason { get; init; } = "coming soon";
         public Func<AppSettings, bool>? IsConfigured { get; init; }
         public bool SupportsLivePosting { get; init; }
+        /// <summary>If false, connect lives on a dedicated page (e.g. TikTok tab) instead of My Account buttons.</summary>
+        public bool ShowOnConnectBar { get; init; } = true;
     }
 
     // ── Add new connect platforms here (one row) ──────────────────────────
@@ -39,7 +41,12 @@ static class SocialPlatforms
             Name = "Reddit", Color = "#FF4500", BadgeInitial = "R", Rollout = Rollout.PendingCredentials,
             DisabledReason = "pending Reddit API approval", IsConfigured = s => s.IsRedditConfigured, SupportsLivePosting = true
         },
-        new() { Name = "TikTok", Color = "#000000", BadgeInitial = "T", Rollout = Rollout.ComingSoon, DisabledReason = "video only — coming soon" },
+        new()
+        {
+            Name = "TikTok", Color = "#000000", BadgeInitial = "T", Rollout = Rollout.PendingCredentials,
+            DisabledReason = "pending TikTok API approval", IsConfigured = s => s.IsTikTokConfigured, SupportsLivePosting = true,
+            ShowOnConnectBar = false
+        },
         new() { Name = "X", Color = "#000000", BadgeInitial = "X", Rollout = Rollout.Live, SupportsLivePosting = true },
     ];
 
@@ -48,6 +55,9 @@ static class SocialPlatforms
 
     public static IReadOnlyList<string> ConnectNames { get; } =
         All.Select(p => p.Name).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToArray();
+
+    public static IReadOnlyList<string> ConnectBarNames { get; } =
+        All.Where(p => p.ShowOnConnectBar).Select(p => p.Name).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToArray();
 
     public static string NormalizeName(string platform)
     {

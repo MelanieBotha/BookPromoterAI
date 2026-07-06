@@ -5,8 +5,9 @@ namespace BookPromoterAI;
 static class SocialConnectHelper
 {
     public const string OwnerReturnPath = "/owner-promos";
+    public const string TikTokReturnPath = "/tiktok";
 
-    public static string[] DefaultPlatforms => SocialPlatforms.ConnectNames.ToArray();
+    public static string[] DefaultPlatforms => SocialPlatforms.ConnectBarNames.ToArray();
 
     /// <summary>Platforms with live OAuth or app-password connect and posting.</summary>
     public static bool IsPlatformLive(string? platform, AppSettings? settings = null) =>
@@ -39,7 +40,7 @@ static class SocialConnectHelper
     }
 
     public static bool IsAllowedReturnUrl(string? url) =>
-        url == OwnerReturnPath || url == "/my-account";
+        url == OwnerReturnPath || url == "/my-account" || url == TikTokReturnPath;
 
     public static string ResolveAccountKind(string? returnUrl) =>
         returnUrl == OwnerReturnPath ? SocialAccountKinds.Brand : SocialAccountKinds.Author;
@@ -107,6 +108,9 @@ static class SocialConnectHelper
 
         if (PostLimits.IsReddit(platformName))
             return RedditSetupPage(returnUrl, notice, null);
+
+        if (PostLimits.IsTikTok(platformName))
+            return TikTokSetupPage(returnUrl, notice, settings);
 
         if (IsPlatformDisabled(platformName, settings))
         {
@@ -455,6 +459,41 @@ static class SocialConnectHelper
                 <h2>Live Reddit posting</h2>
                 <p class="muted">{intro}</p>
                 <p class="muted small-text">OAuth redirect URL for your Reddit app: <code>{H.Encode(callbackExample)}</code></p>
+                {noticeHtml}
+                {connectBlock}
+            </section>
+            """;
+    }
+
+    public static string TikTokSetupPage(string returnUrl, string notice, AppSettings? settings)
+    {
+        var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<div class="notice error">{H.Encode(notice)}</div>""";
+        var configured = settings?.IsTikTokConfigured == true;
+        var callbackExample = settings is not null && !string.IsNullOrWhiteSpace(settings.PublicBaseUrl)
+            ? TikTokService.CallbackUrl(settings.PublicBaseUrl.TrimEnd('/'))
+            : $"https://bookpromoterai.us{TikTokService.CallbackPath}";
+        var connectBlock = configured
+            ? $"""
+                <p class="muted">Authorize BookPromoter AI to send book promo videos to your TikTok inbox.</p>
+                <form method="post" action="/social-accounts/connect/TikTok/start" class="form">
+                    <input type="hidden" name="return" value="{H.Encode(returnUrl)}">
+                    <div class="form-actions">
+                        <button class="button" type="submit" style="background:#000">Sign in with TikTok</button>
+                        <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
+                    </div>
+                </form>
+                """
+            : """
+                <p class="notice error">TikTok API credentials are not configured yet. Register at developers.tiktok.com and add TikTok__ClientKey and TikTok__ClientSecret on Railway.</p>
+                <a class="button secondary" href="/tiktok">Back to TikTok</a>
+                """;
+        return $"""
+            <section class="hero"><div><p class="eyebrow">TikTok</p><h1>Connect your TikTok account</h1></div></section>
+            <section class="panel oauth-panel">
+                <div class="oauth-platform-badge" style="background:#000">T</div>
+                <h2>Book promo videos</h2>
+                <p class="muted">Videos upload to your TikTok inbox for final edits in the TikTok app. Vertical 9:16 works best.</p>
+                <p class="muted small-text">OAuth redirect URL: <code>{H.Encode(callbackExample)}</code></p>
                 {noticeHtml}
                 {connectBlock}
             </section>

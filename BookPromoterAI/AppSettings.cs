@@ -30,6 +30,9 @@ class AppSettings
     public string RedditClientId { get; init; } = "";
     public string RedditClientSecret { get; init; } = "";
 
+    public string TikTokClientKey { get; init; } = "";
+    public string TikTokClientSecret { get; init; } = "";
+
     public bool IsSendGridConfigured =>
         !string.IsNullOrWhiteSpace(SendGridApiKey) &&
         SendGridApiKey != "YOUR_SENDGRID_API_KEY_HERE" &&
@@ -69,6 +72,12 @@ class AppSettings
         RedditClientId != "YOUR_REDDIT_CLIENT_ID" &&
         !string.IsNullOrWhiteSpace(RedditClientSecret) &&
         RedditClientSecret != "YOUR_REDDIT_CLIENT_SECRET";
+
+    public bool IsTikTokConfigured =>
+        !string.IsNullOrWhiteSpace(TikTokClientKey) &&
+        TikTokClientKey != "YOUR_TIKTOK_CLIENT_KEY" &&
+        !string.IsNullOrWhiteSpace(TikTokClientSecret) &&
+        TikTokClientSecret != "YOUR_TIKTOK_CLIENT_SECRET";
 
     public bool FacebookUsesConfigLogin =>
         string.Equals(FacebookOAuthMode, "config", StringComparison.OrdinalIgnoreCase);
@@ -198,6 +207,20 @@ class AppSettings
         return "OK - detected.";
     }
 
+    public string DescribeTikTokClientKey()
+    {
+        if (string.IsNullOrWhiteSpace(TikTokClientKey) || TikTokClientKey == "YOUR_TIKTOK_CLIENT_KEY")
+            return "Missing - add TikTok__ClientKey in Railway (from developers.tiktok.com).";
+        return "OK - detected.";
+    }
+
+    public string DescribeTikTokClientSecret()
+    {
+        if (string.IsNullOrWhiteSpace(TikTokClientSecret) || TikTokClientSecret == "YOUR_TIKTOK_CLIENT_SECRET")
+            return "Missing - add TikTok__ClientSecret in Railway.";
+        return "OK - detected.";
+    }
+
     public string DescribeFacebookAppId()
     {
         if (string.IsNullOrWhiteSpace(FacebookAppId) || FacebookAppId == "YOUR_FACEBOOK_APP_ID")
@@ -263,7 +286,9 @@ class AppSettings
             FacebookLoginConfigId = CleanSecret(config["Facebook:LoginConfigId"]),
             FacebookOAuthMode = (config["Facebook:OAuthMode"] ?? "scope").Trim().ToLowerInvariant(),
             RedditClientId = CleanSecret(config["Reddit:ClientId"]),
-            RedditClientSecret = CleanSecret(config["Reddit:ClientSecret"])
+            RedditClientSecret = CleanSecret(config["Reddit:ClientSecret"]),
+            TikTokClientKey = CleanSecret(config["TikTok:ClientKey"]),
+            TikTokClientSecret = CleanSecret(config["TikTok:ClientSecret"])
         };
     }
 

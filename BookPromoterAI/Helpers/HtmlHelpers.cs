@@ -175,6 +175,7 @@ static class H
                     {(store.HasCustomerAccess ? "" : """<a href="/start">Start</a>""")}
                     {(store.HasCustomerAccess ? """<a href="/help">Help</a>""" : "")}
                     <a href="/dashboard">Dashboard</a>
+                    {(store.HasCustomerAccess ? """<a href="/tiktok">TikTok</a>""" : "")}
                     {ManageDropdown(store)}
                     {AccountDropdown(store)}
                     {(store.IsOwner ? """<a href="/owner-promos">Owner</a>""" : "")}
@@ -264,6 +265,7 @@ static class H
                     <a href="/books">Books</a>
                     <a href="/schedule">Schedule</a>
                     <a href="/ad-library">Ad Library</a>
+                    <a href="/tiktok">TikTok</a>
                     <a href="/mailing-list">Mailing List</a>
                     {analyticsLink}
                     <div class="nav-dropdown-divider"></div>
@@ -417,6 +419,9 @@ details[open].ad-week-collapsible .ad-week-heading::after{transform:rotate(180de
 .post-card-header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
 .connect-buttons{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}
 .button.platform-disabled,.platform-disabled{display:inline-block;opacity:0.45;cursor:not-allowed;filter:grayscale(1);background:#888!important}
+.tiktok-player{max-width:180px;max-height:320px;border-radius:8px;background:#000}
+.tiktok-video-row{align-items:center}
+.tiktok-video-list{display:flex;flex-direction:column;gap:16px}
 .post-card-header div{display:flex;flex-direction:column;gap:2px}
 .copy-source{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;left:-9999px}
 .post-card-actions{display:flex;gap:8px;margin-top:8px}

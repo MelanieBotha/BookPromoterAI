@@ -133,6 +133,9 @@ static class PostLimits
     public static bool IsReddit(string platform) =>
         platform.Equals("Reddit", StringComparison.OrdinalIgnoreCase);
 
+    public static bool IsTikTok(string platform) =>
+        platform.Equals("TikTok", StringComparison.OrdinalIgnoreCase);
+
     public static bool RequiresLiveConnection(string platform) =>
         IsBluesky(platform) || IsX(platform) || IsLinkedIn(platform) || IsFacebook(platform) || IsReddit(platform);
 

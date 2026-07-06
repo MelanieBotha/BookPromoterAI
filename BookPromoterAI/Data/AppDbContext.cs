@@ -43,6 +43,7 @@ class AppDbContext : DbContext
     public DbSet<DbMailingListCampaign> MailingListCampaigns => Set<DbMailingListCampaign>();
     public DbSet<DbMailingListSettings> MailingListSettings => Set<DbMailingListSettings>();
     public DbSet<DbProductUpdate> ProductUpdates => Set<DbProductUpdate>();
+    public DbSet<DbTikTokVideo> TikTokVideos => Set<DbTikTokVideo>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -126,6 +127,7 @@ class DbUser
     public List<DbClient> Clients { get; set; } = [];
     public List<DbSubscription> Subscriptions { get; set; } = [];
     public List<DbPostingLogEntry> PostingLog { get; set; } = [];
+    public List<DbTikTokVideo> TikTokVideos { get; set; } = [];
 }
 
 class DbBook
@@ -369,4 +371,21 @@ class DbProductUpdate
     public int EmailsSent { get; set; }
     public int EmailsFailed { get; set; }
     public int SocialPostsSent { get; set; }
+}
+
+class DbTikTokVideo
+{
+    public int Id { get; set; }
+    public int UserId { get; set; }
+    public int BookId { get; set; }
+    public string BookTitle { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string Caption { get; set; } = "";
+    public string VideoUrl { get; set; } = "";
+    public string Status { get; set; } = TikTokVideoStatuses.Draft;
+    public string? ErrorMessage { get; set; }
+    public string? TikTokPublishId { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? PostedAt { get; set; }
+    public DbUser? User { get; set; }
 }

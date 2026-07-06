@@ -369,6 +369,32 @@ static class OwnerPage
                 </div>
             </details>
 
+            <details class="owner-collapsible" id="owner-section-tiktok-api"{open("tiktok-api")}>
+                <summary class="owner-collapsible-heading">TikTok API</summary>
+                <div class="panel owner-settings">
+                    {(store.IsTikTokConfigured
+                        ? """<p class="notice success">TikTok API: Ready.</p>"""
+                        : $"""
+                            <p class="notice error">TikTok is not configured yet.</p>
+                            <ul class="plan-features">
+                                <li><strong>Client key:</strong> {H.Encode(store.TikTokClientKeyStatus)}</li>
+                                <li><strong>Client secret:</strong> {H.Encode(store.TikTokClientSecretStatus)}</li>
+                            </ul>
+                            """)}
+                    <p class="muted">Register at <a href="https://developers.tiktok.com/" target="_blank" rel="noopener">developers.tiktok.com</a> and request <strong>Content Posting API</strong> scopes: <code>{H.Encode(TikTokService.Scopes)}</code>.</p>
+                    <p class="muted">OAuth redirect URL:</p>
+                    <ul class="plan-features">
+                        <li><code>{H.Encode(string.IsNullOrWhiteSpace(appBaseUrl) ? $"https://bookpromoterai.us{TikTokService.CallbackPath}" : TikTokService.CallbackUrl(appBaseUrl))}</code></li>
+                    </ul>
+                    <p class="muted">Verify domain <code>bookpromoterai.us</code> in TikTok Developer Portal for video pull uploads. Add Railway variables:</p>
+                    <ul class="plan-features">
+                        <li><code>TikTok__ClientKey</code></li>
+                        <li><code>TikTok__ClientSecret</code></li>
+                    </ul>
+                    <p class="muted">Authors use the <strong>TikTok</strong> tab to upload videos and send them to their TikTok inbox.</p>
+                </div>
+            </details>
+
             <details class="owner-collapsible" id="owner-section-railway-cleanup"{open("railway-cleanup")}>
                 <summary class="owner-collapsible-heading">Railway Cleanup (Unused Services)</summary>
                 <div class="panel owner-settings">

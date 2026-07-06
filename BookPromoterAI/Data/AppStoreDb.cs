@@ -107,6 +107,10 @@ class AppStoreDb
     public string RedditClientIdStatus => _settings.DescribeRedditClientId();
     public string RedditClientSecretStatus => _settings.DescribeRedditClientSecret();
 
+    public bool IsTikTokConfigured => _settings.IsTikTokConfigured;
+    public string TikTokClientKeyStatus => _settings.DescribeTikTokClientKey();
+    public string TikTokClientSecretStatus => _settings.DescribeTikTokClientSecret();
+
     public DatabasePaths Database => _database;
 
     public DbUser? GetCurrentDbUser() => GetCurrentUser();
@@ -755,6 +759,100 @@ class AppStoreDb
             .ToList();
         if (ads.Count > 0)
             db.GeneratedAds.RemoveRange(ads);
+    }
+
+    // ── TikTok videos ──────────────────────────────────────────────────
+    public List<TikTokVideo> TikTokVideos
+    {
+        get
+        {
+            var uid = CurrentUserId();
+            if (uid == 0) return [];
+            using var db = Db();
+            return db.TikTokVideos
+                .Where(v => v.UserId == uid)
+                .AsNoTracking()
+                .OrderByDescending(v => v.CreatedAt)
+                .Select(ToModel)
+                .ToList();
+        }
+    }
+
+    public SocialAccount? TikTokAccount =>
+        AuthorSocialAccounts.FirstOrDefault(a => PostLimits.IsTikTok(a.Platform) && a.IsConnected);
+
+    public TikTokVideo? AddTikTokVideo(int bookId, string bookTitle, string title, string caption, string videoUrl)
+    {
+        var uid = CurrentUserId();
+        if (uid == 0) return null;
+        using var db = Db();
+        var row = new DbTikTokVideo
+        {
+            UserId = uid,
+            BookId = bookId,
+            BookTitle = bookTitle,
+            Title = title,
+            Caption = caption,
+            VideoUrl = videoUrl,
+            Status = TikTokVideoStatuses.Draft,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.TikTokVideos.Add(row);
+        db.SaveChanges();
+        return ToModel(row);
+    }
+
+    public async Task<(bool Ok, string Message)> PostTikTokVideoAsync(
+        int videoId, TikTokService tiktok, string appBaseUrl, CancellationToken cancellationToken = default)
+    {
+        var uid = CurrentUserId();
+        if (uid == 0) return (false, "Not logged in.");
+        var account = TikTokAccount;
+        if (account is null || !account.IsLiveConnection)
+            return (false, "Connect your TikTok account on this page first.");
+
+        using var db = Db();
+        var row = db.TikTokVideos.FirstOrDefault(v => v.Id == videoId && v.UserId == uid);
+        if (row is null) return (false, "Video not found.");
+        if (string.IsNullOrWhiteSpace(row.VideoUrl))
+            return (false, "No video file attached.");
+
+        var tokens = new TikTokTokenSet(account.AccessToken!, account.RefreshToken ?? "", 0);
+        var absoluteVideoUrl = row.VideoUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+            ? row.VideoUrl
+            : $"{appBaseUrl.TrimEnd('/')}{row.VideoUrl}";
+        var postTitle = string.IsNullOrWhiteSpace(row.Title) ? row.BookTitle : row.Title;
+        if (!string.IsNullOrWhiteSpace(row.Caption))
+            postTitle = $"{postTitle} — {row.Caption}";
+
+        var (result, updated) = await tiktok.SendVideoToInboxAsync(tokens, absoluteVideoUrl, postTitle, cancellationToken);
+        if (updated is not null && updated.RefreshToken != account.RefreshToken)
+        {
+            var dbAccount = db.SocialAccounts.FirstOrDefault(a => a.Id == account.Id && a.UserId == uid);
+            if (dbAccount is not null)
+            {
+                dbAccount.AccessToken = updated.AccessToken;
+                if (!string.IsNullOrWhiteSpace(updated.RefreshToken))
+                    dbAccount.RefreshToken = updated.RefreshToken;
+            }
+        }
+
+        row.Status = result.Success ? TikTokVideoStatuses.Sent : TikTokVideoStatuses.Failed;
+        row.ErrorMessage = result.Success ? null : result.Message;
+        row.PostedAt = result.Success ? DateTime.UtcNow : null;
+        db.SaveChanges();
+        return (result.Success, result.Message);
+    }
+
+    public void DeleteTikTokVideo(int id)
+    {
+        var uid = CurrentUserId();
+        if (uid == 0) return;
+        using var db = Db();
+        var row = db.TikTokVideos.FirstOrDefault(v => v.Id == id && v.UserId == uid);
+        if (row is null) return;
+        db.TikTokVideos.Remove(row);
+        db.SaveChanges();
     }
 
     // ── Generated Ads ──────────────────────────────────────────────────
@@ -3636,6 +3734,20 @@ class AppStoreDb
         RefreshToken = a.RefreshToken,
         ExternalAccountId = a.ExternalAccountId,
         SimulatedAccessToken = a.AccessToken
+    };
+    static TikTokVideo ToModel(DbTikTokVideo v) => new()
+    {
+        Id = v.Id,
+        BookId = v.BookId,
+        BookTitle = v.BookTitle,
+        Title = v.Title,
+        Caption = v.Caption,
+        VideoUrl = v.VideoUrl,
+        Status = v.Status,
+        ErrorMessage = v.ErrorMessage,
+        TikTokPublishId = v.TikTokPublishId,
+        CreatedAt = v.CreatedAt,
+        PostedAt = v.PostedAt
     };
     static SocialSchedule ToModel(DbSocialSchedule s) => new()
     {

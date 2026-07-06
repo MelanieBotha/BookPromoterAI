@@ -72,7 +72,23 @@ class SocialAccount
         && (!PostLimits.IsX(Platform) || !string.IsNullOrWhiteSpace(ExternalAccountId))
         && (!PostLimits.IsLinkedIn(Platform) || !string.IsNullOrWhiteSpace(ExternalAccountId))
         && (!PostLimits.IsFacebook(Platform) || !string.IsNullOrWhiteSpace(ExternalAccountId))
-        && (!PostLimits.IsReddit(Platform) || !string.IsNullOrWhiteSpace(ExternalAccountId));
+        && (!PostLimits.IsReddit(Platform) || !string.IsNullOrWhiteSpace(ExternalAccountId))
+        && (!PostLimits.IsTikTok(Platform) || !string.IsNullOrWhiteSpace(ExternalAccountId));
+}
+
+class TikTokVideo
+{
+    public int Id { get; set; }
+    public int BookId { get; set; }
+    public string BookTitle { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string Caption { get; set; } = "";
+    public string VideoUrl { get; set; } = "";
+    public string Status { get; set; } = TikTokVideoStatuses.Draft;
+    public string? ErrorMessage { get; set; }
+    public string? TikTokPublishId { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? PostedAt { get; set; }
 }
 
 class PromoCode
