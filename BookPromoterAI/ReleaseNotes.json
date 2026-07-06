@@ -1,4 +1,12 @@
 {
+  "1.9.67": {
+    "title": "BookPromoter AI v1.9.67 — What's new",
+    "updated": [
+      "Author Facebook OAuth no longer requests business_management — authors see Choose Pages only, not Choose Businesses"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.9.66": {
     "title": "BookPromoter AI v1.9.66 — What's new",
     "updated": [

@@ -393,6 +393,10 @@ static class SocialAccountRoutes
             var mode = form["mode"].ToString();
             var forceScope = string.Equals(mode, "scope", StringComparison.OrdinalIgnoreCase);
             var forceConfig = string.Equals(mode, "config", StringComparison.OrdinalIgnoreCase);
+            if (!brandOAuth && forceConfig)
+            {
+                return Results.Redirect($"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Login for Business is for Owner brand only. Authors use standard Page login.")}");
+            }
             if (brandOAuth && !forceScope && (forceConfig || settings.FacebookUsesConfigLogin) && !settings.HasFacebookLoginConfigId)
             {
                 return Results.Redirect($"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Add Facebook__LoginConfigId in Railway for Login for Business, or use standard Page login.")}");

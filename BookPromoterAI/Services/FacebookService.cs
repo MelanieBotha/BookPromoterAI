@@ -9,8 +9,11 @@ class FacebookService
     public const string CallbackPath = "/social-accounts/oauth-callback/facebook";
     /// <summary>Legacy Meta redirect URI (underscore path) — still accepted for token exchange.</summary>
     public const string LegacyCallbackPath = "/social_accounts/oauth_callback/facebook";
-    // business_management is required for Pages linked to a Meta Business portfolio (Book Promoter AI).
-    public const string Scopes = "pages_show_list,pages_manage_posts,pages_read_engagement,business_management,public_profile";
+    /// <summary>Author Page connect — no business_management (avoids Meta "Choose Businesses" screen).</summary>
+    public const string AuthorScopes = "pages_show_list,pages_manage_posts,pages_read_engagement,public_profile";
+    /// <summary>Owner brand Page on Meta Business portfolio — needs business_management to list the Page.</summary>
+    public const string BrandScopes = "pages_show_list,pages_manage_posts,pages_read_engagement,business_management,public_profile";
+    public const string Scopes = AuthorScopes;
     /// <summary>Permissions to enable on the Meta Login Configuration (config mode only).</summary>
     public static readonly string[] LoginConfigurationPermissions =
         ["pages_show_list", "pages_manage_posts", "pages_read_engagement", "business_management", "public_profile"];
@@ -49,18 +52,14 @@ class FacebookService
             ["response_type"] = "code"
         };
 
-        // Scope mode (Railway default) matches v1.9.44/57 — the last working owner connect path.
-        // Config_id is only used when OAuthMode=config or the user explicitly picks Login for Business.
-        var useConfigLogin = !forceScope && (forceConfig || _settings.FacebookUsesConfigLogin);
+        // Login for Business (config_id) is owner brand only — never for authors.
+        var useConfigLogin = brandContext && !forceScope && (forceConfig || _settings.FacebookUsesConfigLogin);
 
         string flowLabel;
         if (useConfigLogin)
         {
             if (!AppSettings.IsValidFacebookLoginConfigId(_settings.FacebookLoginConfigId))
-                throw new InvalidOperationException(
-                    brandContext
-                        ? "Facebook Login Config ID is required for Login for Business."
-                        : "Facebook Login Config ID is not configured.");
+                throw new InvalidOperationException("Facebook Login Config ID is required for Login for Business.");
             query["config_id"] = _settings.FacebookLoginConfigId.Trim();
             // Meta User access token configs: config_id only (+ standard oauth params).
             // Do NOT send override_default_response_type or auth_type — both break User token configs.
@@ -68,9 +67,9 @@ class FacebookService
         }
         else
         {
-            query["scope"] = Scopes;
+            query["scope"] = brandContext ? BrandScopes : AuthorScopes;
             // Do not add auth_type — Meta's Reconnect/Continue dialogs loop without returning a code.
-            flowLabel = "Page permissions (scope)";
+            flowLabel = brandContext ? "Brand Page permissions (scope)" : "Author Page permissions (scope)";
         }
 
         var url = $"https://www.facebook.com/{GraphVersion}/dialog/oauth?" +

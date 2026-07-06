@@ -283,8 +283,8 @@ static class SocialConnectHelper
         var authorSteps = !brandContext
             ? """
                 <div class="notice">
-                    <p><strong>Use your personal Facebook account — not a business portfolio.</strong> If Facebook shows &ldquo;BookPromoter&rdquo; or &ldquo;Continue as [business name]?&rdquo; in the top-right, log out and sign in with your personal profile instead.</p>
-                    <p class="muted small-text">Authors connect their own Facebook <strong>Page</strong> (e.g. your author brand). Do not use Owner brand Pages or Meta Business portfolio logins.</p>
+                    <p><strong>Use your personal Facebook account — not a business portfolio.</strong> Authors connect a Facebook <strong>Page</strong> only. You should see <em>Choose Pages</em> — not <em>Choose Businesses</em>. If Meta asks for Businesses, click Back and reconnect from My Account (not Owner).</p>
+                    <p class="muted small-text">You do not need Meta Business Manager. If your author Page is only on a business portfolio, create or claim a Page under your personal profile first.</p>
                     <ol class="plan-features">
                         <li>Sign in with your <strong>personal Facebook</strong> (the profile that manages your author Page).</li>
                         <li>If Meta shows <strong>Reconnect</strong> or <strong>Continue</strong>, click <strong>Edit settings</strong> first.</li>
@@ -469,10 +469,10 @@ static class SocialConnectHelper
         var redirect = PublicUrl.FacebookCallbackUrl(request, settings);
         var facebook = request.HttpContext.RequestServices.GetRequiredService<FacebookService>();
         var scopeDiag = facebook.DescribeOAuth(redirect, brandContext, forceScope: true, forceConfig: false);
-        var configDiag = settings.HasFacebookLoginConfigId
+        var configDiag = brandContext && settings.HasFacebookLoginConfigId
             ? facebook.DescribeOAuth(redirect, brandContext, forceScope: false, forceConfig: true)
             : null;
-        var defaultFlow = settings.FacebookUsesConfigLogin ? configDiag : scopeDiag;
+        var defaultFlow = brandContext && settings.FacebookUsesConfigLogin ? configDiag : scopeDiag;
         var configLine = configDiag is null
             ? ""
             : $"""<li><strong>Login for Business:</strong> {(configDiag.Ready ? H.Encode(configDiag.FlowLabel) : H.Encode(configDiag.Error ?? "not ready"))} · config {H.Encode(configDiag.ConfigIdMasked)}</li>""";
@@ -484,8 +484,8 @@ static class SocialConnectHelper
                     <li><strong>App ID:</strong> <code>{H.Encode(scopeDiag.AppIdMasked)}</code> (expect 1820…6321)</li>
                     <li><strong>Redirect URI:</strong> <code>{H.Encode(redirect)}</code></li>
                     <li><strong>Default connect:</strong> {(defaultFlow?.Ready == true ? H.Encode(defaultFlow.FlowLabel) : H.Encode(defaultFlow?.Error ?? "not ready"))}</li>
-                    <li><strong>Page permissions (scope):</strong> {(scopeDiag.Ready ? "ready" : H.Encode(scopeDiag.Error ?? "not ready"))}</li>
-                    {configLine}
+                    <li><strong>Page permissions (scope):</strong> {(scopeDiag.Ready ? H.Encode(scopeDiag.FlowLabel) : H.Encode(scopeDiag.Error ?? "not ready"))}</li>
+                    {(brandContext ? configLine : "")}
                     <li><strong>Meta Login Configuration</strong> must use token type <em>User access token</em> (not System user) and Assets = Pages.</li>
                 </ul>
             </details>
