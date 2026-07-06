@@ -4,48 +4,7 @@ namespace BookPromoterAI;
 static class SchedulePage
 {
     public static readonly (string Value, string Group)[] AllPlatforms =
-    [
-        ("Facebook",        "Major Platforms"),
-        ("Reddit",          "Major Platforms"),
-        ("X (Twitter)",     "Major Platforms"),
-        ("TikTok",          "Major Platforms"),
-        ("YouTube",         "Major Platforms"),
-        ("LinkedIn",        "Major Platforms"),
-        ("Pinterest",       "Major Platforms"),
-        ("Snapchat",        "Major Platforms"),
-        ("Threads",         "Emerging Platforms"),
-        ("Bluesky",         "Emerging Platforms"),
-        ("Mastodon",        "Emerging Platforms"),
-        ("BeReal",          "Emerging Platforms"),
-        ("Lemon8",          "Emerging Platforms"),
-        ("Nostr",           "Emerging Platforms"),
-        ("Telegram",        "Messaging & Community"),
-        ("WhatsApp",        "Messaging & Community"),
-        ("Discord",         "Messaging & Community"),
-        ("Quora",           "Messaging & Community"),
-        ("Clubhouse",       "Messaging & Community"),
-        ("Goodreads",       "Books & Reading"),
-        ("BookTok",         "Books & Reading"),
-        ("Bookstagram",     "Books & Reading"),
-        ("Wattpad",         "Books & Reading"),
-        ("Royal Road",      "Books & Reading"),
-        ("Scribble Hub",    "Books & Reading"),
-        ("Substack",        "Content & Blogging"),
-        ("Medium",          "Content & Blogging"),
-        ("Tumblr",          "Content & Blogging"),
-        ("WordPress",       "Content & Blogging"),
-        ("Patreon",         "Content & Blogging"),
-        ("Ko-fi",           "Content & Blogging"),
-        ("Twitch",          "Other"),
-        ("Rumble",          "Other"),
-        ("Kick",            "Other"),
-        ("Vimeo",           "Other"),
-        ("Flickr",          "Other"),
-        ("MeWe",            "Other"),
-        ("VK",              "Other"),
-        ("Weibo",           "Other"),
-        ("Line",            "Other"),
-    ];
+        SocialPlatforms.Catalog.Select(p => (p.Name, p.Group)).ToArray();
 
     public static string Render(AppStoreDb store, string notice)
     {
@@ -108,7 +67,7 @@ static class SchedulePage
         {
             dropdownOptions.Append($"""<optgroup label="{H.Encode(group.Key)}">""");
             foreach (var (value, _) in group)
-                dropdownOptions.Append(SocialConnectHelper.RenderPlatformOption(value, settings: store.Settings));
+                dropdownOptions.Append($"""<option value="{H.Encode(value)}">{H.Encode(value)}</option>""");
             dropdownOptions.Append("</optgroup>");
         }
         dropdownOptions.Append("""<option value="__custom__">Other (type your own)...</option>""");

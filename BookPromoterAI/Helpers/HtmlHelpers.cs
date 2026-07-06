@@ -522,6 +522,14 @@ textarea{min-height:120px}
 details[open] .owner-collapsible-heading::after{transform:rotate(180deg)}
 .owner-collapsible .panel{border:0;border-radius:0;margin-bottom:0}
 .owner-collapsible .owner-settings{margin-top:0}
+.owner-api-group{background:#fff}
+.owner-api-summary{margin:0;padding:12px 20px;border-bottom:1px solid var(--line);font-size:14px}
+.owner-api-group-inner{padding:10px 12px 14px}
+.owner-collapsible-nested{margin-bottom:8px;border-radius:6px}
+.owner-collapsible-nested .owner-collapsible-heading{background:#f5e082;font-size:14px;padding:10px 16px;font-weight:600}
+.owner-api-badge{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;padding:2px 8px;border-radius:999px;margin-left:8px}
+.owner-api-badge.ready{background:#166534;color:#fff}
+.owner-api-badge.pending{background:#7f1d1d;color:#fff}
 .inline-form.tight{gap:8px}.inline-form.tight label{min-width:120px}
 .row-actions{display:flex;gap:8px;flex-direction:column}
 .row-actions .button,.row-actions .danger-button{width:100%}

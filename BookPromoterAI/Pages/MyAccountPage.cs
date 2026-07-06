@@ -172,10 +172,7 @@ static class MyAccountPage
             foreach (var (value, _) in group)
             {
                 var sel = value.Equals(currentPlatform, StringComparison.OrdinalIgnoreCase) ? "selected" : "";
-                if (SocialConnectHelper.IsPlatformDisabled(value, store.Settings))
-                    options.Append(SocialConnectHelper.RenderPlatformOption(value, settings: store.Settings));
-                else
-                    options.Append($"""<option value="{H.Encode(value)}" {sel}>{H.Encode(value)}</option>""");
+                options.Append($"""<option value="{H.Encode(value)}" {sel}>{H.Encode(value)}</option>""");
             }
             options.Append("</optgroup>");
         }
@@ -264,6 +261,9 @@ static class MyAccountPage
         var approvalNote = requiresApproval
             ? "Approved posts "
             : "Posts ";
-        return $"""<p class="muted small-text">Auto-post active. {approvalNote}will go out on schedule (simulated until OAuth is live).</p>""";
+        var deliveryNote = SocialConnectHelper.IsPlatformLive(platform, store.Settings)
+            ? "will go out on schedule automatically."
+            : "will go out on schedule (connect for live posting when available).";
+        return $"""<p class="muted small-text">Auto-post active. {approvalNote}{deliveryNote}</p>""";
     }
 }

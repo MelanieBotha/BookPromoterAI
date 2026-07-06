@@ -3,8 +3,8 @@ namespace BookPromoterAI;
 // =====================================================================
 // SOCIAL MEDIA POSTING SERVICE
 //
-// Bluesky uses live AT Protocol posting; X, LinkedIn, Facebook, and Reddit use OAuth. Other platforms
-// remain simulated until OAuth is wired up for each one.
+// Bluesky, X, LinkedIn, Facebook, Reddit, Mastodon, Discord, and Telegram use live posting.
+// Other platforms remain simulated until each integration is wired up.
 // =====================================================================
 class SocialPostingService
 {
@@ -13,6 +13,8 @@ class SocialPostingService
     readonly LinkedInService _linkedIn;
     readonly FacebookService _facebook;
     readonly RedditService _reddit;
+    readonly MastodonService _mastodon;
+    readonly DiscordTelegramPostingService _messaging;
     readonly HttpClient _http;
     readonly UploadPaths _uploads;
 
@@ -22,6 +24,8 @@ class SocialPostingService
         LinkedInService linkedIn,
         FacebookService facebook,
         RedditService reddit,
+        MastodonService mastodon,
+        DiscordTelegramPostingService messaging,
         IHttpClientFactory httpFactory,
         UploadPaths uploads)
     {
@@ -30,6 +34,8 @@ class SocialPostingService
         _linkedIn = linkedIn;
         _facebook = facebook;
         _reddit = reddit;
+        _mastodon = mastodon;
+        _messaging = messaging;
         _uploads = uploads;
         _http = httpFactory.CreateClient(nameof(SocialPostingService));
         _http.Timeout = TimeSpan.FromSeconds(30);
@@ -56,6 +62,15 @@ class SocialPostingService
 
         if (PostLimits.IsReddit(account.Platform) && account.IsLiveConnection)
             return await PostToRedditLive(account, postText, cancellationToken);
+
+        if (PostLimits.IsMastodon(account.Platform) && account.IsLiveConnection)
+            return await PostToMastodonLive(account, postText, media, brandMedia, cancellationToken);
+
+        if (PostLimits.IsDiscord(account.Platform) && account.IsLiveConnection)
+            return await PostToDiscordLive(account, postText, cancellationToken);
+
+        if (PostLimits.IsTelegram(account.Platform) && account.IsLiveConnection)
+            return await PostToTelegramLive(account, postText, cancellationToken);
 
         var result = account.Platform.ToLowerInvariant() switch
         {
@@ -289,6 +304,89 @@ class SocialPostingService
 
         var tokens = new RedditTokenSet(account.AccessToken, account.RefreshToken ?? "");
         var result = await _reddit.PostAsync(tokens, account.Handle, postText, cancellationToken);
+        return new PostingOutcome { Result = result };
+    }
+
+    async Task<PostingOutcome> PostToMastodonLive(
+        SocialAccount account,
+        string postText,
+        BookPostMedia? media,
+        BrandPostMedia? brandMedia,
+        CancellationToken cancellationToken)
+    {
+        if (!PostLimits.IsWithinLimit(postText, account.Platform))
+        {
+            return new PostingOutcome
+            {
+                Result = PostingResult.Failure(
+                    $"Post exceeds Mastodon's {PostLimits.MastodonMaxGraphemes}-character limit ({PostLimits.GraphemeLength(postText)} graphemes). Regenerate or shorten the post.")
+            };
+        }
+
+        if (string.IsNullOrWhiteSpace(account.AccessToken))
+            return new PostingOutcome { Result = PostingResult.Failure("Mastodon is not connected. Reconnect your account in My Account.") };
+
+        var instance = MastodonService.InstanceFromAcct(account.Handle);
+        if (string.IsNullOrWhiteSpace(instance))
+            return new PostingOutcome { Result = PostingResult.Failure("Mastodon server is missing. Reconnect your account in My Account.") };
+
+        byte[]? imageBytes = null;
+        string? imageMime = null;
+        if (media is not null)
+        {
+            var baseUrl = ResolveBaseUrl(media.AppBaseUrl);
+            var image = await BookCoverLoader.TryLoadAsync(
+                _http,
+                _uploads.Path,
+                baseUrl,
+                media.BookTitle,
+                media.CoverImageUrl,
+                media.TrackingCode,
+                cancellationToken);
+            if (image is not null)
+            {
+                imageBytes = image.Data;
+                imageMime = image.MimeType;
+            }
+        }
+        else if (brandMedia is not null)
+        {
+            var logo = await BrandLogoLoader.TryLoadAsync(
+                _http, ResolveBaseUrl(brandMedia.AppBaseUrl), cancellationToken);
+            if (logo is not null)
+            {
+                imageBytes = logo.Data;
+                imageMime = logo.MimeType;
+            }
+        }
+
+        var result = await _mastodon.PostAsync(
+            instance, account.AccessToken, postText, imageBytes, imageMime, cancellationToken);
+        return new PostingOutcome { Result = result };
+    }
+
+    async Task<PostingOutcome> PostToDiscordLive(
+        SocialAccount account,
+        string postText,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(account.AccessToken))
+            return new PostingOutcome { Result = PostingResult.Failure("Discord is not connected. Reconnect your webhook in My Account.") };
+
+        var result = await _messaging.PostDiscordWebhookAsync(account.AccessToken, postText, cancellationToken);
+        return new PostingOutcome { Result = result };
+    }
+
+    async Task<PostingOutcome> PostToTelegramLive(
+        SocialAccount account,
+        string postText,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(account.AccessToken) || string.IsNullOrWhiteSpace(account.ExternalAccountId))
+            return new PostingOutcome { Result = PostingResult.Failure("Telegram is not connected. Reconnect your bot in My Account.") };
+
+        var result = await _messaging.PostTelegramAsync(
+            account.AccessToken, account.ExternalAccountId, postText, cancellationToken);
         return new PostingOutcome { Result = result };
     }
 

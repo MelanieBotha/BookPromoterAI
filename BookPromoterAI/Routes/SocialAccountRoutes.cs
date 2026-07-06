@@ -38,8 +38,6 @@ static class SocialAccountRoutes
             var platform = form["platform"].ToString();
             var customPlatform = form["customPlatform"].ToString().Trim();
             var finalPlatform = platform == "__custom__" && !string.IsNullOrWhiteSpace(customPlatform) ? customPlatform : platform;
-            if (SocialConnectHelper.IsPlatformDisabled(finalPlatform, store.Settings))
-                return Results.Redirect(returnUrl);
             store.AddSocialAccount(new SocialAccount
             {
                 Platform = finalPlatform,
@@ -65,8 +63,6 @@ static class SocialAccountRoutes
             var platform = form["platform"].ToString();
             var customPlatform = form["customPlatform"].ToString().Trim();
             var finalPlatform = platform == "__custom__" && !string.IsNullOrWhiteSpace(customPlatform) ? customPlatform : platform;
-            if (SocialConnectHelper.IsPlatformDisabled(finalPlatform, store.Settings))
-                return Results.Redirect(returnUrl);
             account.Platform = finalPlatform;
             account.DisplayName = form["displayName"].ToString();
             account.Handle = form["handle"].ToString();
@@ -110,8 +106,6 @@ static class SocialAccountRoutes
             var saveUserId = SocialAccountKinds.IsBrand(kind) ? store.PrimaryOwnerUserId() : userId;
             if (saveUserId == 0) return Results.Redirect("/start");
             var platformName = Uri.UnescapeDataString(platform);
-            if (SocialConnectHelper.IsPlatformDisabled(platformName, settings))
-                return Results.Redirect(returnUrl);
 
             if (PostLimits.IsX(platformName))
             {
@@ -176,7 +170,7 @@ static class SocialAccountRoutes
                         return Results.Content(
                             H.RenderPage(http, "Connect Facebook", SocialConnectHelper.FacebookSetupPage(returnUrl,
                                 settings.FacebookUsesConfigLogin
-                                    ? "Brand Facebook connect requires Facebook__LoginConfigId in Railway. See Owner → Facebook API."
+                                    ? "Brand Facebook connect requires Facebook__LoginConfigId in Railway. See Owner → Social Media APIs → Facebook."
                                     : "Facebook API credentials are not configured.", settings, request), store),
                             "text/html");
                     }
@@ -813,7 +807,118 @@ static class SocialAccountRoutes
             return Results.Redirect(successUrl);
         });
 
-        app.MapPost("/social-accounts/oauth-callback/{platform}", async (string platform, HttpRequest request, HttpContext http, AppStoreDb store, BlueskyService bluesky) =>
+        app.MapPost("/social-accounts/connect/Mastodon/start", async (
+            HttpRequest request,
+            AppStoreDb store,
+            AppSettings settings,
+            MastodonService mastodonService,
+            IDistributedCache cache) =>
+        {
+            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
+            var form = await request.ReadFormAsync();
+            var returnUrl = SocialConnectHelper.ResolveReturnUrl(request, form["return"].ToString());
+            var kind = SocialConnectHelper.ResolveAccountKind(returnUrl);
+            if (SocialAccountKinds.IsBrand(kind) && !store.IsOwner) return Results.Redirect("/my-account");
+            if (store.CheckSocialAccountLimit(kind) is not null) return Results.Redirect(returnUrl);
+
+            var instance = MastodonService.NormalizeInstance(form["instance"].ToString());
+            if (string.IsNullOrWhiteSpace(instance))
+                return Results.Redirect($"/social-accounts/connect/Mastodon?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Enter your Mastodon server (e.g. mastodon.social).")}");
+
+            var userId = store.GetCurrentDbUser()?.Id ?? 0;
+            if (userId == 0) return Results.Redirect("/start");
+            var saveUserId = SocialAccountKinds.IsBrand(kind) ? store.PrimaryOwnerUserId() : userId;
+            if (saveUserId == 0) return Results.Redirect("/start");
+
+            var callbackUrl = MastodonService.CallbackUrl(PublicUrl.Base(request, settings));
+            var (ok, error, clientId, clientSecret) = await mastodonService.RegisterAppAsync(instance, callbackUrl);
+            if (!ok || string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret))
+            {
+                return Results.Redirect($"/social-accounts/connect/Mastodon?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(error)}");
+            }
+
+            var state = Guid.NewGuid().ToString("N");
+            await MastodonOAuthStateStore.SaveAsync(cache, state, new MastodonOAuthPending
+            {
+                UserId = saveUserId,
+                ReturnUrl = returnUrl,
+                Kind = kind,
+                Instance = instance,
+                ClientId = clientId,
+                ClientSecret = clientSecret,
+                RedirectUri = callbackUrl
+            });
+            var (authorizeUrl, _) = mastodonService.BuildAuthorizationUrl(instance, clientId, callbackUrl, state);
+            return Results.Redirect(authorizeUrl);
+        });
+
+        app.MapGet(MastodonService.CallbackPath, async (
+            HttpRequest request,
+            AppStoreDb store,
+            MastodonService mastodonService,
+            IDistributedCache cache) =>
+        {
+            var error = request.Query["error"].ToString();
+            var code = request.Query["code"].ToString();
+            var state = request.Query["state"].ToString();
+            var pending = await MastodonOAuthStateStore.TakeAsync(cache, state);
+            var returnUrl = pending?.ReturnUrl ?? "/my-account";
+
+            if (pending is null)
+            {
+                return Results.Redirect($"/social-accounts/connect/Mastodon?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Mastodon login expired. Try connecting again.")}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(error))
+            {
+                var notice = error.Equals("access_denied", StringComparison.OrdinalIgnoreCase)
+                    ? "Mastodon authorization was cancelled."
+                    : "Mastodon authorization failed. Try again.";
+                return Results.Redirect($"/social-accounts/connect/Mastodon?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(notice)}");
+            }
+
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                return Results.Redirect($"/social-accounts/connect/Mastodon?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Invalid Mastodon login response. Try again.")}");
+            }
+
+            if (SocialAccountKinds.IsBrand(pending.Kind) && !OwnerAccount.IsOwnerEmail(
+                    store.GetUserEmailById(pending.UserId)))
+            {
+                return Results.Redirect($"/social-accounts/connect/Mastodon?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Only the owner can connect brand accounts.")}");
+            }
+
+            var tokens = await mastodonService.ExchangeCodeAsync(
+                pending.Instance, pending.ClientId, pending.ClientSecret, code, pending.RedirectUri);
+            if (tokens is null || string.IsNullOrWhiteSpace(tokens.AccessToken))
+            {
+                return Results.Redirect($"/social-accounts/connect/Mastodon?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Could not complete Mastodon login. Try again.")}");
+            }
+
+            var user = await mastodonService.VerifyCredentialsAsync(pending.Instance, tokens.AccessToken);
+            if (user is null)
+            {
+                return Results.Redirect($"/social-accounts/connect/Mastodon?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Could not verify your Mastodon account. Try again.")}");
+            }
+
+            store.AddSocialAccountForUser(pending.UserId, new SocialAccount
+            {
+                Platform = "Mastodon",
+                DisplayName = string.IsNullOrWhiteSpace(user.DisplayName) ? user.Username : user.DisplayName.Trim(),
+                Handle = string.IsNullOrWhiteSpace(user.Acct) ? $"{user.Username}@{pending.Instance}" : user.Acct,
+                IsConnected = true,
+                ConnectedViaOAuth = true,
+                AccountKind = pending.Kind,
+                AccessToken = tokens.AccessToken,
+                RefreshToken = tokens.RefreshToken,
+                ExternalAccountId = user.Id
+            }, pending.Kind);
+            if (SocialAccountKinds.IsAuthor(pending.Kind))
+                store.AddScheduleForUser(pending.UserId, new SocialSchedule { Platform = "Mastodon", PostsPerWeek = 1, RequiresApproval = true });
+            return Results.Redirect(returnUrl);
+        });
+
+        app.MapPost("/social-accounts/oauth-callback/{platform}", async (string platform, HttpRequest request, HttpContext http, AppStoreDb store, BlueskyService bluesky, DiscordTelegramPostingService messaging) =>
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
             var form = await request.ReadFormAsync();
@@ -822,8 +927,6 @@ static class SocialAccountRoutes
             if (SocialAccountKinds.IsBrand(kind) && !store.IsOwner) return Results.Redirect("/my-account");
             if (store.CheckSocialAccountLimit(kind) is not null) return Results.Redirect(returnUrl);
             var platformName = Uri.UnescapeDataString(platform);
-            if (SocialConnectHelper.IsPlatformDisabled(platformName, store.Settings))
-                return Results.Redirect(returnUrl);
 
             if (PostLimits.IsBluesky(platformName))
             {
@@ -878,6 +981,73 @@ static class SocialAccountRoutes
             {
                 var connectUrl = $"/social-accounts/connect/Reddit?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Use the Connect Reddit button to sign in with Reddit.")}";
                 return Results.Redirect(connectUrl);
+            }
+
+            if (PostLimits.IsMastodon(platformName))
+            {
+                var connectUrl = $"/social-accounts/connect/Mastodon?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Use the Connect Mastodon button to sign in with your server.")}";
+                return Results.Redirect(connectUrl);
+            }
+
+            if (PostLimits.IsDiscord(platformName))
+            {
+                var webhookUrl = form["webhookUrl"].ToString().Trim();
+                if (!DiscordTelegramPostingService.IsDiscordWebhook(webhookUrl))
+                {
+                    var connectUrl = $"/social-accounts/connect/Discord?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Enter a valid Discord webhook URL.")}";
+                    return Results.Redirect(connectUrl);
+                }
+
+                store.AddSocialAccount(new SocialAccount
+                {
+                    Platform = "Discord",
+                    DisplayName = string.IsNullOrWhiteSpace(form["displayName"].ToString())
+                        ? (SocialAccountKinds.IsBrand(kind) ? "BookPromoter AI" : "Discord Channel")
+                        : form["displayName"].ToString().Trim(),
+                    Handle = "webhook",
+                    IsConnected = true,
+                    ConnectedViaOAuth = true,
+                    AccountKind = kind,
+                    AccessToken = webhookUrl
+                }, kind);
+                if (SocialAccountKinds.IsAuthor(kind))
+                    store.AddSchedule(new SocialSchedule { Platform = "Discord", PostsPerWeek = 1, RequiresApproval = true });
+                return Results.Redirect(returnUrl);
+            }
+
+            if (PostLimits.IsTelegram(platformName))
+            {
+                var botToken = form["botToken"].ToString().Trim();
+                var chatId = form["chatId"].ToString().Trim();
+                var (ok, error, username) = await messaging.ValidateTelegramBotAsync(botToken);
+                if (!ok)
+                {
+                    var connectUrl = $"/social-accounts/connect/Telegram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(error)}";
+                    return Results.Redirect(connectUrl);
+                }
+
+                if (string.IsNullOrWhiteSpace(chatId))
+                {
+                    var connectUrl = $"/social-accounts/connect/Telegram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Enter your Telegram channel chat ID.")}";
+                    return Results.Redirect(connectUrl);
+                }
+
+                store.AddSocialAccount(new SocialAccount
+                {
+                    Platform = "Telegram",
+                    DisplayName = string.IsNullOrWhiteSpace(form["displayName"].ToString())
+                        ? (SocialAccountKinds.IsBrand(kind) ? "BookPromoter AI" : "Telegram Channel")
+                        : form["displayName"].ToString().Trim(),
+                    Handle = string.IsNullOrWhiteSpace(username) ? "bot" : $"@{username}",
+                    IsConnected = true,
+                    ConnectedViaOAuth = true,
+                    AccountKind = kind,
+                    AccessToken = botToken,
+                    ExternalAccountId = chatId
+                }, kind);
+                if (SocialAccountKinds.IsAuthor(kind))
+                    store.AddSchedule(new SocialSchedule { Platform = "Telegram", PostsPerWeek = 1, RequiresApproval = true });
+                return Results.Redirect(returnUrl);
             }
 
             var simulatedToken = $"SIMULATED-{platformName.ToUpperInvariant()}-{Guid.NewGuid():N}";

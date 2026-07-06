@@ -33,6 +33,12 @@ class AppSettings
     public string TikTokClientKey { get; init; } = "";
     public string TikTokClientSecret { get; init; } = "";
 
+    public string PinterestAppId { get; init; } = "";
+    public string PinterestAppSecret { get; init; } = "";
+
+    public string TumblrConsumerKey { get; init; } = "";
+    public string TumblrConsumerSecret { get; init; } = "";
+
     public bool IsSendGridConfigured =>
         !string.IsNullOrWhiteSpace(SendGridApiKey) &&
         SendGridApiKey != "YOUR_SENDGRID_API_KEY_HERE" &&
@@ -78,6 +84,18 @@ class AppSettings
         TikTokClientKey != "YOUR_TIKTOK_CLIENT_KEY" &&
         !string.IsNullOrWhiteSpace(TikTokClientSecret) &&
         TikTokClientSecret != "YOUR_TIKTOK_CLIENT_SECRET";
+
+    public bool IsPinterestConfigured =>
+        !string.IsNullOrWhiteSpace(PinterestAppId) &&
+        PinterestAppId != "YOUR_PINTEREST_APP_ID" &&
+        !string.IsNullOrWhiteSpace(PinterestAppSecret) &&
+        PinterestAppSecret != "YOUR_PINTEREST_APP_SECRET";
+
+    public bool IsTumblrConfigured =>
+        !string.IsNullOrWhiteSpace(TumblrConsumerKey) &&
+        TumblrConsumerKey != "YOUR_TUMBLR_CONSUMER_KEY" &&
+        !string.IsNullOrWhiteSpace(TumblrConsumerSecret) &&
+        TumblrConsumerSecret != "YOUR_TUMBLR_CONSUMER_SECRET";
 
     public bool FacebookUsesConfigLogin =>
         string.Equals(FacebookOAuthMode, "config", StringComparison.OrdinalIgnoreCase);
@@ -288,7 +306,11 @@ class AppSettings
             RedditClientId = CleanSecret(config["Reddit:ClientId"]),
             RedditClientSecret = CleanSecret(config["Reddit:ClientSecret"]),
             TikTokClientKey = CleanSecret(config["TikTok:ClientKey"]),
-            TikTokClientSecret = CleanSecret(config["TikTok:ClientSecret"])
+            TikTokClientSecret = CleanSecret(config["TikTok:ClientSecret"]),
+            PinterestAppId = CleanSecret(config["Pinterest:AppId"]),
+            PinterestAppSecret = CleanSecret(config["Pinterest:AppSecret"]),
+            TumblrConsumerKey = CleanSecret(config["Tumblr:ConsumerKey"]),
+            TumblrConsumerSecret = CleanSecret(config["Tumblr:ConsumerSecret"])
         };
     }
 

@@ -220,180 +220,7 @@ static class OwnerPage
                 </div>
             </details>
 
-            <details class="owner-collapsible" id="owner-section-x-api"{open("x-api")}>
-                <summary class="owner-collapsible-heading">X (Twitter) API</summary>
-                <div class="panel owner-settings">
-                    {(store.IsXConfigured
-                        ? """<p class="notice success">X API: Connected. Authors and owner can use Sign in with X for live posting.</p>"""
-                        : $"""
-                            <p class="notice error">X is not configured yet. Authors cannot connect X until these Railway variables are set.</p>
-                            <ul class="plan-features">
-                                <li><strong>Client ID:</strong> {H.Encode(store.XClientIdStatus)}</li>
-                                <li><strong>Client secret:</strong> {H.Encode(store.XClientSecretStatus)}</li>
-                            </ul>
-                            """)}
-                    <p class="muted">Create a project at <a href="https://developer.x.com" target="_blank" rel="noopener">developer.x.com</a> with <strong>OAuth 2.0</strong> enabled and these settings:</p>
-                    <ul class="plan-features">
-                        <li><strong>Type:</strong> Web App, Confidential client</li>
-                        <li><strong>Callback URL:</strong> <code>{H.Encode(XService.CallbackUrl(appBaseUrl.TrimEnd('/')))}</code></li>
-                        <li><strong>Scopes:</strong> <code>{H.Encode(XService.Scopes)}</code></li>
-                    </ul>
-                    <p class="muted">Add Railway variables, then redeploy:</p>
-                    <ul class="plan-features">
-                        <li><code>X__ClientId</code></li>
-                        <li><code>X__ClientSecret</code></li>
-                    </ul>
-                    <p class="muted">Your X developer account must have API access that allows posting (paid tier may be required). Test from <strong>My Account → Connect X</strong> after deploy.</p>
-                </div>
-            </details>
-
-            <details class="owner-collapsible" id="owner-section-linkedin-api"{open("linkedin-api")}>
-                <summary class="owner-collapsible-heading">LinkedIn API</summary>
-                <div class="panel owner-settings">
-                    {(store.IsLinkedInConfigured
-                        ? """<p class="notice success">LinkedIn API: Connected. Authors and owner can use Sign in with LinkedIn for live posting.</p>"""
-                        : $"""
-                            <p class="notice error">LinkedIn is not configured yet. Authors cannot connect LinkedIn until these Railway variables are set.</p>
-                            <ul class="plan-features">
-                                <li><strong>Client ID:</strong> {H.Encode(store.LinkedInClientIdStatus)}</li>
-                                <li><strong>Client secret:</strong> {H.Encode(store.LinkedInClientSecretStatus)}</li>
-                            </ul>
-                            """)}
-                    <p class="muted">Create an app at <a href="https://www.linkedin.com/developers/apps" target="_blank" rel="noopener">linkedin.com/developers</a> and enable these products:</p>
-                    <ul class="plan-features">
-                        <li><strong>Sign In with LinkedIn using OpenID Connect</strong></li>
-                        <li><strong>Share on LinkedIn</strong> (required for posting)</li>
-                    </ul>
-                    <p class="muted">Under <strong>Auth</strong> → <strong>OAuth 2.0 settings</strong>, add this redirect URL:</p>
-                    <ul class="plan-features">
-                        <li><code>{H.Encode(LinkedInService.CallbackUrl(appBaseUrl.TrimEnd('/')))}</code></li>
-                    </ul>
-                    <p class="muted">Requested scopes: <code>{H.Encode(LinkedInService.Scopes)}</code></p>
-                    <p class="muted">Add Railway variables, then redeploy:</p>
-                    <ul class="plan-features">
-                        <li><code>LinkedIn__ClientId</code></li>
-                        <li><code>LinkedIn__ClientSecret</code></li>
-                    </ul>
-                    <p class="muted">LinkedIn may require app review before <code>w_member_social</code> works in production. Test from <strong>My Account → Connect LinkedIn</strong> after deploy.</p>
-                </div>
-            </details>
-
-            <details class="owner-collapsible" id="owner-section-facebook-api"{open("facebook-api")}>
-                <summary class="owner-collapsible-heading">Facebook API</summary>
-                <div class="panel owner-settings">
-                    {(store.IsFacebookOAuthReady
-                        ? $"""<p class="notice success">Facebook API: Ready ({(store.Settings.FacebookUsesConfigLogin ? "config_id" : "scope")} OAuth mode).</p>"""
-                        : store.IsFacebookConfigured
-                            ? $"""
-                                <p class="notice error">Facebook credentials are set but OAuth is not ready.</p>
-                                <ul class="plan-features">
-                                    <li><strong>OAuth mode:</strong> {H.Encode(store.Settings.FacebookOAuthMode)} (scope = default; config needs Login Configuration ID)</li>
-                                    <li><strong>Login config ID:</strong> {H.Encode(store.FacebookLoginConfigIdStatus)}</li>
-                                </ul>
-                                """
-                            : $"""
-                            <p class="notice error">Facebook is not configured yet. Authors cannot connect Facebook until these Railway variables are set.</p>
-                            <ul class="plan-features">
-                                <li><strong>App ID:</strong> {H.Encode(store.FacebookAppIdStatus)}</li>
-                                <li><strong>App secret:</strong> {H.Encode(store.FacebookAppSecretStatus)}</li>
-                                <li><strong>OAuth mode:</strong> scope (default) or config</li>
-                            </ul>
-                            """)}
-                    <p class="muted">Create an app at <a href="https://developers.facebook.com" target="_blank" rel="noopener">developers.facebook.com</a> with use case <strong>Manage everything on your Page</strong>.</p>
-                    <p class="muted"><strong>OAuth mode:</strong> Default <code>scope</code> uses Page permissions directly (recommended). Use <code>config</code> only if Login for Business configuration is fully set up.</p>
-                    <ol class="plan-features">
-                        <li>Railway: <code>Facebook__OAuthMode=scope</code> (default) or <code>config</code></li>
-                        <li>Config mode only: Meta → <strong>Facebook Login for Business</strong> → <strong>Configurations</strong></li>
-                        <li><strong>Token type:</strong> User access token</li>
-                        <li><strong>Assets:</strong> Pages</li>
-                        <li><strong>Permissions:</strong> {string.Join(", ", FacebookService.LoginConfigurationPermissions)} (each must be <em>Ready for testing</em> under Use cases → Customize)</li>
-                        <li>Copy the <strong>Configuration ID</strong> → Railway variable <code>Facebook__LoginConfigId</code> (config mode only)</li>
-                    </ol>
-                    <ul class="plan-features">
-                        <li><strong>Meta app name:</strong> use <em>AuthorPromoter AI</em> (Meta blocks &ldquo;Book&rdquo; in app names)</li>
-                        <li><strong>App ID:</strong> {H.Encode(store.FacebookAppIdStatus)} (must be <code>1820670845576321</code> in Meta)</li>
-                        <li><strong>Login config ID:</strong> {H.Encode(store.FacebookLoginConfigIdStatus)}</li>
-                        <li><strong>Redirect URIs</strong> — OAuth uses the site URL you are browsing; add <em>all</em> of these in Meta under <strong>Facebook Login → Settings → Valid OAuth Redirect URIs</strong>:
-                            <ul class="plan-features">
-                                {string.Concat(PublicUrl.FacebookCallbackUrlsForMeta(store.Settings).Select(u => $"<li><code>{H.Encode(u)}</code></li>"))}
-                            </ul>
-                        </li>
-                        <li><strong>App domains</strong> (Settings → Basic): <code>bookpromoterai.us</code></li>
-                        <li><strong>Privacy policy URL</strong> (Settings → Basic): <code>https://bookpromoterai.us/privacy</code></li>
-                    </ul>
-                    <p class="muted"><strong>If Facebook shows &ldquo;Sorry, something went wrong&rdquo;</strong> (before any login screen), check in order:</p>
-                    <ol class="plan-features">
-                        <li><strong>App roles:</strong> App is Unpublished — only users listed under <strong>App roles → Administrators/Developers</strong> can connect. Add the Facebook account you use when authorizing (the one that admins the Book Promoter AI Page).</li>
-                        <li><strong>Redirect URI:</strong> Paste <em>every</em> URI listed above into Meta, click <strong>Save changes</strong>, wait 2–3 minutes, retry in a private window.</li>
-                        <li><strong>Go Live:</strong> Facebook Login for Business often fails in Development mode — switch app to <strong>Live</strong> in Meta (App Dashboard → publish) after basic settings are correct.</li>
-                        <li><strong>Login configuration:</strong> Token type = <strong>User access token</strong> (not System user). Assets = <strong>Pages</strong>. Config ID in Railway must match Meta exactly.</li>
-                        <li><strong>Permissions:</strong> Under <strong>Use cases → Customize</strong>, each permission must show <em>Ready for testing</em> (not &ldquo;Not added&rdquo;).</li>
-                        <li><strong>Facebook account:</strong> Log into facebook.com as the Page admin with an app role — not a different personal account.</li>
-                    </ol>
-                    <p class="muted">Add Railway variables, then redeploy:</p>
-                    <ul class="plan-features">
-                        <li><code>Facebook__AppId</code></li>
-                        <li><code>Facebook__AppSecret</code></li>
-                        <li><code>Facebook__LoginConfigId</code></li>
-                    </ul>
-                    <p class="muted">App stays <strong>Unpublished</strong> for testing as admin. Test brand posting from <strong>Owner → Brand Social → Connect Facebook</strong>.</p>
-                    <p class="muted"><strong>Login Configuration token type must be User access token</strong> (not System user). If Meta shows &ldquo;Continue as BookPromoter AI?&rdquo; you are logged into the business portfolio — log out and use your personal Facebook account (Melanie Botha).</p>
-                    {facebookDiagnosticsHtml}
-                </div>
-            </details>
-
-            <details class="owner-collapsible" id="owner-section-reddit-api"{open("reddit-api")}>
-                <summary class="owner-collapsible-heading">Reddit API</summary>
-                <div class="panel owner-settings">
-                    {(store.IsRedditConfigured
-                        ? """<p class="notice success">Reddit API: Ready.</p>"""
-                        : $"""
-                            <p class="notice error">Reddit is not configured yet.</p>
-                            <ul class="plan-features">
-                                <li><strong>Client ID:</strong> {H.Encode(store.RedditClientIdStatus)}</li>
-                                <li><strong>Client secret:</strong> {H.Encode(store.RedditClientSecretStatus)}</li>
-                            </ul>
-                            """)}
-                    <p class="muted">Create a <strong>web app</strong> at <a href="https://www.reddit.com/prefs/apps" target="_blank" rel="noopener">reddit.com/prefs/apps</a> (click <em>create another app...</em>).</p>
-                    <p class="muted">Add this redirect URL in your Reddit app:</p>
-                    <ul class="plan-features">
-                        {string.Concat(PublicUrl.RedditCallbackUrlsForMeta(store.Settings).Select(u => $"<li><code>{H.Encode(u)}</code></li>"))}
-                    </ul>
-                    <p class="muted">Requested scopes: <code>{H.Encode(RedditService.Scopes)}</code></p>
-                    <p class="muted">Add Railway variables, then redeploy:</p>
-                    <ul class="plan-features">
-                        <li><code>Reddit__ClientId</code></li>
-                        <li><code>Reddit__ClientSecret</code></li>
-                    </ul>
-                    <p class="muted">Authors and owner pick a subreddit when connecting. The first line of each post becomes the Reddit title.</p>
-                </div>
-            </details>
-
-            <details class="owner-collapsible" id="owner-section-tiktok-api"{open("tiktok-api")}>
-                <summary class="owner-collapsible-heading">TikTok API</summary>
-                <div class="panel owner-settings">
-                    {(store.IsTikTokConfigured
-                        ? """<p class="notice success">TikTok API: Ready.</p>"""
-                        : $"""
-                            <p class="notice error">TikTok is not configured yet.</p>
-                            <ul class="plan-features">
-                                <li><strong>Client key:</strong> {H.Encode(store.TikTokClientKeyStatus)}</li>
-                                <li><strong>Client secret:</strong> {H.Encode(store.TikTokClientSecretStatus)}</li>
-                            </ul>
-                            """)}
-                    <p class="muted">Register at <a href="https://developers.tiktok.com/" target="_blank" rel="noopener">developers.tiktok.com</a> and request <strong>Content Posting API</strong> scopes: <code>{H.Encode(TikTokService.Scopes)}</code>.</p>
-                    <p class="muted">OAuth redirect URL:</p>
-                    <ul class="plan-features">
-                        <li><code>{H.Encode(string.IsNullOrWhiteSpace(appBaseUrl) ? $"https://bookpromoterai.us{TikTokService.CallbackPath}" : TikTokService.CallbackUrl(appBaseUrl))}</code></li>
-                    </ul>
-                    <p class="muted">Verify domain <code>bookpromoterai.us</code> in TikTok Developer Portal for video pull uploads. Add Railway variables:</p>
-                    <ul class="plan-features">
-                        <li><code>TikTok__ClientKey</code></li>
-                        <li><code>TikTok__ClientSecret</code></li>
-                    </ul>
-                    <p class="muted">Authors use the <strong>Videos</strong> tab to create book promo videos and download them for manual posting. Direct TikTok API posting is not enabled yet.</p>
-                </div>
-            </details>
+            {ApiIntegrationsSection(store, appBaseUrl, facebookDiagnosticsHtml, activeSection)}
 
             <details class="owner-collapsible" id="owner-section-railway-cleanup"{open("railway-cleanup")}>
                 <summary class="owner-collapsible-heading">Railway Cleanup (Unused Services)</summary>
@@ -512,6 +339,221 @@ static class OwnerPage
 
     static string SectionOpen(string sectionId, string? activeSection) =>
         string.Equals(sectionId, activeSection, StringComparison.OrdinalIgnoreCase) ? " open" : "";
+
+    static readonly string[] ApiChildSections =
+        ["x-api", "linkedin-api", "facebook-api", "reddit-api", "tiktok-api"];
+
+    static string ApiParentOpen(string? activeSection) =>
+        string.Equals(activeSection, "apis", StringComparison.OrdinalIgnoreCase) ||
+        (activeSection is not null && ApiChildSections.Contains(activeSection, StringComparer.OrdinalIgnoreCase))
+            ? " open"
+            : "";
+
+    static string ApiIntegrationsSection(
+        AppStoreDb store, string appBaseUrl, string facebookDiagnosticsHtml, string? activeSection)
+    {
+        var open = (string id) => SectionOpen(id, activeSection);
+        var configured = new[]
+        {
+            store.IsXConfigured,
+            store.IsLinkedInConfigured,
+            store.IsFacebookOAuthReady,
+            store.IsRedditConfigured,
+            store.IsTikTokConfigured
+        }.Count(x => x);
+        var total = ApiChildSections.Length;
+        var summaryClass = configured == total ? "notice success" : configured > 0 ? "notice" : "notice error";
+
+        return $"""
+            <details class="owner-collapsible" id="owner-section-apis"{ApiParentOpen(activeSection)}>
+                <summary class="owner-collapsible-heading">Social Media APIs ({configured}/{total} ready)</summary>
+                <div class="owner-api-group">
+                    <p class="owner-api-summary {summaryClass}">
+                        Railway variables for live auto-posting. Expand a platform below for OAuth setup, callback URLs, and env var names.
+                    </p>
+                    <div class="owner-api-group-inner">
+                        <details class="owner-collapsible owner-collapsible-nested" id="owner-section-x-api"{open("x-api")}>
+                            <summary class="owner-collapsible-heading">X (Twitter){ApiStatusBadge(store.IsXConfigured)}</summary>
+                            <div class="panel owner-settings">
+                                {(store.IsXConfigured
+                                    ? """<p class="notice success">X API: Connected. Authors and owner can use Sign in with X for live posting.</p>"""
+                                    : $"""
+                                        <p class="notice error">X is not configured yet. Authors cannot connect X until these Railway variables are set.</p>
+                                        <ul class="plan-features">
+                                            <li><strong>Client ID:</strong> {H.Encode(store.XClientIdStatus)}</li>
+                                            <li><strong>Client secret:</strong> {H.Encode(store.XClientSecretStatus)}</li>
+                                        </ul>
+                                        """)}
+                                <p class="muted">Create a project at <a href="https://developer.x.com" target="_blank" rel="noopener">developer.x.com</a> with <strong>OAuth 2.0</strong> enabled and these settings:</p>
+                                <ul class="plan-features">
+                                    <li><strong>Type:</strong> Web App, Confidential client</li>
+                                    <li><strong>Callback URL:</strong> <code>{H.Encode(XService.CallbackUrl(appBaseUrl.TrimEnd('/')))}</code></li>
+                                    <li><strong>Scopes:</strong> <code>{H.Encode(XService.Scopes)}</code></li>
+                                </ul>
+                                <p class="muted">Add Railway variables, then redeploy:</p>
+                                <ul class="plan-features">
+                                    <li><code>X__ClientId</code></li>
+                                    <li><code>X__ClientSecret</code></li>
+                                </ul>
+                                <p class="muted">Your X developer account must have API access that allows posting (paid tier may be required). Test from <strong>My Account → Connect X</strong> after deploy.</p>
+                            </div>
+                        </details>
+
+                        <details class="owner-collapsible owner-collapsible-nested" id="owner-section-linkedin-api"{open("linkedin-api")}>
+                            <summary class="owner-collapsible-heading">LinkedIn{ApiStatusBadge(store.IsLinkedInConfigured)}</summary>
+                            <div class="panel owner-settings">
+                                {(store.IsLinkedInConfigured
+                                    ? """<p class="notice success">LinkedIn API: Connected. Authors and owner can use Sign in with LinkedIn for live posting.</p>"""
+                                    : $"""
+                                        <p class="notice error">LinkedIn is not configured yet. Authors cannot connect LinkedIn until these Railway variables are set.</p>
+                                        <ul class="plan-features">
+                                            <li><strong>Client ID:</strong> {H.Encode(store.LinkedInClientIdStatus)}</li>
+                                            <li><strong>Client secret:</strong> {H.Encode(store.LinkedInClientSecretStatus)}</li>
+                                        </ul>
+                                        """)}
+                                <p class="muted">Create an app at <a href="https://www.linkedin.com/developers/apps" target="_blank" rel="noopener">linkedin.com/developers</a> and enable these products:</p>
+                                <ul class="plan-features">
+                                    <li><strong>Sign In with LinkedIn using OpenID Connect</strong></li>
+                                    <li><strong>Share on LinkedIn</strong> (required for posting)</li>
+                                </ul>
+                                <p class="muted">Under <strong>Auth</strong> → <strong>OAuth 2.0 settings</strong>, add this redirect URL:</p>
+                                <ul class="plan-features">
+                                    <li><code>{H.Encode(LinkedInService.CallbackUrl(appBaseUrl.TrimEnd('/')))}</code></li>
+                                </ul>
+                                <p class="muted">Requested scopes: <code>{H.Encode(LinkedInService.Scopes)}</code></p>
+                                <p class="muted">Add Railway variables, then redeploy:</p>
+                                <ul class="plan-features">
+                                    <li><code>LinkedIn__ClientId</code></li>
+                                    <li><code>LinkedIn__ClientSecret</code></li>
+                                </ul>
+                                <p class="muted">LinkedIn may require app review before <code>w_member_social</code> works in production. Test from <strong>My Account → Connect LinkedIn</strong> after deploy.</p>
+                            </div>
+                        </details>
+
+                        <details class="owner-collapsible owner-collapsible-nested" id="owner-section-facebook-api"{open("facebook-api")}>
+                            <summary class="owner-collapsible-heading">Facebook{ApiStatusBadge(store.IsFacebookOAuthReady)}</summary>
+                            <div class="panel owner-settings">
+                                {(store.IsFacebookOAuthReady
+                                    ? $"""<p class="notice success">Facebook API: Ready ({(store.Settings.FacebookUsesConfigLogin ? "config_id" : "scope")} OAuth mode).</p>"""
+                                    : store.IsFacebookConfigured
+                                        ? $"""
+                                            <p class="notice error">Facebook credentials are set but OAuth is not ready.</p>
+                                            <ul class="plan-features">
+                                                <li><strong>OAuth mode:</strong> {H.Encode(store.Settings.FacebookOAuthMode)} (scope = default; config needs Login Configuration ID)</li>
+                                                <li><strong>Login config ID:</strong> {H.Encode(store.FacebookLoginConfigIdStatus)}</li>
+                                            </ul>
+                                            """
+                                        : $"""
+                                        <p class="notice error">Facebook is not configured yet. Authors cannot connect Facebook until these Railway variables are set.</p>
+                                        <ul class="plan-features">
+                                            <li><strong>App ID:</strong> {H.Encode(store.FacebookAppIdStatus)}</li>
+                                            <li><strong>App secret:</strong> {H.Encode(store.FacebookAppSecretStatus)}</li>
+                                            <li><strong>OAuth mode:</strong> scope (default) or config</li>
+                                        </ul>
+                                        """)}
+                                <p class="muted">Create an app at <a href="https://developers.facebook.com" target="_blank" rel="noopener">developers.facebook.com</a> with use case <strong>Manage everything on your Page</strong>.</p>
+                                <p class="muted"><strong>OAuth mode:</strong> Default <code>scope</code> uses Page permissions directly (recommended). Use <code>config</code> only if Login for Business configuration is fully set up.</p>
+                                <ol class="plan-features">
+                                    <li>Railway: <code>Facebook__OAuthMode=scope</code> (default) or <code>config</code></li>
+                                    <li>Config mode only: Meta → <strong>Facebook Login for Business</strong> → <strong>Configurations</strong></li>
+                                    <li><strong>Token type:</strong> User access token</li>
+                                    <li><strong>Assets:</strong> Pages</li>
+                                    <li><strong>Permissions:</strong> {string.Join(", ", FacebookService.LoginConfigurationPermissions)} (each must be <em>Ready for testing</em> under Use cases → Customize)</li>
+                                    <li>Copy the <strong>Configuration ID</strong> → Railway variable <code>Facebook__LoginConfigId</code> (config mode only)</li>
+                                </ol>
+                                <ul class="plan-features">
+                                    <li><strong>Meta app name:</strong> use <em>AuthorPromoter AI</em> (Meta blocks &ldquo;Book&rdquo; in app names)</li>
+                                    <li><strong>App ID:</strong> {H.Encode(store.FacebookAppIdStatus)} (must be <code>1820670845576321</code> in Meta)</li>
+                                    <li><strong>Login config ID:</strong> {H.Encode(store.FacebookLoginConfigIdStatus)}</li>
+                                    <li><strong>Redirect URIs</strong> — OAuth uses the site URL you are browsing; add <em>all</em> of these in Meta under <strong>Facebook Login → Settings → Valid OAuth Redirect URIs</strong>:
+                                        <ul class="plan-features">
+                                            {string.Concat(PublicUrl.FacebookCallbackUrlsForMeta(store.Settings).Select(u => $"<li><code>{H.Encode(u)}</code></li>"))}
+                                        </ul>
+                                    </li>
+                                    <li><strong>App domains</strong> (Settings → Basic): <code>bookpromoterai.us</code></li>
+                                    <li><strong>Privacy policy URL</strong> (Settings → Basic): <code>https://bookpromoterai.us/privacy</code></li>
+                                </ul>
+                                <p class="muted"><strong>If Facebook shows &ldquo;Sorry, something went wrong&rdquo;</strong> (before any login screen), check in order:</p>
+                                <ol class="plan-features">
+                                    <li><strong>App roles:</strong> App is Unpublished — only users listed under <strong>App roles → Administrators/Developers</strong> can connect. Add the Facebook account you use when authorizing (the one that admins the Book Promoter AI Page).</li>
+                                    <li><strong>Redirect URI:</strong> Paste <em>every</em> URI listed above into Meta, click <strong>Save changes</strong>, wait 2–3 minutes, retry in a private window.</li>
+                                    <li><strong>Go Live:</strong> Facebook Login for Business often fails in Development mode — switch app to <strong>Live</strong> in Meta (App Dashboard → publish) after basic settings are correct.</li>
+                                    <li><strong>Login configuration:</strong> Token type = <strong>User access token</strong> (not System user). Assets = <strong>Pages</strong>. Config ID in Railway must match Meta exactly.</li>
+                                    <li><strong>Permissions:</strong> Under <strong>Use cases → Customize</strong>, each permission must show <em>Ready for testing</em> (not &ldquo;Not added&rdquo;).</li>
+                                    <li><strong>Facebook account:</strong> Log into facebook.com as the Page admin with an app role — not a different personal account.</li>
+                                </ol>
+                                <p class="muted">Add Railway variables, then redeploy:</p>
+                                <ul class="plan-features">
+                                    <li><code>Facebook__AppId</code></li>
+                                    <li><code>Facebook__AppSecret</code></li>
+                                    <li><code>Facebook__LoginConfigId</code></li>
+                                </ul>
+                                <p class="muted">App stays <strong>Unpublished</strong> for testing as admin. Test brand posting from <strong>Owner → Brand Social → Connect Facebook</strong>.</p>
+                                <p class="muted"><strong>Login Configuration token type must be User access token</strong> (not System user). If Meta shows &ldquo;Continue as BookPromoter AI?&rdquo; you are logged into the business portfolio — log out and use your personal Facebook account (Melanie Botha).</p>
+                                {facebookDiagnosticsHtml}
+                            </div>
+                        </details>
+
+                        <details class="owner-collapsible owner-collapsible-nested" id="owner-section-reddit-api"{open("reddit-api")}>
+                            <summary class="owner-collapsible-heading">Reddit{ApiStatusBadge(store.IsRedditConfigured)}</summary>
+                            <div class="panel owner-settings">
+                                {(store.IsRedditConfigured
+                                    ? """<p class="notice success">Reddit API: Ready.</p>"""
+                                    : $"""
+                                        <p class="notice error">Reddit is not configured yet.</p>
+                                        <ul class="plan-features">
+                                            <li><strong>Client ID:</strong> {H.Encode(store.RedditClientIdStatus)}</li>
+                                            <li><strong>Client secret:</strong> {H.Encode(store.RedditClientSecretStatus)}</li>
+                                        </ul>
+                                        """)}
+                                <p class="muted">Create a <strong>web app</strong> at <a href="https://www.reddit.com/prefs/apps" target="_blank" rel="noopener">reddit.com/prefs/apps</a> (click <em>create another app...</em>).</p>
+                                <p class="muted">Add this redirect URL in your Reddit app:</p>
+                                <ul class="plan-features">
+                                    {string.Concat(PublicUrl.RedditCallbackUrlsForMeta(store.Settings).Select(u => $"<li><code>{H.Encode(u)}</code></li>"))}
+                                </ul>
+                                <p class="muted">Requested scopes: <code>{H.Encode(RedditService.Scopes)}</code></p>
+                                <p class="muted">Add Railway variables, then redeploy:</p>
+                                <ul class="plan-features">
+                                    <li><code>Reddit__ClientId</code></li>
+                                    <li><code>Reddit__ClientSecret</code></li>
+                                </ul>
+                                <p class="muted">Authors and owner pick a subreddit when connecting. The first line of each post becomes the Reddit title.</p>
+                            </div>
+                        </details>
+
+                        <details class="owner-collapsible owner-collapsible-nested" id="owner-section-tiktok-api"{open("tiktok-api")}>
+                            <summary class="owner-collapsible-heading">TikTok{ApiStatusBadge(store.IsTikTokConfigured)}</summary>
+                            <div class="panel owner-settings">
+                                {(store.IsTikTokConfigured
+                                    ? """<p class="notice success">TikTok API: Ready.</p>"""
+                                    : $"""
+                                        <p class="notice error">TikTok is not configured yet.</p>
+                                        <ul class="plan-features">
+                                            <li><strong>Client key:</strong> {H.Encode(store.TikTokClientKeyStatus)}</li>
+                                            <li><strong>Client secret:</strong> {H.Encode(store.TikTokClientSecretStatus)}</li>
+                                        </ul>
+                                        """)}
+                                <p class="muted">Register at <a href="https://developers.tiktok.com/" target="_blank" rel="noopener">developers.tiktok.com</a> and request <strong>Content Posting API</strong> scopes: <code>{H.Encode(TikTokService.Scopes)}</code>.</p>
+                                <p class="muted">OAuth redirect URL:</p>
+                                <ul class="plan-features">
+                                    <li><code>{H.Encode(string.IsNullOrWhiteSpace(appBaseUrl) ? $"https://bookpromoterai.us{TikTokService.CallbackPath}" : TikTokService.CallbackUrl(appBaseUrl))}</code></li>
+                                </ul>
+                                <p class="muted">Verify domain <code>bookpromoterai.us</code> in TikTok Developer Portal for video pull uploads. Add Railway variables:</p>
+                                <ul class="plan-features">
+                                    <li><code>TikTok__ClientKey</code></li>
+                                    <li><code>TikTok__ClientSecret</code></li>
+                                </ul>
+                                <p class="muted">Authors use the <strong>Videos</strong> tab to create book promo videos and download them for manual posting. Direct TikTok API posting is not enabled yet.</p>
+                            </div>
+                        </details>
+                    </div>
+                </div>
+            </details>
+            """;
+    }
+
+    static string ApiStatusBadge(bool ready) =>
+        ready ? """ <span class="owner-api-badge ready">ready</span>""" : """ <span class="owner-api-badge pending">setup</span>""";
 
     const string OwnerScrollScript = """
         <script>

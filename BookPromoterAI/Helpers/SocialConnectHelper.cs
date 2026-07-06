@@ -53,14 +53,6 @@ static class SocialConnectHelper
         var buttons = new StringBuilder();
         foreach (var platform in DefaultPlatforms)
         {
-            if (IsPlatformDisabled(platform, settings))
-            {
-                var reason = DisabledPlatformReason(platform, settings);
-                buttons.Append($"""
-                    <span class="button platform-disabled" title="{H.Encode(reason)}">{H.Encode(DisabledPlatformLabel(platform, settings))}</span>
-                    """);
-                continue;
-            }
             var color = SocialPlatforms.Color(platform);
             var href = $"/social-accounts/connect/{Uri.EscapeDataString(platform)}?return={Uri.EscapeDataString(returnUrl)}";
             buttons.Append($"""
@@ -74,8 +66,6 @@ static class SocialConnectHelper
 
     public static string RenderPlatformOption(string value, bool selected = false, AppSettings? settings = null)
     {
-        if (IsPlatformDisabled(value, settings))
-            return $"""<option value="" disabled>{H.Encode(DisabledPlatformLabel(value, settings))}</option>""";
         var sel = selected ? " selected" : "";
         return $"""<option value="{H.Encode(value)}"{sel}>{H.Encode(value)}</option>""";
     }
@@ -112,17 +102,15 @@ static class SocialConnectHelper
         if (PostLimits.IsTikTok(platformName))
             return TikTokSetupPage(returnUrl, notice, settings);
 
-        if (IsPlatformDisabled(platformName, settings))
-        {
-            var reason = DisabledPlatformReason(platformName);
-            return $"""
-                <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>{H.Encode(DisabledPlatformLabel(platformName))}</h1></div></section>
-                <section class="panel">
-                    <p class="notice error">{H.Encode(char.ToUpper(reason[0]) + reason[1..])}.</p>
-                    <a class="button secondary" href="{H.Encode(returnUrl)}">Back</a>
-                </section>
-                """;
-        }
+        if (PostLimits.IsMastodon(platformName))
+            return MastodonConnectPage(returnUrl, notice, brandContext);
+
+        if (PostLimits.IsDiscord(platformName))
+            return DiscordConnectPage(returnUrl, notice, brandContext);
+
+        if (PostLimits.IsTelegram(platformName))
+            return TelegramConnectPage(returnUrl, notice, brandContext);
+
         var brand = SocialPlatforms.Brand(platformName);
         var cancelHref = returnUrl;
         var contextNote = brandContext
@@ -203,7 +191,7 @@ static class SocialConnectHelper
                 """
             : """
                 <p class="notice error">X API credentials are not configured yet. The app owner must add them in Railway before authors can connect.</p>
-                <p class="muted">Owner: open <strong>Owner → X (Twitter) API</strong> for setup steps.</p>
+                <p class="muted">Owner: open <strong>Owner → Social Media APIs → X (Twitter)</strong> for setup steps.</p>
                 <a class="button secondary" href="/my-account">Back</a>
                 """;
         return $"""
@@ -243,7 +231,7 @@ static class SocialConnectHelper
                 """
             : """
                 <p class="notice error">LinkedIn API credentials are not configured yet. The app owner must add them in Railway before authors can connect.</p>
-                <p class="muted">Owner: open <strong>Owner → LinkedIn API</strong> for setup steps.</p>
+                <p class="muted">Owner: open <strong>Owner → Social Media APIs → LinkedIn</strong> for setup steps.</p>
                 <a class="button secondary" href="/my-account">Back</a>
                 """;
         return $"""
@@ -295,13 +283,13 @@ static class SocialConnectHelper
         var brandConnectBlock = !configured
             ? """
                 <p class="notice error">Facebook API credentials are not configured yet. The app owner must add them in Railway before authors can connect.</p>
-                <p class="muted">Owner: open <strong>Owner → Facebook API</strong> for setup steps.</p>
+                <p class="muted">Owner: open <strong>Owner → Social Media APIs → Facebook</strong> for setup steps.</p>
                 <a class="button secondary" href="/my-account">Back</a>
                 """
             : settings?.IsBrandFacebookOAuthReady != true
                 ? """
                     <p class="notice error">Facebook API credentials are not configured yet.</p>
-                    <p class="muted">Owner: open <strong>Owner → Facebook API</strong> for setup steps.</p>
+                    <p class="muted">Owner: open <strong>Owner → Social Media APIs → Facebook</strong> for setup steps.</p>
                     <a class="button secondary" href="/owner-promos?section=owner-social">Back</a>
                     """
                 : settings.FacebookUsesConfigLogin
@@ -449,7 +437,7 @@ static class SocialConnectHelper
                 """
             : """
                 <p class="notice error">Reddit API credentials are not configured yet. The app owner must add them in Railway before authors can connect.</p>
-                <p class="muted">Owner: open <strong>Owner → Reddit API</strong> for setup steps.</p>
+                <p class="muted">Owner: open <strong>Owner → Social Media APIs → Reddit</strong> for setup steps.</p>
                 <a class="button secondary" href="/my-account">Back</a>
                 """;
         return $"""
@@ -525,6 +513,82 @@ static class SocialConnectHelper
                     <li><strong>Meta Login Configuration</strong> must use token type <em>User access token</em> (not System user) and Assets = Pages.</li>
                 </ul>
             </details>
+            """;
+    }
+
+    public static string MastodonConnectPage(string returnUrl, string? notice, bool brandContext = false)
+    {
+        var brand = SocialPlatforms.Brand("Mastodon");
+        var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<p class="notice">{H.Encode(notice)}</p>""";
+        var contextNote = brandContext
+            ? """<p class="muted">Brand account — app promotions only.</p>"""
+            : """<p class="muted">Author account — posts from your Ad Library schedule.</p>""";
+        return $"""
+            <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>Connect Mastodon</h1></div></section>
+            <section class="panel oauth-panel">
+                <div class="oauth-platform-badge" style="background:{brand.Color}">{H.Encode(brand.Initial)}</div>
+                <h2>Your Mastodon instance</h2>
+                {contextNote}
+                {noticeHtml}
+                <p class="muted">Enter the server where your account lives (e.g. <code>mastodon.social</code>). We register BookPromoter AI with that instance and redirect you to approve posting.</p>
+                <form method="post" action="/social-accounts/connect/Mastodon/start" class="form">
+                    <input type="hidden" name="return" value="{H.Encode(returnUrl)}">
+                    <label>Instance host <input name="instance" placeholder="mastodon.social" required></label>
+                    <div class="form-actions">
+                        <button class="button" type="submit" style="background:{brand.Color}">Continue to Mastodon</button>
+                        <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
+                    </div>
+                </form>
+            </section>
+            """;
+    }
+
+    public static string DiscordConnectPage(string returnUrl, string? notice, bool brandContext = false)
+    {
+        var brand = SocialPlatforms.Brand("Discord");
+        var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<p class="notice">{H.Encode(notice)}</p>""";
+        return $"""
+            <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>Connect Discord</h1></div></section>
+            <section class="panel oauth-panel">
+                <div class="oauth-platform-badge" style="background:{brand.Color}">{H.Encode(brand.Initial)}</div>
+                <h2>Channel webhook</h2>
+                {noticeHtml}
+                <p class="muted">Create a webhook in your Discord channel (Channel settings → Integrations → Webhooks). BookPromoter AI will post scheduled promos there automatically.</p>
+                <form method="post" action="/social-accounts/oauth-callback/Discord" class="form">
+                    <input type="hidden" name="return" value="{H.Encode(returnUrl)}">
+                    <label>Display name <input name="displayName" value="Discord Channel"></label>
+                    <label>Webhook URL <input name="webhookUrl" type="url" placeholder="https://discord.com/api/webhooks/..." required></label>
+                    <div class="form-actions">
+                        <button class="button" type="submit" style="background:{brand.Color}">Connect &amp; save</button>
+                        <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
+                    </div>
+                </form>
+            </section>
+            """;
+    }
+
+    public static string TelegramConnectPage(string returnUrl, string? notice, bool brandContext = false)
+    {
+        var brand = SocialPlatforms.Brand("Telegram");
+        var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<p class="notice">{H.Encode(notice)}</p>""";
+        return $"""
+            <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>Connect Telegram</h1></div></section>
+            <section class="panel oauth-panel">
+                <div class="oauth-platform-badge" style="background:{brand.Color}">{H.Encode(brand.Initial)}</div>
+                <h2>Bot + channel</h2>
+                {noticeHtml}
+                <p class="muted">Create a bot via <strong>@BotFather</strong>, add it to your channel as admin, then paste the bot token and channel chat ID (often <code>-100…</code> for channels).</p>
+                <form method="post" action="/social-accounts/oauth-callback/Telegram" class="form">
+                    <input type="hidden" name="return" value="{H.Encode(returnUrl)}">
+                    <label>Display name <input name="displayName" value="Telegram Channel"></label>
+                    <label>Bot token <input name="botToken" placeholder="123456:ABC..." required autocomplete="off"></label>
+                    <label>Chat ID <input name="chatId" placeholder="-1001234567890" required></label>
+                    <div class="form-actions">
+                        <button class="button" type="submit" style="background:{brand.Color}">Connect &amp; save</button>
+                        <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
+                    </div>
+                </form>
+            </section>
             """;
     }
 }

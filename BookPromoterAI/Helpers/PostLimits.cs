@@ -24,7 +24,11 @@ static class PostLimits
         ["Twitter"] = XMaxGraphemes,
         ["LinkedIn"] = LinkedInMaxGraphemes,
         ["Reddit"] = RedditMaxGraphemes,
+        ["Mastodon"] = MastodonMaxGraphemes,
     };
+
+    /// <summary>Mastodon default post limit.</summary>
+    public const int MastodonMaxGraphemes = 500;
 
     public static int? GetMaxGraphemes(string platform)
     {
@@ -136,8 +140,18 @@ static class PostLimits
     public static bool IsTikTok(string platform) =>
         platform.Equals("TikTok", StringComparison.OrdinalIgnoreCase);
 
+    public static bool IsMastodon(string platform) =>
+        platform.Equals("Mastodon", StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsDiscord(string platform) =>
+        platform.Equals("Discord", StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsTelegram(string platform) =>
+        platform.Equals("Telegram", StringComparison.OrdinalIgnoreCase);
+
     public static bool RequiresLiveConnection(string platform) =>
-        IsBluesky(platform) || IsX(platform) || IsLinkedIn(platform) || IsFacebook(platform) || IsReddit(platform);
+        IsBluesky(platform) || IsX(platform) || IsLinkedIn(platform) || IsFacebook(platform) ||
+        IsReddit(platform) || IsMastodon(platform) || IsDiscord(platform) || IsTelegram(platform);
 
     public static string LiveReconnectHint(string platform)
     {
@@ -151,6 +165,12 @@ static class PostLimits
             return "Facebook is not connected for live posting. In My Account, remove your Facebook account and reconnect with Sign in with Facebook.";
         if (IsReddit(platform))
             return "Reddit is not connected for live posting. In My Account, remove your Reddit account and reconnect with Sign in with Reddit.";
+        if (IsMastodon(platform))
+            return "Mastodon is not connected for live posting. In My Account, remove your Mastodon account and reconnect.";
+        if (IsDiscord(platform))
+            return "Discord is not connected for live posting. In My Account, reconnect with your channel webhook URL.";
+        if (IsTelegram(platform))
+            return "Telegram is not connected for live posting. In My Account, reconnect with your bot token and chat ID.";
         return $"Connect {platform} for live posting in My Account.";
     }
 
@@ -166,6 +186,12 @@ static class PostLimits
             return "Reconnect Facebook with Sign in with Facebook in My Account to use Post now.";
         if (IsReddit(platform))
             return "Reconnect Reddit with Sign in with Reddit in My Account to use Post now.";
+        if (IsMastodon(platform))
+            return "Reconnect Mastodon in My Account to use Post now.";
+        if (IsDiscord(platform))
+            return "Reconnect Discord with your webhook URL in My Account to use Post now.";
+        if (IsTelegram(platform))
+            return "Reconnect Telegram with your bot token in My Account to use Post now.";
         return $"Reconnect {platform} in My Account to use Post now.";
     }
 
@@ -176,6 +202,9 @@ static class PostLimits
         if (IsX(a) && IsX(b)) return true;
         if (IsLinkedIn(a) && IsLinkedIn(b)) return true;
         if (IsFacebook(a) && IsFacebook(b)) return true;
+        if (IsMastodon(a) && IsMastodon(b)) return true;
+        if (IsDiscord(a) && IsDiscord(b)) return true;
+        if (IsTelegram(a) && IsTelegram(b)) return true;
         return IsReddit(a) && IsReddit(b);
     }
 }
