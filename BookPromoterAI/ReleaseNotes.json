@@ -1,4 +1,12 @@
 {
+  "1.11.1": {
+    "title": "BookPromoter AI v1.11.1 — What's new",
+    "updated": [
+      "Fixed Railway deploy healthcheck failure on the Videos route (PostGenerator parameter binding)"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.11.0": {
     "title": "BookPromoter AI v1.11.0 — What's new",
     "updated": [

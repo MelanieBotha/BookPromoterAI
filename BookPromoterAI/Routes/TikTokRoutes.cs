@@ -7,7 +7,7 @@ static class TikTokRoutes
         app.MapGet("/tiktok", (HttpRequest request) =>
             Results.Redirect("/videos" + request.QueryString));
 
-        app.MapGet("/videos", async (HttpRequest request, HttpContext http, AppStoreDb store, PostGenerator generator, AppSettings settings, VideoRenderService renderer, UploadPaths uploads) =>
+        app.MapGet("/videos", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings, VideoRenderService renderer, UploadPaths uploads) =>
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
             var baseUrl = PublicUrl.Base(request, settings);
