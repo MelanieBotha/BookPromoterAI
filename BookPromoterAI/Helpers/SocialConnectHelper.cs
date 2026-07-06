@@ -6,74 +6,29 @@ static class SocialConnectHelper
 {
     public const string OwnerReturnPath = "/owner-promos";
 
-    public static readonly string[] DefaultPlatforms =
-        ["Facebook", "X", "Reddit", "LinkedIn", "Pinterest", "TikTok", "Bluesky"];
+    public static string[] DefaultPlatforms => SocialPlatforms.ConnectNames.ToArray();
 
     /// <summary>Platforms with live OAuth or app-password connect and posting.</summary>
-    public static bool IsPlatformLive(string? platform, AppSettings? settings = null)
-    {
-        if (string.IsNullOrWhiteSpace(platform)) return false;
-        var p = NormalizePlatformName(platform);
-        if (PostLimits.IsFacebook(p) || PostLimits.IsBluesky(p) || PostLimits.IsX(p) || PostLimits.IsLinkedIn(p))
-            return true;
-        if (PostLimits.IsReddit(p))
-            return settings?.IsRedditConfigured == true;
-        return false;
-    }
+    public static bool IsPlatformLive(string? platform, AppSettings? settings = null) =>
+        SocialPlatforms.IsLive(platform, settings);
 
-    public static bool IsPlatformDisabled(string? platform, AppSettings? settings = null)
-    {
-        if (string.IsNullOrWhiteSpace(platform)) return false;
-        var p = NormalizePlatformName(platform);
-        if (p.Equals("TikTok", StringComparison.OrdinalIgnoreCase) ||
-            p.Equals("Pinterest", StringComparison.OrdinalIgnoreCase))
-            return true;
-        if (p.Equals("Reddit", StringComparison.OrdinalIgnoreCase))
-            return settings?.IsRedditConfigured != true;
-        return false;
-    }
+    public static bool IsPlatformDisabled(string? platform, AppSettings? settings = null) =>
+        SocialPlatforms.IsDisabled(platform, settings);
 
-    public static string DisabledPlatformReason(string platform, AppSettings? settings = null)
-    {
-        var p = NormalizePlatformName(platform);
-        return p switch
-        {
-            "TikTok" => "video only — coming soon",
-            "Pinterest" => "coming soon",
-            "Reddit" => "pending Reddit API approval",
-            _ => "coming soon"
-        };
-    }
+    public static string DisabledPlatformReason(string platform, AppSettings? settings = null) =>
+        SocialPlatforms.DisabledReason(platform);
 
     public static string DisabledPlatformLabel(string platform, AppSettings? settings = null) =>
         $"{DisplayPlatformName(platform)} ({DisabledPlatformReason(platform, settings)})";
 
     static string DisplayPlatformName(string platform) =>
-        NormalizePlatformName(platform) switch
+        SocialPlatforms.NormalizeName(platform) switch
         {
             "X" => "X",
             _ => platform.Trim()
         };
 
-    static string NormalizePlatformName(string platform)
-    {
-        if (platform.StartsWith("X (", StringComparison.OrdinalIgnoreCase) ||
-            platform.Equals("Twitter", StringComparison.OrdinalIgnoreCase) ||
-            platform.Equals("X (Twitter)", StringComparison.OrdinalIgnoreCase))
-            return "X";
-        return platform.Trim();
-    }
-
-    static readonly Dictionary<string, string> PlatformColors = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["Facebook"] = "#1877F2",
-        ["X"] = "#000000",
-        ["Reddit"] = "#FF4500",
-        ["LinkedIn"] = "#0A66C2",
-        ["Pinterest"] = "#E60023",
-        ["TikTok"] = "#000000",
-        ["Bluesky"] = "#0085FF"
-    };
+    static string NormalizePlatformName(string platform) => SocialPlatforms.NormalizeName(platform);
 
     public static string ResolveReturnUrl(HttpRequest request, string? formReturn = null)
     {
@@ -105,7 +60,7 @@ static class SocialConnectHelper
                     """);
                 continue;
             }
-            var color = PlatformColors.TryGetValue(platform, out var c) ? c : "#0f766e";
+            var color = SocialPlatforms.Color(platform);
             var href = $"/social-accounts/connect/{Uri.EscapeDataString(platform)}?return={Uri.EscapeDataString(returnUrl)}";
             buttons.Append($"""
                 <a class="button" href="{href}" style="background:{color}">
@@ -126,9 +81,13 @@ static class SocialConnectHelper
 
     public static string NextPlatformHint(AppSettings? settings = null)
     {
-        if (settings?.IsRedditConfigured != true)
-            return """<p class="muted small-text">Greyed-out platforms are not ready yet. <strong>Next: Reddit</strong> (waiting on Reddit API approval), then <strong>Pinterest</strong>.</p>""";
-        return """<p class="muted small-text">Greyed-out platforms are not ready yet. <strong>Next: Pinterest</strong>.</p>""";
+        var next = SocialPlatforms.NextPlatformName(settings);
+        if (next is null) return "";
+        var reason = SocialPlatforms.DisabledReason(next);
+        var after = SocialPlatforms.NextPlatformAfter(next, settings);
+        if (after is not null)
+            return $"""<p class="muted small-text">Greyed-out platforms are not ready yet. <strong>Next: {H.Encode(next)}</strong> ({H.Encode(reason)}), then <strong>{H.Encode(after)}</strong>.</p>""";
+        return $"""<p class="muted small-text">Greyed-out platforms are not ready yet. <strong>Next: {H.Encode(next)}</strong>.</p>""";
     }
 
     public static string OAuthAuthorizePage(string platformName, string returnUrl, string notice = "", AppSettings? settings = null)
@@ -160,13 +119,7 @@ static class SocialConnectHelper
                 </section>
                 """;
         }
-        var brands = new Dictionary<string, (string Color, string Initial)>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["Facebook"] = ("#1877F2", "f"), ["X"] = ("#000000", "X"), ["Reddit"] = ("#FF4500", "R"),
-            ["LinkedIn"] = ("#0A66C2", "in"), ["Pinterest"] = ("#E60023", "P"), ["TikTok"] = ("#000000", "T"),
-            ["Bluesky"] = ("#0085FF", "B"),
-        };
-        var brand = brands.TryGetValue(platformName, out var b) ? b : ("#0f766e", platformName.Length > 0 ? platformName[0].ToString() : "?");
+        var brand = SocialPlatforms.Brand(platformName);
         var cancelHref = returnUrl;
         var contextNote = brandContext
             ? """<p class="muted">BookPromoter AI brand account — for app promotions only, separate from author book accounts.</p>"""
@@ -174,7 +127,7 @@ static class SocialConnectHelper
         return $"""
             <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>Connect your {H.Encode(platformName)} account.</h1></div></section>
             <section class="panel oauth-panel">
-                <div class="oauth-platform-badge" style="background:{brand.Item1}">{H.Encode(brand.Item2)}</div>
+                <div class="oauth-platform-badge" style="background:{brand.Color}">{H.Encode(brand.Initial)}</div>
                 <h2>Authorize BookPromoter AI</h2>
                 {contextNote}
                 <p class="muted">In a live deployment, this redirects you to {H.Encode(platformName)}'s login screen. Real API credentials are not yet configured — enter details below to simulate a connection.</p>
@@ -183,7 +136,7 @@ static class SocialConnectHelper
                     <label>Display Name <input name="displayName" value="{H.Encode(platformName)} Account"></label>
                     <label>Handle <input name="handle" placeholder="yourauthorname" required></label>
                     <div class="form-actions">
-                        <button class="button" type="submit" style="background:{brand.Item1}">Simulate &amp; Connect</button>
+                        <button class="button" type="submit" style="background:{brand.Color}">Simulate &amp; Connect</button>
                         <a class="button secondary" href="{H.Encode(cancelHref)}">Cancel</a>
                     </div>
                 </form>
