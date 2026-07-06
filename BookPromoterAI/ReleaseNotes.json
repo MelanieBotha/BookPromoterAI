@@ -1,4 +1,13 @@
 {
+  "1.11.2": {
+    "title": "BookPromoter AI v1.11.2 — What's new",
+    "updated": [
+      "Fixed weekly narrated videos failing with read-aloud unavailable — locate espeak-ng/ffmpeg by full path in Docker",
+      "Failed videos from this week auto-retry when you open Videos or on the next scheduler run"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.11.1": {
     "title": "BookPromoter AI v1.11.1 — What's new",
     "updated": [

@@ -8,6 +8,9 @@ namespace BookPromoterAI;
 class LocalSpeechService
 {
     static readonly Regex SafeText = new(@"[^\p{L}\p{N}\p{P}\p{Z}]", RegexOptions.Compiled);
+    string? _espeakPath;
+
+    public bool IsAvailable => EspeakPath() is not null;
 
     public async Task<(byte[]? Wav, double DurationMs, string? Error)> SynthesizeAsync(
         string text, CancellationToken cancellationToken = default)
@@ -53,7 +56,7 @@ class LocalSpeechService
             var psi = new ProcessStartInfo
             {
                 FileName = "powershell",
-                Arguments = $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -File {QuoteArg(tempPs1)}",
+                Arguments = $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -File {ProcessTools.QuoteArg(tempPs1)}",
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
@@ -79,10 +82,10 @@ class LocalSpeechService
         }
     }
 
-    static async Task<(byte[]? Wav, double DurationMs, string? Error)> SynthesizeEspeakAsync(
+    async Task<(byte[]? Wav, double DurationMs, string? Error)> SynthesizeEspeakAsync(
         string text, CancellationToken cancellationToken)
     {
-        var espeak = FindEspeak();
+        var espeak = EspeakPath();
         if (espeak is null)
             return (null, 0, "Read-aloud is not available on this server yet. Try the Promo video style instead.");
 
@@ -94,7 +97,7 @@ class LocalSpeechService
             var psi = new ProcessStartInfo
             {
                 FileName = espeak,
-                Arguments = $"-v en-us -s 165 -w {QuoteArg(tempWav)} -f {QuoteArg(tempTxt)}",
+                Arguments = $"-v en-us -s 165 -w {ProcessTools.QuoteArg(tempWav)} -f {ProcessTools.QuoteArg(tempTxt)}",
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
@@ -117,29 +120,11 @@ class LocalSpeechService
         }
     }
 
-    static string? FindEspeak()
-    {
-        foreach (var name in new[] { "espeak-ng", "espeak" })
-        {
-            try
-            {
-                var psi = new ProcessStartInfo
-                {
-                    FileName = name,
-                    Arguments = "--version",
-                    RedirectStandardOutput = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                using var p = Process.Start(psi);
-                if (p is null) continue;
-                p.WaitForExit(3000);
-                if (p.ExitCode == 0) return name;
-            }
-            catch { /* try next */ }
-        }
-        return null;
-    }
+    string? EspeakPath() => _espeakPath ??= ProcessTools.FindExecutable(
+        "/usr/bin/espeak-ng",
+        "/usr/bin/espeak",
+        "espeak-ng",
+        "espeak");
 
     static double WavDurationMs(byte[] wav)
     {
@@ -161,9 +146,6 @@ class LocalSpeechService
         }
         return -1;
     }
-
-    static string QuoteArg(string value) =>
-        OperatingSystem.IsWindows() ? $"\"{value.Replace("\"", "\\\"")}\"" : value;
 
     static void TryDelete(string path)
     {

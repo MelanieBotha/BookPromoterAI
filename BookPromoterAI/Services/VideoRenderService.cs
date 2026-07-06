@@ -10,6 +10,7 @@ class VideoRenderService
     readonly LocalSpeechService _speech;
     readonly IHttpClientFactory _httpFactory;
     readonly AppSettings _settings;
+    string? _ffmpegPath;
 
     public VideoRenderService(LocalSpeechService speech, IHttpClientFactory httpFactory, AppSettings settings)
     {
@@ -120,10 +121,10 @@ class VideoRenderService
         return $"{(int)t.TotalHours:00}:{t.Minutes:00}:{t.Seconds:00},{t.Milliseconds:000}";
     }
 
-    static async Task<bool> RunFfmpegAsync(
+    async Task<bool> RunFfmpegAsync(
         string coverPath, string wavPath, string srtPath, string outPath, int frames, CancellationToken cancellationToken)
     {
-        var ffmpeg = FindFfmpeg();
+        var ffmpeg = FfmpegPath();
         if (ffmpeg is null) return false;
 
         var srtFilter = srtPath.Replace("\\", "/").Replace(":", "\\:");
@@ -146,27 +147,8 @@ class VideoRenderService
         return process.ExitCode == 0;
     }
 
-    static string? FindFfmpeg()
-    {
-        foreach (var name in new[] { "ffmpeg" })
-        {
-            try
-            {
-                var psi = new ProcessStartInfo
-                {
-                    FileName = name,
-                    Arguments = "-version",
-                    RedirectStandardOutput = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                using var p = Process.Start(psi);
-                if (p is null) continue;
-                p.WaitForExit(5000);
-                if (p.ExitCode == 0) return name;
-            }
-            catch { /* try next */ }
-        }
-        return null;
-    }
+    string? FfmpegPath() => _ffmpegPath ??= ProcessTools.FindExecutable(
+        "/usr/bin/ffmpeg",
+        "/usr/local/bin/ffmpeg",
+        "ffmpeg");
 }
