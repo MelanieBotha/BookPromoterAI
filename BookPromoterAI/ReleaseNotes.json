@@ -1,4 +1,13 @@
 {
+  "1.9.70": {
+    "title": "BookPromoter AI v1.9.70 — What's new",
+    "updated": [
+      "Auto-post schedule spreads posts across separate days (e.g. 3/week → Mon, Wed, Fri at 10:00 AM Pacific) instead of clustering on one day",
+      "Saving your posting schedule or opening Ad Library reassigns pending posts to the new day slots"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.9.69": {
     "title": "BookPromoter AI v1.9.69 — What's new",
     "updated": [

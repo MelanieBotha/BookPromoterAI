@@ -21,6 +21,17 @@ static class AppTimeZone
         return TimeZoneInfo.ConvertTimeFromUtc(normalized, _zone);
     }
 
+    public static DateTime ToUtcFromLocal(DateTime localWallClock)
+    {
+        var unspecified = localWallClock.Kind switch
+        {
+            DateTimeKind.Utc => localWallClock,
+            DateTimeKind.Local => DateTime.SpecifyKind(localWallClock, DateTimeKind.Unspecified),
+            _ => localWallClock
+        };
+        return TimeZoneInfo.ConvertTimeToUtc(unspecified, _zone);
+    }
+
     public static string Format(DateTime utc, string format) =>
         ToLocal(utc).ToString(format);
 

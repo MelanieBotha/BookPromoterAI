@@ -670,6 +670,34 @@ class AppStoreDb
         }
 
         db.SaveChanges();
+        RescheduleCurrentWeekPendingPosts(db, uid);
+        db.SaveChanges();
+    }
+
+    void RescheduleCurrentWeekPendingPosts(AppDbContext db, int uid)
+    {
+        var now = DateTime.UtcNow;
+        var (currentWeek, currentYear, _) = AdWeek.For(now);
+        var schedules = db.SocialSchedules
+            .Where(s => s.UserId == uid && s.PostsPerWeek > 0
+                && (s.ScheduleKind == SocialScheduleKinds.Author || s.ScheduleKind == ""))
+            .ToList();
+        if (schedules.Count == 0) return;
+
+        var weekAds = db.GeneratedAds
+            .Where(a => a.UserId == uid && a.WeekNumber == currentWeek && a.WeekYear == currentYear)
+            .ToList();
+
+        foreach (var schedule in schedules)
+        {
+            var platformAds = weekAds
+                .Where(a => PostLimits.PlatformsMatch(a.Platform, schedule.Platform))
+                .ToList();
+            if (platformAds.Count == 0) continue;
+            PostSchedule.AssignWeeklyPostSlots(platformAds, schedule.PostsPerWeek, now, currentYear, currentWeek);
+        }
+
+        db.SaveChanges();
     }
 
     public void SaveBrandSchedules(List<SocialSchedule> schedules)
@@ -1456,9 +1484,6 @@ class AppStoreDb
                 .Where(a => PostLimits.PlatformsMatch(a.Platform, schedule.Platform))
                 .ToList();
             if (platformAds.Count == 0) continue;
-            if (platformAds.All(a => a.PostStatus != "Pending" || a.ScheduledPostAt is not null))
-                continue;
-
             PostSchedule.AssignWeeklyPostSlots(platformAds, schedule.PostsPerWeek, now, currentYear, currentWeek);
             changed = true;
         }
@@ -2942,8 +2967,8 @@ class AppStoreDb
                     && (!schedule.RequiresApproval || a.ApprovedForPosting))
                 .ToListAsync();
             var candidate = pendingAds
-                .Where(a => a.ScheduledPostAt is null || a.ScheduledPostAt <= now)
-                .OrderBy(a => a.ScheduledPostAt ?? a.GeneratedAt)
+                .Where(a => a.ScheduledPostAt is not null && a.ScheduledPostAt <= now)
+                .OrderBy(a => a.ScheduledPostAt)
                 .FirstOrDefault();
             if (candidate is null) continue;
             var book = await db.Books.AsNoTracking().FirstOrDefaultAsync(b => b.Id == candidate.BookId && b.UserId == schedule.UserId);
@@ -2997,8 +3022,8 @@ class AppStoreDb
             }
             if (schedule.PostsSentThisWeek >= schedule.PostsPerWeek) continue;
 
-            var hoursBetween = (24.0 * 7) / schedule.PostsPerWeek;
-            if (schedule.LastPostedAt is DateTime last && (now - last).TotalHours < hoursBetween) continue;
+            var nextSlot = PostSchedule.NextBrandAutoPostUtc(ToModel(schedule), now);
+            if (nextSlot is DateTime due && due > now) continue;
 
             var account = (await db.SocialAccounts.Where(a =>
                 a.UserId == owner.Id
@@ -3171,15 +3196,13 @@ class AppStoreDb
         if (schedule.PostsSentThisWeek >= schedule.PostsPerWeek)
             return "Weekly auto-post limit reached for this platform.";
 
-        var hoursBetween = (24.0 * 7) / schedule.PostsPerWeek;
-        if (schedule.LastPostedAt is null)
-            return "Auto-post checks every 5 minutes — next slot is due soon.";
-
-        var nextAt = schedule.LastPostedAt.Value.AddHours(hoursBetween);
+        var nextAt = PostSchedule.NextBrandAutoPostUtc(schedule, DateTime.UtcNow);
+        if (nextAt is null)
+            return "Weekly auto-post limit reached for this platform.";
         if (nextAt <= DateTime.UtcNow)
             return "Auto-post checks every 5 minutes — due now.";
 
-        return $"Next auto-post slot: ~{AppTimeZone.FormatWithZone(nextAt, "ddd MMM d, HH:mm")}";
+        return $"Next auto-post slot: ~{AppTimeZone.FormatWithZone(nextAt.Value, "ddd MMM d, HH:mm")}";
     }
 
     // ── Client matching ────────────────────────────────────────────────
