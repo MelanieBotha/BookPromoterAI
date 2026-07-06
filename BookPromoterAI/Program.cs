@@ -128,7 +128,7 @@ BookRoutes.Map(app, generator, uploadsDir);
 ScheduleRoutes.Map(app, generator);
 SocialAccountRoutes.Map(app);
 AdLibraryRoutes.Map(app, generator);
-TikTokRoutes.Map(app, uploadsDir);
+TikTokRoutes.Map(app, uploadsDir, generator);
 AuthRoutes.Map(app);
 MyAccountRoutes.Map(app);
 BillingRoutes.Map(app);

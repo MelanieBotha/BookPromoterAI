@@ -422,6 +422,11 @@ details[open].ad-week-collapsible .ad-week-heading::after{transform:rotate(180de
 .tiktok-player{max-width:180px;max-height:320px;border-radius:8px;background:#000}
 .tiktok-video-row{align-items:center}
 .tiktok-video-list{display:flex;flex-direction:column;gap:16px}
+.tiktok-studio-layout{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
+.tiktok-studio-controls{flex:1;min-width:260px}
+.tiktok-studio-preview-wrap{text-align:center}
+.tiktok-canvas{width:100%;max-width:270px;height:auto;border-radius:12px;background:#111;box-shadow:0 4px 24px rgba(0,0,0,.25)}
+.tiktok-caption-preview{white-space:pre-wrap;margin:8px 0}
 .post-card-header div{display:flex;flex-direction:column;gap:2px}
 .copy-source{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;left:-9999px}
 .post-card-actions{display:flex;gap:8px;margin-top:8px}

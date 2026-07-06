@@ -46,6 +46,22 @@ class PostGenerator
         return PostLimits.Enforce(body, platform);
     }
 
+    /// <summary>Short hook + BookTok hashtags for vertical video captions.</summary>
+    public string GenerateTikTokCaption(Book book, string purchaseUrl, int variantSeed = 0)
+    {
+        var hook = BuildShortHook(book, variantSeed);
+        var tags = $"#BookTok #{CleanTag(book.GenreOrDefault())} #Books";
+        var link = purchaseUrl.Trim();
+        if (!string.IsNullOrWhiteSpace(link))
+        {
+            if (!link.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                !link.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                link = "https://" + link.TrimStart('/');
+            return $"{hook}\n\n{tags}\n\n{link}";
+        }
+        return $"{hook}\n\n{tags}";
+    }
+
     static string BuildHook(Book book, int variantSeed, string? descriptionHook, string genreHook, bool useDescriptionFirst) =>
         useDescriptionFirst
             ? $"{descriptionHook} {genreHook} \"{book.Title}\""

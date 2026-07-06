@@ -43,9 +43,8 @@ static class SocialPlatforms
         },
         new()
         {
-            Name = "TikTok", Color = "#000000", BadgeInitial = "T", Rollout = Rollout.PendingCredentials,
-            DisabledReason = "pending TikTok API approval", IsConfigured = s => s.IsTikTokConfigured, SupportsLivePosting = true,
-            ShowOnConnectBar = false
+            Name = "TikTok", Color = "#000000", BadgeInitial = "T", Rollout = Rollout.ComingSoon,
+            DisabledReason = "create videos on TikTok tab", ShowOnConnectBar = false
         },
         new() { Name = "X", Color = "#000000", BadgeInitial = "X", Rollout = Rollout.Live, SupportsLivePosting = true },
     ];

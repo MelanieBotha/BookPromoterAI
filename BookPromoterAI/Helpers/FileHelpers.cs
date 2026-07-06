@@ -7,7 +7,7 @@ static class FileHelpers
         if (file is null || file.Length == 0) return null;
         const long maxBytes = 1024L * 1024 * 1024; // 1 GB TikTok limit
         if (file.Length > maxBytes) return null;
-        var allowedExtensions = new[] { ".mp4", ".mov", ".webm", ".avi" };
+        var allowedExtensions = new[] { ".mp4", ".mov", ".webm", ".avi", ".mkv" };
         var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
         if (!allowedExtensions.Contains(extension)) return null;
         var fileName = $"{Guid.NewGuid():N}{extension}";

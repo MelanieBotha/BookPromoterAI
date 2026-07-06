@@ -795,7 +795,7 @@ class AppStoreDb
             Title = title,
             Caption = caption,
             VideoUrl = videoUrl,
-            Status = TikTokVideoStatuses.Draft,
+            Status = TikTokVideoStatuses.Ready,
             CreatedAt = DateTime.UtcNow
         };
         db.TikTokVideos.Add(row);
