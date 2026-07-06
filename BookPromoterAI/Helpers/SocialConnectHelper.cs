@@ -5,7 +5,7 @@ namespace BookPromoterAI;
 static class SocialConnectHelper
 {
     public const string OwnerReturnPath = "/owner-promos";
-    public const string TikTokReturnPath = "/tiktok";
+    public const string VideosReturnPath = "/videos";
 
     public static string[] DefaultPlatforms => SocialPlatforms.ConnectBarNames.ToArray();
 
@@ -40,7 +40,7 @@ static class SocialConnectHelper
     }
 
     public static bool IsAllowedReturnUrl(string? url) =>
-        url == OwnerReturnPath || url == "/my-account" || url == TikTokReturnPath;
+        url == OwnerReturnPath || url == "/my-account" || url == VideosReturnPath;
 
     public static string ResolveAccountKind(string? returnUrl) =>
         returnUrl == OwnerReturnPath ? SocialAccountKinds.Brand : SocialAccountKinds.Author;
@@ -485,7 +485,7 @@ static class SocialConnectHelper
                 """
             : """
                 <p class="notice error">TikTok API credentials are not configured yet. Register at developers.tiktok.com and add TikTok__ClientKey and TikTok__ClientSecret on Railway.</p>
-                <a class="button secondary" href="/tiktok">Back to TikTok</a>
+                <a class="button secondary" href="/videos">Back to Videos</a>
                 """;
         return $"""
             <section class="hero"><div><p class="eyebrow">TikTok</p><h1>Connect your TikTok account</h1></div></section>

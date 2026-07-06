@@ -175,7 +175,7 @@ static class H
                     {(store.HasCustomerAccess ? "" : """<a href="/start">Start</a>""")}
                     {(store.HasCustomerAccess ? """<a href="/help">Help</a>""" : "")}
                     <a href="/dashboard">Dashboard</a>
-                    {(store.HasCustomerAccess ? """<a href="/tiktok">TikTok</a>""" : "")}
+                    {(store.HasCustomerAccess ? """<a href="/videos">Videos</a>""" : "")}
                     {ManageDropdown(store)}
                     {AccountDropdown(store)}
                     {(store.IsOwner ? """<a href="/owner-promos">Owner</a>""" : "")}
@@ -265,7 +265,7 @@ static class H
                     <a href="/books">Books</a>
                     <a href="/schedule">Schedule</a>
                     <a href="/ad-library">Ad Library</a>
-                    <a href="/tiktok">TikTok</a>
+                    <a href="/videos">Videos</a>
                     <a href="/mailing-list">Mailing List</a>
                     {analyticsLink}
                     <div class="nav-dropdown-divider"></div>

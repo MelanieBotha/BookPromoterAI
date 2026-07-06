@@ -60,7 +60,7 @@ static class TikTokPage
                     </div>
                     <div class="row-actions">
                         <a class="button small" href="{H.Encode(video.VideoUrl)}" download>Download</a>
-                        <form method="post" action="/tiktok/delete/{video.Id}" style="display:inline" onsubmit="return confirm('Remove this video?');">
+                        <form method="post" action="/videos/delete/{video.Id}" style="display:inline" onsubmit="return confirm('Remove this video?');">
                             <button class="danger-button small" type="submit">Remove</button>
                         </form>
                     </div>
@@ -73,13 +73,13 @@ static class TikTokPage
 
         var noBooksNotice = hasBooks
             ? ""
-            : """<div class="notice error">Add at least one book under <a href="/books">Books</a> before creating a TikTok video.</div>""";
+            : """<div class="notice error">Add at least one book under <a href="/books">Books</a> before creating a video.</div>""";
 
         var studio = hasBooks
             ? $"""
                 <section class="panel tiktok-studio">
                     <h2>Create a book promo video</h2>
-                    <p class="muted small-text">We build a short vertical video from your book cover and an AI hook. Download it, then upload to TikTok manually — no TikTok account link required yet.</p>
+                    <p class="muted small-text">We build a short vertical video from your book cover and an AI hook. Download it and post to TikTok, Instagram Reels, or YouTube Shorts when you are ready.</p>
                     <div class="tiktok-studio-layout">
                         <div class="tiktok-studio-controls form">
                             <label>Book
@@ -88,7 +88,7 @@ static class TikTokPage
                             <label>Video title
                                 <input id="tiktok-title" maxlength="150" placeholder="Shown on the video">
                             </label>
-                            <label>Caption for TikTok (copy when you post)
+                            <label>Caption (copy when you post)
                                 <textarea id="tiktok-caption" rows="4" placeholder="Hook + hashtags"></textarea>
                             </label>
                             <p id="tiktok-create-status" class="muted small-text" aria-live="polite"></p>
@@ -108,9 +108,9 @@ static class TikTokPage
         return $"""
             <section class="hero">
                 <div>
-                    <p class="eyebrow">BookTok</p>
-                    <h1>TikTok video studio</h1>
-                    <p class="muted">Create short vertical book promos here. Download and post to TikTok yourself — direct TikTok linking comes later.</p>
+                    <p class="eyebrow">Book promos</p>
+                    <h1>Videos</h1>
+                    <p class="muted">Create short vertical book promos. Download and post to your favorite video platform.</p>
                 </div>
             </section>
             {notice}
@@ -125,7 +125,7 @@ static class TikTokPage
             <details class="panel">
                 <summary><strong>Or upload your own video</strong></summary>
                 <p class="muted small-text">Already have a video file? Upload it here to store the caption and download link.</p>
-                <form method="post" action="/tiktok/upload" enctype="multipart/form-data" class="form">
+                <form method="post" action="/videos/upload" enctype="multipart/form-data" class="form">
                     <label>Book
                         <select name="bookId">{bookOptions}</select>
                     </label>
@@ -274,7 +274,7 @@ static class TikTokPage
                     var csrfField = document.querySelector('meta[name="csrf-field"]');
                     var csrfToken = document.querySelector('meta[name="csrf-token"]');
                     if (csrfField && csrfToken) fd.append(csrfField.content, csrfToken.content);
-                    fetch('/tiktok/create', { method: 'POST', body: fd })
+                    fetch('/videos/create', { method: 'POST', body: fd })
                         .then(function (r) {
                             if (r.redirected) { window.location.href = r.url; return; }
                             status.textContent = 'Could not save video. Try again.';

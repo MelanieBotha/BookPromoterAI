@@ -4,38 +4,59 @@ static class TikTokRoutes
 {
     public static void Map(WebApplication app, string uploadsDir, PostGenerator generator)
     {
-        app.MapGet("/tiktok", (HttpRequest request, HttpContext http, AppStoreDb store) =>
+        app.MapGet("/tiktok", (HttpRequest request) =>
+            Results.Redirect("/videos" + request.QueryString));
+
+        app.MapGet("/videos", (HttpRequest request, HttpContext http, AppStoreDb store) =>
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
             var notice = request.Query["created"] == "1"
-                ? """<div class="notice success">Video created! Download it below and upload to TikTok when you are ready.</div>"""
+                ? """<div class="notice success">Video created! Download it below and post to social media when you are ready.</div>"""
                 : request.Query["uploaded"] == "1"
                     ? """<div class="notice success">Video uploaded.</div>"""
                     : request.Query["error"] == "1"
                         ? $"""<div class="notice error">{H.Encode(request.Query["msg"].ToString())}</div>"""
                         : "";
             return Results.Content(
-                H.RenderPage(http, "TikTok", TikTokPage.Render(store, generator, notice), store),
+                H.RenderPage(http, "Videos", TikTokPage.Render(store, generator, notice), store),
                 "text/html");
         });
 
+        app.MapPost("/videos/create", async (HttpRequest request, AppStoreDb store) =>
+        {
+            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
+            return await SaveVideoAsync(request, store, uploadsDir, "/videos?created=1");
+        });
+
+        app.MapPost("/videos/upload", async (HttpRequest request, AppStoreDb store) =>
+        {
+            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
+            return await SaveVideoAsync(request, store, uploadsDir, "/videos?uploaded=1");
+        });
+
+        app.MapPost("/videos/delete/{id:int}", (int id, AppStoreDb store) =>
+        {
+            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
+            store.DeleteTikTokVideo(id);
+            return Results.Redirect("/videos");
+        });
+
+        // Legacy paths (redirect GET only; POST handlers duplicated)
         app.MapPost("/tiktok/create", async (HttpRequest request, AppStoreDb store) =>
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
-            return await SaveVideoAsync(request, store, uploadsDir, "/tiktok?created=1");
+            return await SaveVideoAsync(request, store, uploadsDir, "/videos?created=1");
         });
-
         app.MapPost("/tiktok/upload", async (HttpRequest request, AppStoreDb store) =>
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
-            return await SaveVideoAsync(request, store, uploadsDir, "/tiktok?uploaded=1");
+            return await SaveVideoAsync(request, store, uploadsDir, "/videos?uploaded=1");
         });
-
         app.MapPost("/tiktok/delete/{id:int}", (int id, AppStoreDb store) =>
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
             store.DeleteTikTokVideo(id);
-            return Results.Redirect("/tiktok");
+            return Results.Redirect("/videos");
         });
     }
 
@@ -48,11 +69,11 @@ static class TikTokRoutes
         var file = form.Files.GetFile("video");
 
         if (string.IsNullOrWhiteSpace(title))
-            return Results.Redirect("/tiktok?error=1&msg=" + Uri.EscapeDataString("Enter a video title."));
+            return Results.Redirect("/videos?error=1&msg=" + Uri.EscapeDataString("Enter a video title."));
 
         var videoUrl = await FileHelpers.SaveVideoUpload(file, uploadsDir);
         if (videoUrl is null)
-            return Results.Redirect("/tiktok?error=1&msg=" + Uri.EscapeDataString("Could not save video. Try again or use MP4/MOV/WEBM under 1 GB."));
+            return Results.Redirect("/videos?error=1&msg=" + Uri.EscapeDataString("Could not save video. Try again or use MP4/MOV/WEBM under 1 GB."));
 
         var bookId = 0;
         var bookTitle = "Book promo";

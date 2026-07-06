@@ -44,7 +44,7 @@ static class SocialPlatforms
         new()
         {
             Name = "TikTok", Color = "#000000", BadgeInitial = "T", Rollout = Rollout.ComingSoon,
-            DisabledReason = "create videos on TikTok tab", ShowOnConnectBar = false
+            DisabledReason = "use Videos tab", ShowOnConnectBar = false
         },
         new() { Name = "X", Color = "#000000", BadgeInitial = "X", Rollout = Rollout.Live, SupportsLivePosting = true },
     ];

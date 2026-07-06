@@ -765,7 +765,7 @@ static class SocialAccountRoutes
             var code = request.Query["code"].ToString();
             var state = request.Query["state"].ToString();
             var pending = await TikTokOAuthStateStore.TakeAsync(cache, state);
-            var returnUrl = pending?.ReturnUrl ?? SocialConnectHelper.TikTokReturnPath;
+            var returnUrl = pending?.ReturnUrl ?? SocialConnectHelper.VideosReturnPath;
 
             if (pending is null)
             {

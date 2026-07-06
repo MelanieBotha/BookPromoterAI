@@ -6,7 +6,7 @@ namespace BookPromoterAI;
 sealed class TikTokOAuthPending
 {
     public int UserId { get; init; }
-    public string ReturnUrl { get; init; } = SocialConnectHelper.TikTokReturnPath;
+    public string ReturnUrl { get; init; } = SocialConnectHelper.VideosReturnPath;
     public string Kind { get; init; } = SocialAccountKinds.Author;
     public string CodeVerifier { get; init; } = "";
 }
