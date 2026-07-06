@@ -9,12 +9,60 @@ static class SocialConnectHelper
     public static readonly string[] DefaultPlatforms =
         ["Facebook", "X", "Reddit", "LinkedIn", "Pinterest", "TikTok", "Bluesky"];
 
-    public static readonly HashSet<string> DisabledPlatforms = new(StringComparer.OrdinalIgnoreCase) { "TikTok" };
+    /// <summary>Platforms with live OAuth or app-password connect and posting.</summary>
+    public static bool IsPlatformLive(string? platform, AppSettings? settings = null)
+    {
+        if (string.IsNullOrWhiteSpace(platform)) return false;
+        var p = NormalizePlatformName(platform);
+        if (PostLimits.IsFacebook(p) || PostLimits.IsBluesky(p) || PostLimits.IsX(p) || PostLimits.IsLinkedIn(p))
+            return true;
+        if (PostLimits.IsReddit(p))
+            return settings?.IsRedditConfigured == true;
+        return false;
+    }
 
-    public static bool IsPlatformDisabled(string? platform) =>
-        !string.IsNullOrWhiteSpace(platform) && DisabledPlatforms.Contains(platform.Trim());
+    public static bool IsPlatformDisabled(string? platform, AppSettings? settings = null)
+    {
+        if (string.IsNullOrWhiteSpace(platform)) return false;
+        var p = NormalizePlatformName(platform);
+        if (p.Equals("TikTok", StringComparison.OrdinalIgnoreCase) ||
+            p.Equals("Pinterest", StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (p.Equals("Reddit", StringComparison.OrdinalIgnoreCase))
+            return settings?.IsRedditConfigured != true;
+        return false;
+    }
 
-    public static string DisabledPlatformLabel(string platform) => $"{platform} (video only — coming soon)";
+    public static string DisabledPlatformReason(string platform, AppSettings? settings = null)
+    {
+        var p = NormalizePlatformName(platform);
+        return p switch
+        {
+            "TikTok" => "video only — coming soon",
+            "Pinterest" => "coming soon",
+            "Reddit" => "pending Reddit API approval",
+            _ => "coming soon"
+        };
+    }
+
+    public static string DisabledPlatformLabel(string platform, AppSettings? settings = null) =>
+        $"{DisplayPlatformName(platform)} ({DisabledPlatformReason(platform, settings)})";
+
+    static string DisplayPlatformName(string platform) =>
+        NormalizePlatformName(platform) switch
+        {
+            "X" => "X",
+            _ => platform.Trim()
+        };
+
+    static string NormalizePlatformName(string platform)
+    {
+        if (platform.StartsWith("X (", StringComparison.OrdinalIgnoreCase) ||
+            platform.Equals("Twitter", StringComparison.OrdinalIgnoreCase) ||
+            platform.Equals("X (Twitter)", StringComparison.OrdinalIgnoreCase))
+            return "X";
+        return platform.Trim();
+    }
 
     static readonly Dictionary<string, string> PlatformColors = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -44,15 +92,16 @@ static class SocialConnectHelper
     public static bool IsBrandContext(string? returnUrl) =>
         returnUrl == OwnerReturnPath;
 
-    public static string ConnectButtons(string returnUrl)
+    public static string ConnectButtons(string returnUrl, AppSettings? settings = null)
     {
         var buttons = new StringBuilder();
         foreach (var platform in DefaultPlatforms)
         {
-            if (IsPlatformDisabled(platform))
+            if (IsPlatformDisabled(platform, settings))
             {
+                var reason = DisabledPlatformReason(platform, settings);
                 buttons.Append($"""
-                    <span class="button platform-disabled" title="TikTok requires video posts — not supported yet">{H.Encode(DisabledPlatformLabel(platform))}</span>
+                    <span class="button platform-disabled" title="{H.Encode(reason)}">{H.Encode(DisabledPlatformLabel(platform, settings))}</span>
                     """);
                 continue;
             }
@@ -67,15 +116,22 @@ static class SocialConnectHelper
         return buttons.ToString();
     }
 
-    public static string RenderPlatformOption(string value, bool selected = false)
+    public static string RenderPlatformOption(string value, bool selected = false, AppSettings? settings = null)
     {
-        if (IsPlatformDisabled(value))
-            return $"""<option value="" disabled>{H.Encode(DisabledPlatformLabel(value))}</option>""";
+        if (IsPlatformDisabled(value, settings))
+            return $"""<option value="" disabled>{H.Encode(DisabledPlatformLabel(value, settings))}</option>""";
         var sel = selected ? " selected" : "";
         return $"""<option value="{H.Encode(value)}"{sel}>{H.Encode(value)}</option>""";
     }
 
-    public static string OAuthAuthorizePage(string platformName, string returnUrl, string notice = "")
+    public static string NextPlatformHint(AppSettings? settings = null)
+    {
+        if (settings?.IsRedditConfigured != true)
+            return """<p class="muted small-text">Greyed-out platforms are not ready yet. <strong>Next: Reddit</strong> (waiting on Reddit API approval), then <strong>Pinterest</strong>.</p>""";
+        return """<p class="muted small-text">Greyed-out platforms are not ready yet. <strong>Next: Pinterest</strong>.</p>""";
+    }
+
+    public static string OAuthAuthorizePage(string platformName, string returnUrl, string notice = "", AppSettings? settings = null)
     {
         var brandContext = IsBrandContext(returnUrl);
         if (PostLimits.IsBluesky(platformName))
@@ -93,12 +149,13 @@ static class SocialConnectHelper
         if (PostLimits.IsReddit(platformName))
             return RedditSetupPage(returnUrl, notice, null);
 
-        if (IsPlatformDisabled(platformName))
+        if (IsPlatformDisabled(platformName, settings))
         {
+            var reason = DisabledPlatformReason(platformName);
             return $"""
                 <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>{H.Encode(DisabledPlatformLabel(platformName))}</h1></div></section>
                 <section class="panel">
-                    <p class="notice error">TikTok requires video content. BookPromoter AI text/image posts are not supported for TikTok yet.</p>
+                    <p class="notice error">{H.Encode(char.ToUpper(reason[0]) + reason[1..])}.</p>
                     <a class="button secondary" href="{H.Encode(returnUrl)}">Back</a>
                 </section>
                 """;

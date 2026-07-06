@@ -106,7 +106,8 @@ static class MyAccountPage
             : """<p class="muted small-text">Your plan includes unlimited AI posts per month.</p>""";
 
         // ── OAuth connect buttons ─────────────────────────────────────
-        var connectButtons = SocialConnectHelper.ConnectButtons("/my-account");
+        var connectButtons = SocialConnectHelper.ConnectButtons("/my-account", store.Settings);
+        var nextPlatformHint = SocialConnectHelper.NextPlatformHint(store.Settings);
 
         var ownerBrandNote = store.IsOwner
             ? $"""<p class="notice">BookPromoter AI brand accounts (e.g. @{BrandConstants.OfficialBlueskyHandle}) are managed separately on <a href="/owner-promos?section=owner-social">Owner → BookPromoter AI Brand Social Accounts</a>.</p>"""
@@ -117,7 +118,8 @@ static class MyAccountPage
                 <h2>Author Social Accounts &amp; Posting Schedule</h2>
                 <p class="muted">Connect platforms where you promote <strong>your books</strong>. Set posts/week, approval, and auto-post for each author account.</p>
                 {ownerBrandNote}
-                <p class="muted small-text">Check "Auto-post", set <strong>posts/week</strong> above 0, then click <strong>Save Posting Schedule</strong>. If "Approval required" is checked, approve posts in the Ad Library first. Auto-posting runs immediately on save and every few minutes after that. <strong>Bluesky</strong>, <strong>X</strong>, <strong>LinkedIn</strong>, and <strong>Facebook</strong> post live when connected; other platforms remain simulated until OAuth is configured.</p>
+                <p class="muted small-text">Check "Auto-post", set <strong>posts/week</strong> above 0, then click <strong>Save Posting Schedule</strong>. If "Approval required" is checked, approve posts in the Ad Library first. Auto-posting runs immediately on save and every few minutes after that. <strong>Facebook</strong>, <strong>Bluesky</strong>, <strong>X</strong>, and <strong>LinkedIn</strong> post live when connected.</p>
+                {nextPlatformHint}
                 {limitText}
                 {limitNotice}
                 <form method="post" action="/schedule" class="schedule-list">
@@ -181,8 +183,8 @@ static class MyAccountPage
             foreach (var (value, _) in group)
             {
                 var sel = value.Equals(currentPlatform, StringComparison.OrdinalIgnoreCase) ? "selected" : "";
-                if (SocialConnectHelper.IsPlatformDisabled(value))
-                    options.Append(SocialConnectHelper.RenderPlatformOption(value));
+                if (SocialConnectHelper.IsPlatformDisabled(value, store.Settings))
+                    options.Append(SocialConnectHelper.RenderPlatformOption(value, settings: store.Settings));
                 else
                     options.Append($"""<option value="{H.Encode(value)}" {sel}>{H.Encode(value)}</option>""");
             }

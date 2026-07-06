@@ -6,13 +6,13 @@ static class OwnerSocialEditPage
 {
     public static string Render(AppStoreDb store, SocialAccount account, string returnUrl)
     {
+        var settings = store.Settings;
         var platformOptions = new StringBuilder();
-        platformOptions.Append(SocialConnectHelper.RenderPlatformOption(account.Platform, selected: true));
+        platformOptions.Append(SocialConnectHelper.RenderPlatformOption(account.Platform, selected: true, settings));
         foreach (var platform in SocialConnectHelper.DefaultPlatforms)
         {
             if (platform.Equals(account.Platform, StringComparison.OrdinalIgnoreCase)) continue;
-            if (SocialConnectHelper.IsPlatformDisabled(platform)) continue;
-            platformOptions.Append(SocialConnectHelper.RenderPlatformOption(platform));
+            platformOptions.Append(SocialConnectHelper.RenderPlatformOption(platform, settings: settings));
         }
         platformOptions.Append("""<option value="__custom__">Other (type your own)...</option>""");
 

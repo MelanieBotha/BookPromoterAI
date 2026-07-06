@@ -117,14 +117,17 @@ static class OwnerPromoPage
             </div>
             """;
 
+        var settings = store.Settings;
         var alreadyAdded = socialAccounts.Select(a => a.Platform).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var platformOptions = new StringBuilder();
         platformOptions.Append("""<option value="">Choose a platform...</option>""");
         foreach (var platform in SocialConnectHelper.DefaultPlatforms)
         {
-            if (SocialConnectHelper.IsPlatformDisabled(platform)) continue;
             if (alreadyAdded.Contains(platform)) continue;
-            platformOptions.Append($"""<option value="{H.Encode(platform)}">{H.Encode(platform)}</option>""");
+            if (SocialConnectHelper.IsPlatformDisabled(platform, settings))
+                platformOptions.Append(SocialConnectHelper.RenderPlatformOption(platform, settings: settings));
+            else
+                platformOptions.Append($"""<option value="{H.Encode(platform)}">{H.Encode(platform)}</option>""");
         }
         platformOptions.Append("""<option value="__custom__">Other (type your own)...</option>""");
 
@@ -217,9 +220,10 @@ static class OwnerPromoPage
                         {connectedRows}
                     </div>
                     <h3 style="margin-top:20px">Connect a brand platform</h3>
-                    <p class="muted small-text">Bluesky, X, LinkedIn, and Facebook support live posting when connected. Other platforms are simulated until OAuth is configured.</p>
+                    <p class="muted small-text">Facebook, Bluesky, X, and LinkedIn support live posting when connected.</p>
+                    {SocialConnectHelper.NextPlatformHint(settings)}
                     <div class="connect-buttons">
-                        {SocialConnectHelper.ConnectButtons(returnPath)}
+                        {SocialConnectHelper.ConnectButtons(returnPath, settings)}
                     </div>
                     <h3 style="margin-top:20px">Or add manually</h3>
                     <form method="post" action="/social-accounts" class="form">
