@@ -49,8 +49,8 @@ class PostGenerator
     /// <summary>Short hook + BookTok hashtags for vertical video captions.</summary>
     public string GenerateTikTokCaption(Book book, string purchaseUrl, int variantSeed = 0)
     {
-        var hook = BuildShortHook(book, variantSeed);
-        var tags = $"#BookTok #{CleanTag(book.GenreOrDefault())} #Books";
+        var hook = BuildTikTokHook(book, variantSeed);
+        var tags = $"#BookTok #{CleanTag(book.GenreOrDefault())} #Books #AuthorLife";
         var link = purchaseUrl.Trim();
         if (!string.IsNullOrWhiteSpace(link))
         {
@@ -60,6 +60,22 @@ class PostGenerator
             return $"{hook}\n\n{tags}\n\n{link}";
         }
         return $"{hook}\n\n{tags}";
+    }
+
+    static string BuildTikTokHook(Book book, int variantSeed)
+    {
+        var s = Math.Abs(variantSeed);
+        var title = book.Title.Length > 45 ? book.Title[..42].TrimEnd() + "…" : book.Title;
+        var genre = book.GenreOrDefault();
+        var descHook = ExtractDescriptionHook(book.Description, variantSeed);
+
+        return (s % 4) switch
+        {
+            0 when descHook is not null => $"POV: You found \"{title}\" at 2am…\n{descHook}",
+            1 => $"If you love {genre.ToLowerInvariant()} — this one hits different.\n\"{title}\"",
+            2 when descHook is not null => $"{descHook}\n\"{title}\"",
+            _ => $"{PickHook(book.Genre, variantSeed)}\n\"{title}\""
+        };
     }
 
     static string BuildHook(Book book, int variantSeed, string? descriptionHook, string genreHook, bool useDescriptionFirst) =>

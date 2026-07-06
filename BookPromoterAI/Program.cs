@@ -76,6 +76,7 @@ builder.Services.AddLinkedIn();
 builder.Services.AddFacebook();
 builder.Services.AddReddit();
 builder.Services.AddTikTok();
+builder.Services.AddSingleton<LocalSpeechService>();
 builder.Services.AddScoped<SocialPostingService>();
 
 var generator = new PostGenerator();
@@ -128,7 +129,7 @@ BookRoutes.Map(app, generator, uploadsDir);
 ScheduleRoutes.Map(app, generator);
 SocialAccountRoutes.Map(app);
 AdLibraryRoutes.Map(app, generator);
-TikTokRoutes.Map(app, uploadsDir, generator);
+TikTokRoutes.Map(app, uploadsDir, generator, app.Services.GetRequiredService<LocalSpeechService>());
 AuthRoutes.Map(app);
 MyAccountRoutes.Map(app);
 BillingRoutes.Map(app);

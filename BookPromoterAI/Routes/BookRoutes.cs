@@ -26,7 +26,8 @@ static class BookRoutes
             var book = new Book
             {
                 Title = form["title"].ToString(), AuthorName = form["authorName"].ToString(),
-                Genre = BookGenres.ParseFromForm(form), Description = H.LimitWords(form["description"].ToString(), 200)
+                Genre = BookGenres.ParseFromForm(form), Description = H.LimitWords(form["description"].ToString(), 200),
+                ReadAloudExcerpt = ReadAloudScript.LimitWords(form["readAloudExcerpt"].ToString())
             };
             var uploaded = await FileHelpers.SaveCoverUpload(form.Files.GetFile("coverFile"), uploadsDir);
             if (uploaded is not null) book.CoverImageUrl = uploaded;
@@ -53,6 +54,7 @@ static class BookRoutes
             var form = await request.ReadFormAsync();
             book.Title = form["title"].ToString(); book.AuthorName = form["authorName"].ToString();
             book.Genre = BookGenres.ParseFromForm(form); book.Description = H.LimitWords(form["description"].ToString(), 200);
+            book.ReadAloudExcerpt = ReadAloudScript.LimitWords(form["readAloudExcerpt"].ToString());
             var uploaded = await FileHelpers.SaveCoverUpload(form.Files.GetFile("coverFile"), uploadsDir);
             if (uploaded is not null) book.CoverImageUrl = uploaded;
             book.Links = FileHelpers.ParseLinks(form);

@@ -2,7 +2,7 @@ namespace BookPromoterAI;
 
 static class TikTokRoutes
 {
-    public static void Map(WebApplication app, string uploadsDir, PostGenerator generator)
+    public static void Map(WebApplication app, string uploadsDir, PostGenerator generator, LocalSpeechService speech)
     {
         app.MapGet("/tiktok", (HttpRequest request) =>
             Results.Redirect("/videos" + request.QueryString));
@@ -20,6 +20,24 @@ static class TikTokRoutes
             return Results.Content(
                 H.RenderPage(http, "Videos", TikTokPage.Render(store, generator, notice), store),
                 "text/html");
+        });
+
+        app.MapPost("/videos/speech", async (HttpRequest request, AppStoreDb store, LocalSpeechService speechService) =>
+        {
+            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Unauthorized();
+            var form = await request.ReadFormAsync();
+            var text = form["text"].ToString();
+            var (wav, durationMs, error) = await speechService.SynthesizeAsync(text);
+            if (wav is null)
+                return Results.Json(new { error = error ?? "Could not generate speech." });
+
+            var plan = ReadAloudScript.Build(text, durationMs);
+            return Results.Json(new
+            {
+                wavBase64 = Convert.ToBase64String(wav),
+                durationMs,
+                beats = plan.Beats.Select(b => new { text = b.Text, startMs = b.StartMs, endMs = b.EndMs })
+            });
         });
 
         app.MapPost("/videos/create", async (HttpRequest request, AppStoreDb store) =>

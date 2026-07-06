@@ -21,6 +21,7 @@ static class BooksPage
         var author = editing?.AuthorName ?? "";
         var genre = editing?.Genre ?? "";
         var description = editing?.Description ?? "";
+        var readAloudExcerpt = editing?.ReadAloudExcerpt ?? "";
         var coverImageUrl = editing?.CoverImageUrl ?? "";
         var currentCoverNote = editing is not null && !string.IsNullOrWhiteSpace(coverImageUrl)
             ? """<p class="muted small-text">Your current cover is saved. Upload a new file only to replace it.</p>"""
@@ -65,9 +66,19 @@ static class BooksPage
                 label.textContent = count + ' / 200 words';
                 label.style.color = count >= 200 ? '#b91c1c' : '';
             }
+            function updateExcerptWordCount(textarea) {
+                var words = textarea.value.trim().length === 0 ? [] : textarea.value.trim().split(/\s+/);
+                var count = words.length;
+                var label = document.getElementById('excerpt-word-count');
+                if (count > 150) { words = words.slice(0, 150); textarea.value = words.join(' '); count = 150; }
+                label.textContent = count + ' / 150 words';
+                label.style.color = count >= 150 ? '#b91c1c' : '';
+            }
             document.addEventListener('DOMContentLoaded', function () {
                 var field = document.getElementById('description-field');
                 if (field) updateWordCount(field);
+                var excerptField = document.getElementById('excerpt-field');
+                if (excerptField) updateExcerptWordCount(excerptField);
                 var genreSelect = document.getElementById('genre-select');
                 if (genreSelect) toggleCustomGenre(genreSelect);
             });
@@ -86,6 +97,10 @@ static class BooksPage
                     <label>Description (200 words max)
                         <textarea name="description" id="description-field" oninput="updateWordCount(this)">{H.Encode(description)}</textarea>
                         <span id="word-count" class="small-text muted"></span>
+                    </label>
+                    <label>Read-aloud excerpt (150 words max — for narrated videos)
+                        <textarea name="readAloudExcerpt" id="excerpt-field" oninput="updateExcerptWordCount(this)" placeholder="Paste a short chapter sample or opening scene. Used on the Videos tab for AI read-aloud promos.">{H.Encode(readAloudExcerpt)}</textarea>
+                        <span id="excerpt-word-count" class="small-text muted"></span>
                     </label>
 
                     <div class="link-list-section">

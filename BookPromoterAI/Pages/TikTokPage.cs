@@ -17,6 +17,10 @@ static class TikTokPage
         {
             var purchaseUrl = book.Links.FirstOrDefault()?.Url ?? "";
             var caption = generator.GenerateTikTokCaption(book, purchaseUrl, book.PostVariantSeed);
+            var script = TikTokCaptionScript.Build(caption, book.Title, book.AuthorName);
+            var excerpt = string.IsNullOrWhiteSpace(book.ReadAloudExcerpt)
+                ? ReadAloudScript.LimitWords(book.Description)
+                : book.ReadAloudExcerpt;
             bookOptions.Append($"""<option value="{book.Id}">{H.Encode(book.Title)}</option>""");
             booksData.Add(new
             {
@@ -24,7 +28,18 @@ static class TikTokPage
                 title = book.Title,
                 author = book.AuthorName,
                 coverUrl = string.IsNullOrWhiteSpace(book.CoverImageUrl) ? "" : book.CoverImageUrl,
-                caption
+                caption,
+                excerpt,
+                script = new
+                {
+                    hook = script.Hook,
+                    title = script.Title,
+                    author = script.Author,
+                    chunks = script.Chunks,
+                    hashtags = script.Hashtags,
+                    link = script.Link,
+                    cta = script.Cta
+                }
             });
         }
 
@@ -79,11 +94,21 @@ static class TikTokPage
             ? $"""
                 <section class="panel tiktok-studio">
                     <h2>Create a book promo video</h2>
-                    <p class="muted small-text">We build a short vertical video from your book cover and an AI hook. Download it and post to TikTok, Instagram Reels, or YouTube Shorts when you are ready.</p>
+                    <p class="muted small-text">Promo: animated caption beats. Narrated: built-in read-aloud voice reads your excerpt while the cover animates — no ElevenLabs or paid API.</p>
                     <div class="tiktok-studio-layout">
                         <div class="tiktok-studio-controls form">
                             <label>Book
                                 <select id="tiktok-book" onchange="tiktokOnBookChange()">{bookOptions}</select>
+                            </label>
+                            <label>Video style
+                                <select id="tiktok-style" onchange="tiktokOnStyleChange()">
+                                    <option value="promo">Promo (animated caption)</option>
+                                    <option value="narrated">Narrated excerpt (read-aloud)</option>
+                                </select>
+                            </label>
+                            <label id="tiktok-excerpt-wrap" style="display:none">Read-aloud excerpt
+                                <textarea id="tiktok-excerpt" rows="5" placeholder="Paste a chapter sample (~60–90 sec). Add a saved excerpt under Books, or edit here."></textarea>
+                                <span class="muted small-text">Built-in speech on our server — no ElevenLabs or paid voice API.</span>
                             </label>
                             <label>Video title
                                 <input id="tiktok-title" maxlength="150" placeholder="Shown on the video">
@@ -158,48 +183,63 @@ static class TikTokPage
             coverImg.crossOrigin = 'anonymous';
             var animFrame = null;
             var recordStart = 0;
-            var durationMs = 12000;
+            var durationMs = 18000;
+            var currentScript = null;
+            var videoStyle = 'promo';
+            var narratedAnimFrame = null;
+            var ctaTailMs = 2500;
+
+            var scenes = [
+                { id: 'hook', start: 0, end: 2000 },
+                { id: 'cover', start: 2000, end: 7000 },
+                { id: 'chunks', start: 7000, end: 12000 },
+                { id: 'hashtags', start: 12000, end: 16000 },
+                { id: 'cta', start: 16000, end: 18000 }
+            ];
 
             function bookById(id) {
                 return books.find(function (b) { return String(b.id) === String(id); });
             }
 
-            function drawFrame(progress) {
+            function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
+            function easeInOut(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+            function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+            function sceneAt(ms) {
+                for (var i = 0; i < scenes.length; i++) {
+                    if (ms >= scenes[i].start && ms < scenes[i].end) return scenes[i];
+                }
+                return scenes[scenes.length - 1];
+            }
+
+            function drawCoverBg(progress, dim) {
                 var w = canvas.width, h = canvas.height;
                 ctx.fillStyle = '#0a0a0a';
                 ctx.fillRect(0, 0, w, h);
-                var zoom = 1 + progress * 0.08;
                 if (coverImg.complete && coverImg.naturalWidth > 0) {
+                    var zoom = 1 + (progress || 0) * 0.12;
                     var iw = coverImg.naturalWidth, ih = coverImg.naturalHeight;
                     var scale = Math.max(w / iw, h / ih) * zoom;
                     var dw = iw * scale, dh = ih * scale;
                     var dx = (w - dw) / 2, dy = (h - dh) / 2;
                     ctx.drawImage(coverImg, dx, dy, dw, dh);
                 }
-                var grad = ctx.createLinearGradient(0, h * 0.55, 0, h);
-                grad.addColorStop(0, 'rgba(0,0,0,0)');
-                grad.addColorStop(1, 'rgba(0,0,0,0.85)');
-                ctx.fillStyle = grad;
-                ctx.fillRect(0, h * 0.45, w, h * 0.55);
-                var title = document.getElementById('tiktok-title').value || '';
-                var book = bookById(document.getElementById('tiktok-book').value);
-                var author = book && book.author ? book.author : '';
-                ctx.fillStyle = '#fff';
-                ctx.textAlign = 'center';
-                ctx.font = 'bold 42px system-ui, sans-serif';
-                wrapText(ctx, title, w / 2, h * 0.72, w - 80, 48);
-                if (author) {
-                    ctx.font = '28px system-ui, sans-serif';
-                    ctx.fillStyle = '#e0e0e0';
-                    ctx.fillText(author, w / 2, h * 0.88);
+                if (dim > 0) {
+                    ctx.fillStyle = 'rgba(0,0,0,' + dim + ')';
+                    ctx.fillRect(0, 0, w, h);
                 }
-                ctx.font = '22px system-ui, sans-serif';
-                ctx.fillStyle = 'rgba(255,255,255,0.7)';
-                ctx.fillText('BookPromoter AI', w / 2, h * 0.95);
             }
 
-            function wrapText(context, text, x, y, maxWidth, lineHeight) {
-                var words = text.split(' ');
+            function drawGradientFooter() {
+                var w = canvas.width, h = canvas.height;
+                var grad = ctx.createLinearGradient(0, h * 0.5, 0, h);
+                grad.addColorStop(0, 'rgba(0,0,0,0)');
+                grad.addColorStop(1, 'rgba(0,0,0,0.88)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, h * 0.4, w, h * 0.6);
+            }
+
+            function wrapText(context, text, x, y, maxWidth, lineHeight, maxLines) {
+                var words = String(text || '').split(' ');
                 var line = '';
                 var lines = [];
                 for (var n = 0; n < words.length; n++) {
@@ -211,10 +251,152 @@ static class TikTokPage
                         line = test;
                     }
                 }
-                lines.push(line.trim());
+                if (line.trim()) lines.push(line.trim());
+                if (maxLines && lines.length > maxLines) {
+                    lines = lines.slice(0, maxLines);
+                    lines[maxLines - 1] = lines[maxLines - 1].replace(/\.\.\.$/, '') + '…';
+                }
                 var startY = y - ((lines.length - 1) * lineHeight) / 2;
                 for (var i = 0; i < lines.length; i++) {
                     context.fillText(lines[i], x, startY + i * lineHeight);
+                }
+                return lines.length;
+            }
+
+            function drawHookScene(local, script) {
+                var w = canvas.width, h = canvas.height;
+                var grad = ctx.createLinearGradient(0, 0, w, h);
+                grad.addColorStop(0, '#1a0a2e');
+                grad.addColorStop(0.5, '#0d0d1a');
+                grad.addColorStop(1, '#0a0a0a');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, w, h);
+                if (coverImg.complete && coverImg.naturalWidth > 0) {
+                    ctx.globalAlpha = 0.25 * easeOut(local);
+                    drawCoverBg(0, 0);
+                    ctx.globalAlpha = 1;
+                }
+                var alpha = easeOut(clamp(local * 1.4, 0, 1));
+                var slide = (1 - easeOut(clamp(local * 1.2, 0, 1))) * 40;
+                var hookLines = (script.hook || '').split('\n').filter(function (l) { return l.trim(); });
+                var mainHook = hookLines[0] || script.title || '';
+                var subHook = hookLines[1] || '';
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = '#fff';
+                ctx.textAlign = 'center';
+                ctx.font = 'bold 52px system-ui, sans-serif';
+                wrapText(ctx, mainHook, w / 2, h * 0.42 - slide, w - 100, 58, 4);
+                if (subHook) {
+                    ctx.font = '32px system-ui, sans-serif';
+                    ctx.fillStyle = '#d8d8ff';
+                    wrapText(ctx, subHook, w / 2, h * 0.62 - slide, w - 100, 40, 3);
+                }
+                ctx.restore();
+                ctx.font = '20px system-ui, sans-serif';
+                ctx.fillStyle = 'rgba(255,255,255,0.45)';
+                ctx.textAlign = 'center';
+                ctx.fillText('📚 BookTok', w / 2, h * 0.12);
+            }
+
+            function drawCoverScene(local, script) {
+                drawCoverBg(local, 0);
+                drawGradientFooter();
+                var fade = easeOut(clamp((local - 0.15) * 2, 0, 1));
+                ctx.save();
+                ctx.globalAlpha = fade;
+                ctx.fillStyle = '#fff';
+                ctx.textAlign = 'center';
+                ctx.font = 'bold 44px system-ui, sans-serif';
+                wrapText(ctx, script.title || '', canvas.width / 2, canvas.height * 0.72, canvas.width - 80, 50, 3);
+                if (script.author) {
+                    ctx.font = '28px system-ui, sans-serif';
+                    ctx.fillStyle = '#e8e8e8';
+                    ctx.fillText(script.author, canvas.width / 2, canvas.height * 0.86);
+                }
+                ctx.restore();
+            }
+
+            function drawChunksScene(local, script) {
+                drawCoverBg(0.5, 0.55);
+                var chunks = script.chunks && script.chunks.length ? script.chunks : [script.hook || script.title];
+                var idx = Math.min(chunks.length - 1, Math.floor(local * chunks.length));
+                var chunkLocal = (local * chunks.length) - idx;
+                var pop = easeOut(clamp(chunkLocal * 2.5, 0, 1));
+                var scale = 0.85 + pop * 0.15;
+                var alpha = easeOut(clamp(chunkLocal * 3, 0, 1));
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.translate(canvas.width / 2, canvas.height * 0.48);
+                ctx.scale(scale, scale);
+                ctx.fillStyle = '#fff';
+                ctx.textAlign = 'center';
+                ctx.font = 'bold 48px system-ui, sans-serif';
+                wrapText(ctx, chunks[idx], 0, 0, canvas.width - 120, 54, 4);
+                ctx.restore();
+                ctx.font = '22px system-ui, sans-serif';
+                ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                ctx.textAlign = 'center';
+                ctx.fillText((idx + 1) + ' / ' + chunks.length, canvas.width / 2, canvas.height * 0.88);
+            }
+
+            function drawHashtagsScene(local, script) {
+                drawCoverBg(0.3, 0.7);
+                var alpha = easeOut(clamp(local * 1.5, 0, 1));
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = '#7dd3fc';
+                ctx.textAlign = 'center';
+                ctx.font = 'bold 36px system-ui, sans-serif';
+                wrapText(ctx, script.hashtags || '#BookTok #Books', canvas.width / 2, canvas.height * 0.45, canvas.width - 80, 44, 5);
+                ctx.restore();
+                if (script.title) {
+                    ctx.globalAlpha = alpha * 0.8;
+                    ctx.fillStyle = '#fff';
+                    ctx.font = '26px system-ui, sans-serif';
+                    ctx.textAlign = 'center';
+                    wrapText(ctx, '"' + script.title + '"', canvas.width / 2, canvas.height * 0.72, canvas.width - 80, 32, 2);
+                }
+            }
+
+            function drawCtaScene(local, script) {
+                drawCoverBg(0.6, 0.75);
+                var pulse = 0.9 + 0.1 * Math.sin(local * Math.PI * 2);
+                var alpha = easeOut(clamp(local * 1.8, 0, 1));
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.translate(canvas.width / 2, canvas.height * 0.44);
+                ctx.scale(pulse, pulse);
+                ctx.fillStyle = '#fff';
+                ctx.textAlign = 'center';
+                ctx.font = 'bold 40px system-ui, sans-serif';
+                wrapText(ctx, script.cta || 'Link in bio 📚', 0, 0, canvas.width - 100, 46, 2);
+                ctx.restore();
+                if (script.link) {
+                    ctx.globalAlpha = alpha * 0.7;
+                    ctx.font = '22px system-ui, sans-serif';
+                    ctx.fillStyle = '#a5f3fc';
+                    ctx.textAlign = 'center';
+                    var shortLink = script.link.length > 42 ? script.link.slice(0, 39) + '…' : script.link;
+                    ctx.fillText(shortLink, canvas.width / 2, canvas.height * 0.58);
+                }
+                ctx.globalAlpha = alpha * 0.6;
+                ctx.font = '20px system-ui, sans-serif';
+                ctx.fillStyle = '#ccc';
+                ctx.fillText('BookPromoter AI', canvas.width / 2, canvas.height * 0.92);
+            }
+
+            function drawFrame(elapsedMs) {
+                var t = elapsedMs;
+                var scene = sceneAt(t);
+                var local = (t - scene.start) / (scene.end - scene.start);
+                var script = currentScript || { hook: '', title: '', author: '', chunks: [], hashtags: '', link: '', cta: '' };
+                switch (scene.id) {
+                    case 'hook': drawHookScene(local, script); break;
+                    case 'cover': drawCoverScene(local, script); break;
+                    case 'chunks': drawChunksScene(local, script); break;
+                    case 'hashtags': drawHashtagsScene(local, script); break;
+                    case 'cta': drawCtaScene(local, script); break;
                 }
             }
 
@@ -222,8 +404,8 @@ static class TikTokPage
                 if (animFrame) cancelAnimationFrame(animFrame);
                 var start = performance.now();
                 function tick(now) {
-                    var p = ((now - start) % durationMs) / durationMs;
-                    drawFrame(p);
+                    var elapsed = (now - start) % durationMs;
+                    drawFrame(elapsed);
                     animFrame = requestAnimationFrame(tick);
                 }
                 animFrame = requestAnimationFrame(tick);
@@ -234,15 +416,124 @@ static class TikTokPage
                 if (!book) return;
                 document.getElementById('tiktok-title').value = book.title;
                 document.getElementById('tiktok-caption').value = book.caption || '';
+                document.getElementById('tiktok-excerpt').value = book.excerpt || '';
+                currentScript = book.script || null;
                 if (book.coverUrl) {
-                    coverImg.onload = animatePreview;
+                    coverImg.onload = function () {
+                        if (videoStyle === 'narrated') startNarratedPreview();
+                        else animatePreview();
+                    };
                     coverImg.src = book.coverUrl;
                 } else {
-                    drawFrame(0);
+                    if (videoStyle === 'narrated') startNarratedPreview();
+                    else drawFrame(0);
                 }
             };
 
-            window.tiktokCreateVideo = function () {
+            function uploadRecordedBlob(blob, mime, bookId, title, caption, status, btn) {
+                var fd = new FormData();
+                fd.append('bookId', bookId);
+                fd.append('title', title);
+                fd.append('caption', caption);
+                fd.append('video', blob, 'bookpromo.webm');
+                var csrfField = document.querySelector('meta[name="csrf-field"]');
+                var csrfToken = document.querySelector('meta[name="csrf-token"]');
+                if (csrfField && csrfToken) fd.append(csrfField.content, csrfToken.content);
+                fetch('/videos/create', { method: 'POST', body: fd })
+                    .then(function (r) {
+                        if (r.redirected) { window.location.href = r.url; return; }
+                        status.textContent = 'Could not save video. Try again.';
+                        btn.disabled = false;
+                        resumePreview();
+                    })
+                    .catch(function () {
+                        status.textContent = 'Upload failed. Try again.';
+                        btn.disabled = false;
+                        resumePreview();
+                    });
+            }
+
+            function resumePreview() {
+                if (videoStyle === 'narrated') startNarratedPreview();
+                else animatePreview();
+            }
+
+            function drawNarratedFrame(elapsedMs, beats, speechMs, script) {
+                var progress = speechMs > 0 ? Math.min(1, elapsedMs / speechMs) : 0;
+                drawCoverBg(progress * 0.85, 0.42);
+                drawGradientFooter();
+                if (elapsedMs >= speechMs) {
+                    drawCtaScene((elapsedMs - speechMs) / ctaTailMs, script);
+                    return;
+                }
+                var beat = null;
+                for (var i = 0; i < beats.length; i++) {
+                    if (elapsedMs >= beats[i].startMs && elapsedMs < beats[i].endMs) { beat = beats[i]; break; }
+                }
+                if (!beat && beats.length) beat = beats[beats.length - 1];
+                var local = beat ? (elapsedMs - beat.startMs) / Math.max(1, beat.endMs - beat.startMs) : 0;
+                var alpha = easeOut(clamp(local * 2.2, 0, 1));
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = '#fff';
+                ctx.textAlign = 'center';
+                ctx.font = 'bold 42px system-ui, sans-serif';
+                wrapText(ctx, beat ? beat.text : '', canvas.width / 2, canvas.height * 0.5, canvas.width - 90, 48, 6);
+                ctx.restore();
+                ctx.fillStyle = 'rgba(255,255,255,0.75)';
+                ctx.font = '26px system-ui, sans-serif';
+                ctx.textAlign = 'center';
+                wrapText(ctx, script.title || '', canvas.width / 2, canvas.height * 0.82, canvas.width - 80, 32, 2);
+                if (script.author) {
+                    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+                    ctx.font = '22px system-ui, sans-serif';
+                    ctx.fillText(script.author, canvas.width / 2, canvas.height * 0.9);
+                }
+            }
+
+            function estimateBeatsFromText(text) {
+                var parts = text.split(/[.!?]+\s*/).filter(function (s) { return s.trim(); });
+                if (!parts.length) parts = [text];
+                var wpm = 150;
+                var totalMs = (text.split(/\s+/).length / wpm) * 60 * 1000;
+                var totalChars = Math.max(1, parts.join('').length);
+                var cursor = 0;
+                return parts.map(function (p) {
+                    var ms = totalMs * (p.length / totalChars);
+                    var beat = { text: p, startMs: cursor, endMs: cursor + ms };
+                    cursor += ms;
+                    return beat;
+                });
+            }
+
+            function startNarratedPreview() {
+                if (animFrame) cancelAnimationFrame(animFrame);
+                if (narratedAnimFrame) cancelAnimationFrame(narratedAnimFrame);
+                var excerpt = document.getElementById('tiktok-excerpt').value.trim();
+                var beats = estimateBeatsFromText(excerpt || 'Sample read-aloud preview.');
+                var speechMs = beats.length ? beats[beats.length - 1].endMs : 12000;
+                var totalMs = speechMs + ctaTailMs;
+                var script = currentScript || { title: '', author: '', cta: 'Link in bio 📚', link: '' };
+                var start = performance.now();
+                function tick(now) {
+                    var elapsed = (now - start) % totalMs;
+                    drawNarratedFrame(elapsed, beats, speechMs, script);
+                    narratedAnimFrame = requestAnimationFrame(tick);
+                }
+                narratedAnimFrame = requestAnimationFrame(tick);
+            }
+
+            window.tiktokOnStyleChange = function () {
+                videoStyle = document.getElementById('tiktok-style').value;
+                var excerptWrap = document.getElementById('tiktok-excerpt-wrap');
+                excerptWrap.style.display = videoStyle === 'narrated' ? '' : 'none';
+                if (animFrame) cancelAnimationFrame(animFrame);
+                if (narratedAnimFrame) cancelAnimationFrame(narratedAnimFrame);
+                if (videoStyle === 'narrated') startNarratedPreview();
+                else animatePreview();
+            };
+
+            function createPromoVideo() {
                 var bookId = document.getElementById('tiktok-book').value;
                 var title = document.getElementById('tiktok-title').value.trim();
                 var caption = document.getElementById('tiktok-caption').value.trim();
@@ -255,7 +546,7 @@ static class TikTokPage
                     return;
                 }
                 btn.disabled = true;
-                status.textContent = 'Creating video (about 12 seconds)...';
+                status.textContent = 'Creating video (about 18 seconds)...';
                 if (animFrame) cancelAnimationFrame(animFrame);
 
                 var stream = canvas.captureStream(30);
@@ -266,36 +557,109 @@ static class TikTokPage
                 recorder.ondataavailable = function (e) { if (e.data.size) chunks.push(e.data); };
                 recorder.onstop = function () {
                     var blob = new Blob(chunks, { type: mime });
-                    var fd = new FormData();
-                    fd.append('bookId', bookId);
-                    fd.append('title', title);
-                    fd.append('caption', caption);
-                    fd.append('video', blob, 'bookpromo.webm');
-                    var csrfField = document.querySelector('meta[name="csrf-field"]');
-                    var csrfToken = document.querySelector('meta[name="csrf-token"]');
-                    if (csrfField && csrfToken) fd.append(csrfField.content, csrfToken.content);
-                    fetch('/videos/create', { method: 'POST', body: fd })
-                        .then(function (r) {
-                            if (r.redirected) { window.location.href = r.url; return; }
-                            status.textContent = 'Could not save video. Try again.';
-                            btn.disabled = false;
-                            animatePreview();
-                        })
-                        .catch(function () {
-                            status.textContent = 'Upload failed. Try again.';
-                            btn.disabled = false;
-                            animatePreview();
-                        });
+                    uploadRecordedBlob(blob, mime, bookId, title, caption, status, btn);
                 };
                 recordStart = performance.now();
                 recorder.start(200);
                 function recordTick(now) {
-                    var p = Math.min(1, (now - recordStart) / durationMs);
-                    drawFrame(p);
-                    if (p < 1) requestAnimationFrame(recordTick);
+                    var elapsed = now - recordStart;
+                    drawFrame(elapsed);
+                    if (elapsed < durationMs) requestAnimationFrame(recordTick);
                     else recorder.stop();
                 }
                 requestAnimationFrame(recordTick);
+            }
+
+            function createNarratedVideo() {
+                var bookId = document.getElementById('tiktok-book').value;
+                var title = document.getElementById('tiktok-title').value.trim();
+                var caption = document.getElementById('tiktok-caption').value.trim();
+                var excerpt = document.getElementById('tiktok-excerpt').value.trim();
+                var status = document.getElementById('tiktok-create-status');
+                var btn = document.getElementById('tiktok-create-btn');
+                if (!bookId) { status.textContent = 'Choose a book first.'; return; }
+                if (!title) { status.textContent = 'Enter a video title.'; return; }
+                if (!excerpt) { status.textContent = 'Add a read-aloud excerpt (paste a chapter sample).'; return; }
+                if (!coverImg.complete || !coverImg.naturalWidth) {
+                    status.textContent = 'Waiting for cover image — add a cover in Books or pick another title.';
+                    return;
+                }
+                btn.disabled = true;
+                status.textContent = 'Generating read-aloud voice...';
+                if (animFrame) cancelAnimationFrame(animFrame);
+                if (narratedAnimFrame) cancelAnimationFrame(narratedAnimFrame);
+
+                var fd = new FormData();
+                fd.append('text', excerpt);
+                var csrfField = document.querySelector('meta[name="csrf-field"]');
+                var csrfToken = document.querySelector('meta[name="csrf-token"]');
+                if (csrfField && csrfToken) fd.append(csrfField.content, csrfToken.content);
+
+                fetch('/videos/speech', { method: 'POST', body: fd })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (data.error || !data.wavBase64) {
+                            status.textContent = data.error || 'Speech not available — try Promo style.';
+                            btn.disabled = false;
+                            resumePreview();
+                            return;
+                        }
+                        var raw = atob(data.wavBase64);
+                        var bytes = new Uint8Array(raw.length);
+                        for (var i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+                        return recordNarratedWithAudio(bytes.buffer, data.beats, data.durationMs, bookId, title, caption, status, btn);
+                    })
+                    .catch(function () {
+                        status.textContent = 'Could not generate speech. Try again.';
+                        btn.disabled = false;
+                        resumePreview();
+                    });
+            }
+
+            function recordNarratedWithAudio(arrayBuffer, beats, speechMs, bookId, title, caption, status, btn) {
+                var script = currentScript || { title: '', author: '', cta: 'Link in bio 📚', link: '' };
+                var totalMs = speechMs + ctaTailMs;
+                var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                return audioCtx.decodeAudioData(arrayBuffer).then(function (audioBuffer) {
+                    status.textContent = 'Recording narrated video...';
+                    var source = audioCtx.createBufferSource();
+                    source.buffer = audioBuffer;
+                    var dest = audioCtx.createMediaStreamDestination();
+                    source.connect(dest);
+                    var canvasStream = canvas.captureStream(30);
+                    var tracks = canvasStream.getVideoTracks().concat(dest.stream.getAudioTracks());
+                    var combined = new MediaStream(tracks);
+                    var mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+                        ? 'video/webm;codecs=vp9,opus'
+                        : (MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm');
+                    var recorder = new MediaRecorder(combined, { mimeType: mime, videoBitsPerSecond: 2500000 });
+                    var chunks = [];
+                    recorder.ondataavailable = function (e) { if (e.data.size) chunks.push(e.data); };
+                    recorder.onstop = function () {
+                        audioCtx.close();
+                        uploadRecordedBlob(new Blob(chunks, { type: mime }), mime, bookId, title, caption, status, btn);
+                    };
+                    var startAt = audioCtx.currentTime;
+                    source.start(0);
+                    recorder.start(200);
+                    function tick() {
+                        var elapsedMs = (audioCtx.currentTime - startAt) * 1000;
+                        drawNarratedFrame(elapsedMs, beats, speechMs, script);
+                        if (elapsedMs < totalMs) requestAnimationFrame(tick);
+                        else recorder.stop();
+                    }
+                    requestAnimationFrame(tick);
+                }).catch(function () {
+                    status.textContent = 'Could not play audio for recording.';
+                    btn.disabled = false;
+                    audioCtx.close();
+                    resumePreview();
+                });
+            }
+
+            window.tiktokCreateVideo = function () {
+                if (document.getElementById('tiktok-style').value === 'narrated') createNarratedVideo();
+                else createPromoVideo();
             };
 
             window.copyTikTokCaption = function (btn) {

@@ -284,6 +284,7 @@ class AppStoreDb
         existing.AuthorName = book.AuthorName;
         existing.Genre = book.Genre;
         existing.Description = book.Description;
+        existing.ReadAloudExcerpt = book.ReadAloudExcerpt;
         existing.CoverImageUrl = book.CoverImageUrl;
         existing.CoverSourceUrl = book.CoverSourceUrl;
         existing.PostVariantSeed = book.PostVariantSeed;
@@ -3720,8 +3721,8 @@ class AppStoreDb
     }
 
     // ── Model converters ───────────────────────────────────────────────
-    static Book ToModel(DbBook b) => new() { Id = b.Id, Title = b.Title, AuthorName = b.AuthorName, Genre = b.Genre, Description = b.Description, CoverImageUrl = b.CoverImageUrl, CoverSourceUrl = b.CoverSourceUrl, TrackingCode = b.TrackingCode, MonthlyClicks = b.MonthlyClicks, PostVariantSeed = b.PostVariantSeed, ClientId = b.ClientId, Links = b.Links.Select(l => new BookLink { StoreName = l.StoreName, Url = l.Url }).ToList(), ClickHistory = ParseClickHistory(b.ClickHistoryJson), PlatformClickHistory = ParsePlatformClickHistory(b.PlatformClickHistoryJson) };
-    static DbBook ToDb(Book b, int uid) => new() { UserId = uid, Title = b.Title, AuthorName = b.AuthorName, Genre = b.Genre, Description = b.Description, CoverImageUrl = b.CoverImageUrl, CoverSourceUrl = b.CoverSourceUrl, TrackingCode = b.TrackingCode, MonthlyClicks = b.MonthlyClicks, PostVariantSeed = b.PostVariantSeed, ClientId = b.ClientId, ClickHistoryJson = JsonSerializer.Serialize(b.ClickHistory), PlatformClickHistoryJson = JsonSerializer.Serialize(b.PlatformClickHistory), Links = b.Links.Select(l => new DbBookLink { StoreName = l.StoreName, Url = l.Url }).ToList() };
+    static Book ToModel(DbBook b) => new() { Id = b.Id, Title = b.Title, AuthorName = b.AuthorName, Genre = b.Genre, Description = b.Description, ReadAloudExcerpt = b.ReadAloudExcerpt, CoverImageUrl = b.CoverImageUrl, CoverSourceUrl = b.CoverSourceUrl, TrackingCode = b.TrackingCode, MonthlyClicks = b.MonthlyClicks, PostVariantSeed = b.PostVariantSeed, ClientId = b.ClientId, Links = b.Links.Select(l => new BookLink { StoreName = l.StoreName, Url = l.Url }).ToList(), ClickHistory = ParseClickHistory(b.ClickHistoryJson), PlatformClickHistory = ParsePlatformClickHistory(b.PlatformClickHistoryJson) };
+    static DbBook ToDb(Book b, int uid) => new() { UserId = uid, Title = b.Title, AuthorName = b.AuthorName, Genre = b.Genre, Description = b.Description, ReadAloudExcerpt = b.ReadAloudExcerpt, CoverImageUrl = b.CoverImageUrl, CoverSourceUrl = b.CoverSourceUrl, TrackingCode = b.TrackingCode, MonthlyClicks = b.MonthlyClicks, PostVariantSeed = b.PostVariantSeed, ClientId = b.ClientId, ClickHistoryJson = JsonSerializer.Serialize(b.ClickHistory), PlatformClickHistoryJson = JsonSerializer.Serialize(b.PlatformClickHistory), Links = b.Links.Select(l => new DbBookLink { StoreName = l.StoreName, Url = l.Url }).ToList() };
     static SocialAccount ToModel(DbSocialAccount a) => new()
     {
         Id = a.Id,

@@ -138,6 +138,7 @@ class DbBook
     public string AuthorName { get; set; } = "";
     public string Genre { get; set; } = "";
     public string Description { get; set; } = "";
+    public string ReadAloudExcerpt { get; set; } = "";
     public string CoverImageUrl { get; set; } = "";
     public string CoverSourceUrl { get; set; } = "";
     public string TrackingCode { get; set; } = Guid.NewGuid().ToString("N")[..8];
