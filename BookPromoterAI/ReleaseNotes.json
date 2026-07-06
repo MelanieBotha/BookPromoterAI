@@ -1,4 +1,12 @@
 {
+  "1.9.64": {
+    "title": "BookPromoter AI v1.9.64 — What's new",
+    "updated": [
+      "Fix author Facebook OAuth Reconnect loop and show setup instructions before redirect"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.9.63": {
     "title": "BookPromoter AI v1.9.63 — What's new",
     "updated": [

@@ -192,6 +192,14 @@ static class SocialAccountRoutes
                         "text/html");
                 }
 
+                // Author: show instructions first; only redirect when user clicks through (go=1).
+                if (!brandOAuth && request.Query["go"].ToString() != "1")
+                {
+                    return Results.Content(
+                        H.RenderPage(http, "Connect Facebook", SocialConnectHelper.FacebookSetupPage(returnUrl, notice, settings, request), store),
+                        "text/html");
+                }
+
                 var callbackUrl = PublicUrl.FacebookCallbackUrl(request, settings);
                 var (authorizeUrl, state, _) = facebookService.BuildAuthorizationUrl(callbackUrl, brandContext: false);
                 await FacebookOAuthStateStore.SaveAsync(cache, state, new FacebookOAuthPending

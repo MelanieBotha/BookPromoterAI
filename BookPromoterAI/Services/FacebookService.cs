@@ -69,9 +69,7 @@ class FacebookService
         else
         {
             query["scope"] = Scopes;
-            // Never add auth_type for brand scope — Meta's Continue dialog loops without returning a code.
-            if (!brandContext)
-                query["auth_type"] = "rerequest";
+            // Do not add auth_type — Meta's Reconnect/Continue dialogs loop without returning a code.
             flowLabel = "Page permissions (scope)";
         }
 

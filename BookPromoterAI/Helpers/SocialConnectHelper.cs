@@ -280,6 +280,19 @@ static class SocialConnectHelper
                 </div>
                 """
             : "";
+        var authorSteps = !brandContext
+            ? """
+                <div class="notice">
+                    <strong>Author Facebook connect</strong> (separate from Owner brand Book Promoter AI)
+                    <ol class="plan-features">
+                        <li>Sign in as <strong>Melanie Botha</strong> (personal Facebook).</li>
+                        <li>If Meta shows <strong>Reconnect</strong> or <strong>Continue</strong>, click <strong>Edit settings</strong> first.</li>
+                        <li>Select your <strong>author Page</strong> (e.g. <strong>Melanie Botha Novels</strong>) — <em>not</em> Book Promoter AI (that is Owner brand only).</li>
+                        <li>If stuck in a loop, remove <strong>AuthorPromoter AI</strong> from <a href="https://www.facebook.com/settings?tab=business_tools&amp;section=active" target="_blank" rel="noopener">Business integrations</a>, then try again.</li>
+                    </ol>
+                </div>
+                """
+            : "";
         var connectHref = $"/social-accounts/connect/Facebook?return={Uri.EscapeDataString(returnUrl)}&go=1";
         var brandConnectBlock = !configured
             ? """
@@ -345,7 +358,8 @@ static class SocialConnectHelper
                 : brandContext
                     ? brandConnectBlock
                     : $"""
-                <p class="muted">You will sign in with Facebook as yourself, then connect a <strong>Facebook Page</strong> for your author brand (not your personal news feed). If Facebook shows a previous connection, click <strong>Edit settings</strong> and pick your author Page — not the BookPromoter AI business Page.</p>
+                {authorSteps}
+                <p class="muted">Connect your <strong>author Facebook Page</strong> for book promos — not your personal news feed, and not the Book Promoter AI business Page.</p>
                 <div class="form-actions">
                     <a class="button" href="{H.Encode(connectHref)}" style="background:#1877F2">Sign in with Facebook</a>
                     <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
