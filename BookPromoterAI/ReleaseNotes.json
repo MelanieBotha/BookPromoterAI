@@ -1,4 +1,13 @@
 {
+  "1.11.4": {
+    "title": "BookPromoter AI v1.11.4 — What's new",
+    "updated": [
+      "Fixed read-aloud on Railway: reliable espeak-ng detection plus pico2wave fallback",
+      "Stuck Generating videos time out after 12 minutes with a Retry button"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.11.3": {
     "title": "BookPromoter AI v1.11.3 — What's new",
     "updated": [

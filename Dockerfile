@@ -8,7 +8,13 @@ RUN dotnet publish -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends espeak-ng libespeak-ng1 ffmpeg \
+    && apt-get install -y --no-install-recommends \
+       espeak-ng \
+       libespeak-ng1 \
+       libttspico-utils \
+       ffmpeg \
+    && test -x /usr/bin/espeak-ng \
+    && test -x /usr/bin/ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 WORKDIR /app

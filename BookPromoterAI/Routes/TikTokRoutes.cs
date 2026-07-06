@@ -12,6 +12,7 @@ static class TikTokRoutes
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
             var baseUrl = PublicUrl.Base(request, settings);
             var queued = store.EnsureWeeklyVideos(generator, baseUrl);
+            store.ResetStuckRenderingVideos(TimeSpan.FromMinutes(12));
             await store.RenderPendingVideosAsync(renderer, uploads.Path, baseUrl);
             var notice = request.Query["created"] == "1"
                 ? """<div class="notice success">Video created! Download it below and post to social media when you are ready.</div>"""

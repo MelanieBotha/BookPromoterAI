@@ -147,8 +147,6 @@ class VideoRenderService
         return process.ExitCode == 0;
     }
 
-    string? FfmpegPath() => _ffmpegPath ??= ProcessTools.FindExecutable(
-        "/usr/bin/ffmpeg",
-        "/usr/local/bin/ffmpeg",
-        "ffmpeg");
+    string? FfmpegPath() => _ffmpegPath ??= ProcessTools.ResolveBinary(
+        "/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg", "ffmpeg");
 }

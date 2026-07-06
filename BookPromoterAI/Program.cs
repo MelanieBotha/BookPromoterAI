@@ -89,8 +89,8 @@ builder.Services.AddHostedService<PostingSchedulerServiceDb>();
 var app = builder.Build();
 var speechService = app.Services.GetRequiredService<LocalSpeechService>();
 Console.WriteLine(speechService.IsAvailable
-    ? "[Startup] Read-aloud TTS: espeak available."
-    : "[Startup] Read-aloud TTS: espeak NOT found — narrated videos will fail.");
+    ? $"[Startup] Read-aloud TTS ready ({speechService.DiagnosticStatus()})."
+    : "[Startup] Read-aloud TTS NOT found — narrated videos will fail until espeak-ng is in the container.");
 var onRailway = !string.IsNullOrWhiteSpace(port);
 
 // Liveness probe — always 200 so Railway deploy healthcheck passes while DB migrates.

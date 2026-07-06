@@ -894,6 +894,27 @@ class AppStoreDb
         return failed.Count;
     }
 
+    public int ResetStuckRenderingVideos(TimeSpan maxAge, int? userId = null)
+    {
+        var cutoff = DateTime.UtcNow - maxAge;
+        using var db = Db();
+        var query = db.TikTokVideos.Where(v =>
+            v.Status == TikTokVideoStatuses.Rendering && v.CreatedAt < cutoff);
+        if (userId is > 0)
+            query = query.Where(v => v.UserId == userId.Value);
+
+        var stuck = query.ToList();
+        foreach (var row in stuck)
+        {
+            row.Status = TikTokVideoStatuses.Failed;
+            row.ErrorMessage = "Rendering timed out. Click Retry.";
+        }
+
+        if (stuck.Count > 0)
+            db.SaveChanges();
+        return stuck.Count;
+    }
+
     public async Task<int> RenderPendingVideosAsync(
         VideoRenderService renderer, string uploadsDir, string appBaseUrl, CancellationToken cancellationToken = default)
     {
@@ -901,7 +922,7 @@ class AppStoreDb
         var pending = await db.TikTokVideos
             .Where(v => v.Status == TikTokVideoStatuses.Rendering)
             .OrderBy(v => v.CreatedAt)
-            .Take(2)
+            .Take(4)
             .ToListAsync(cancellationToken);
         if (pending.Count == 0) return 0;
 
@@ -945,6 +966,7 @@ class AppStoreDb
             EnsureWeeklyVideos(generator, appBaseUrl, userId);
 
         RequeueFailedWeeklyVideos(generator);
+        ResetStuckRenderingVideos(TimeSpan.FromMinutes(12));
         await RenderPendingVideosAsync(renderer, uploadsDir, appBaseUrl, cancellationToken);
     }
 

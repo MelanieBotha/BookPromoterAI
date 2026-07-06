@@ -1,36 +1,24 @@
-using System.Diagnostics;
-
 namespace BookPromoterAI;
 
 static class ProcessTools
 {
-    public static string? FindExecutable(params string[] candidates)
+    /// <summary>Find a binary by absolute path or common Linux bin dirs (no subprocess).</summary>
+    public static string? ResolveBinary(params string[] names)
     {
-        foreach (var candidate in candidates)
+        foreach (var name in names)
         {
-            if (candidate.Contains('/') && !File.Exists(candidate))
-                continue;
-
-            foreach (var versionArg in new[] { "--version", "-version" })
+            if (name.Contains('/'))
             {
-                try
-                {
-                    var psi = new ProcessStartInfo
-                    {
-                        FileName = candidate,
-                        Arguments = versionArg,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
-                    };
-                    using var process = Process.Start(psi);
-                    if (process is null) continue;
-                    process.WaitForExit(5000);
-                    if (process.ExitCode == 0)
-                        return candidate;
-                }
-                catch { /* try next */ }
+                if (File.Exists(name))
+                    return name;
+                continue;
+            }
+
+            foreach (var dir in new[] { "/usr/bin", "/usr/local/bin", "/bin" })
+            {
+                var full = Path.Combine(dir, name);
+                if (File.Exists(full))
+                    return full;
             }
         }
 

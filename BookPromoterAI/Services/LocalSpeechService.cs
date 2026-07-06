@@ -4,13 +4,23 @@ using System.Text.RegularExpressions;
 
 namespace BookPromoterAI;
 
-/// <summary>On-device text-to-speech (no ElevenLabs or other cloud TTS). Uses espeak-ng on Linux.</summary>
+/// <summary>On-device text-to-speech (no ElevenLabs or other cloud TTS). Uses espeak-ng or pico2wave on Linux.</summary>
 class LocalSpeechService
 {
     static readonly Regex SafeText = new(@"[^\p{L}\p{N}\p{P}\p{Z}]", RegexOptions.Compiled);
     string? _espeakPath;
+    string? _picoPath;
 
-    public bool IsAvailable => EspeakPath() is not null;
+    public bool IsAvailable => EspeakPath() is not null || PicoPath() is not null;
+
+    public string DiagnosticStatus()
+    {
+        var espeak = EspeakPath();
+        var pico = PicoPath();
+        if (espeak is not null) return $"espeak ({espeak})";
+        if (pico is not null) return $"pico2wave ({pico})";
+        return "none — install espeak-ng in Docker";
+    }
 
     public async Task<(byte[]? Wav, double DurationMs, string? Error)> SynthesizeAsync(
         string text, CancellationToken cancellationToken = default)
@@ -25,7 +35,13 @@ class LocalSpeechService
             if (windows.Wav is not null) return windows;
         }
 
-        return await SynthesizeEspeakAsync(cleaned, cancellationToken);
+        var espeak = await SynthesizeEspeakAsync(cleaned, cancellationToken);
+        if (espeak.Wav is not null) return espeak;
+
+        var pico = await SynthesizePicoAsync(cleaned, cancellationToken);
+        if (pico.Wav is not null) return pico;
+
+        return (null, 0, espeak.Error ?? pico.Error ?? "Read-aloud is not available on this server yet. Try the Promo video style instead.");
     }
 
     static string Sanitize(string text)
@@ -87,7 +103,7 @@ class LocalSpeechService
     {
         var espeak = EspeakPath();
         if (espeak is null)
-            return (null, 0, "Read-aloud is not available on this server yet. Try the Promo video style instead.");
+            return (null, 0, null);
 
         var tempWav = Path.Combine(Path.GetTempPath(), $"bpa-speech-{Guid.NewGuid():N}.wav");
         var tempTxt = Path.Combine(Path.GetTempPath(), $"bpa-speech-{Guid.NewGuid():N}.txt");
@@ -104,14 +120,18 @@ class LocalSpeechService
             };
             using var process = Process.Start(psi);
             if (process is null)
-                return (null, 0, "Could not start the speech engine.");
+                return (null, 0, "Could not start espeak.");
             var err = await process.StandardError.ReadToEndAsync(cancellationToken);
             await process.WaitForExitAsync(cancellationToken);
             if (process.ExitCode != 0 || !File.Exists(tempWav))
-                return (null, 0, string.IsNullOrWhiteSpace(err) ? "Speech synthesis failed." : err.Trim());
+                return (null, 0, string.IsNullOrWhiteSpace(err) ? "espeak synthesis failed." : err.Trim());
 
             var bytes = await File.ReadAllBytesAsync(tempWav, cancellationToken);
             return (bytes, WavDurationMs(bytes), null);
+        }
+        catch (Exception ex)
+        {
+            return (null, 0, ex.Message);
         }
         finally
         {
@@ -120,11 +140,51 @@ class LocalSpeechService
         }
     }
 
-    string? EspeakPath() => _espeakPath ??= ProcessTools.FindExecutable(
-        "/usr/bin/espeak-ng",
-        "/usr/bin/espeak",
-        "espeak-ng",
-        "espeak");
+    async Task<(byte[]? Wav, double DurationMs, string? Error)> SynthesizePicoAsync(
+        string text, CancellationToken cancellationToken)
+    {
+        var pico = PicoPath();
+        if (pico is null)
+            return (null, 0, null);
+
+        var tempWav = Path.Combine(Path.GetTempPath(), $"bpa-speech-{Guid.NewGuid():N}.wav");
+        try
+        {
+            var spoken = text.Length > 900 ? text[..900] : text;
+            var psi = new ProcessStartInfo
+            {
+                FileName = pico,
+                Arguments = $"-w {ProcessTools.QuoteArg(tempWav)} -l en-US {ProcessTools.QuoteArg(spoken)}",
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using var process = Process.Start(psi);
+            if (process is null)
+                return (null, 0, "Could not start pico2wave.");
+            var err = await process.StandardError.ReadToEndAsync(cancellationToken);
+            await process.WaitForExitAsync(cancellationToken);
+            if (process.ExitCode != 0 || !File.Exists(tempWav))
+                return (null, 0, string.IsNullOrWhiteSpace(err) ? "pico2wave synthesis failed." : err.Trim());
+
+            var bytes = await File.ReadAllBytesAsync(tempWav, cancellationToken);
+            return (bytes, WavDurationMs(bytes), null);
+        }
+        catch (Exception ex)
+        {
+            return (null, 0, ex.Message);
+        }
+        finally
+        {
+            TryDelete(tempWav);
+        }
+    }
+
+    string? EspeakPath() => _espeakPath ??= ProcessTools.ResolveBinary(
+        "/usr/bin/espeak-ng", "/usr/bin/espeak", "espeak-ng", "espeak");
+
+    string? PicoPath() => _picoPath ??= ProcessTools.ResolveBinary(
+        "/usr/bin/pico2wave", "pico2wave");
 
     static double WavDurationMs(byte[] wav)
     {
