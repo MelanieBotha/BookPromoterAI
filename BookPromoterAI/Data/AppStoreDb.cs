@@ -773,6 +773,7 @@ class AppStoreDb
                 .Where(v => v.UserId == uid)
                 .AsNoTracking()
                 .OrderByDescending(v => v.CreatedAt)
+                .ToList()
                 .Select(ToModel)
                 .ToList();
         }

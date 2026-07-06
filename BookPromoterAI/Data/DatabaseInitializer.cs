@@ -110,6 +110,32 @@ static class DatabaseInitializer
                 );
                 """);
         }
+
+        if (!TableExists(db, "TikTokVideos"))
+        {
+            db.Database.ExecuteSqlRaw("""
+                CREATE TABLE IF NOT EXISTS "TikTokVideos" (
+                    "Id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    "UserId" INTEGER NOT NULL,
+                    "BookId" INTEGER NOT NULL,
+                    "BookTitle" TEXT NOT NULL,
+                    "Title" TEXT NOT NULL,
+                    "Caption" TEXT NOT NULL,
+                    "VideoUrl" TEXT NOT NULL,
+                    "Status" TEXT NOT NULL,
+                    "ErrorMessage" TEXT NULL,
+                    "TikTokPublishId" TEXT NULL,
+                    "CreatedAt" TEXT NOT NULL,
+                    "PostedAt" TEXT NULL,
+                    FOREIGN KEY ("UserId") REFERENCES "Users" ("Id") ON DELETE CASCADE
+                );
+                """);
+            db.Database.ExecuteSqlRaw("""CREATE INDEX IF NOT EXISTS "IX_TikTokVideos_UserId" ON "TikTokVideos" ("UserId");""");
+            db.Database.ExecuteSqlRaw(
+                "INSERT OR IGNORE INTO __EFMigrationsHistory (MigrationId, ProductVersion) VALUES ({0}, {1})",
+                "20260706044301_AddTikTokVideos",
+                "8.0.0");
+        }
     }
 
     static void RepairMailingListSettingsIndex(AppDbContext db)
