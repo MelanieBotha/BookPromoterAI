@@ -253,7 +253,7 @@ static class SocialConnectHelper
             : "Connect your Facebook Page";
         var intro = brandContext
             ? "Sign in with Facebook to post to your <strong>Book Promoter AI</strong> Page for app promotions."
-            : "Sign in with your personal Facebook account, then choose an <strong>author Facebook Page</strong> you manage. Meta does not allow apps to post to personal profile timelines — only to Pages.";
+            : "Sign in with your <strong>personal Facebook account</strong> (not a business portfolio), then choose the <strong>author Page</strong> you manage. Meta does not allow apps to post to personal profile timelines — only to Pages.";
         var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<div class="notice error">{H.Encode(notice)}</div>""";
         var configured = settings?.IsFacebookConfigured == true;
         var oauthReady = settings?.IsFacebookOAuthReady == true;
@@ -283,11 +283,12 @@ static class SocialConnectHelper
         var authorSteps = !brandContext
             ? """
                 <div class="notice">
-                    <strong>Author Facebook connect</strong> (separate from Owner brand Book Promoter AI)
+                    <p><strong>Use your personal Facebook account — not a business portfolio.</strong> If Facebook shows &ldquo;BookPromoter&rdquo; or &ldquo;Continue as [business name]?&rdquo; in the top-right, log out and sign in with your personal profile instead.</p>
+                    <p class="muted small-text">Authors connect their own Facebook <strong>Page</strong> (e.g. your author brand). Do not use Owner brand Pages or Meta Business portfolio logins.</p>
                     <ol class="plan-features">
-                        <li>Sign in as <strong>Melanie Botha</strong> (personal Facebook).</li>
+                        <li>Sign in with your <strong>personal Facebook</strong> (the profile that manages your author Page).</li>
                         <li>If Meta shows <strong>Reconnect</strong> or <strong>Continue</strong>, click <strong>Edit settings</strong> first.</li>
-                        <li>Select your <strong>author Page</strong> (e.g. <strong>Melanie Botha Novels</strong>) — <em>not</em> Book Promoter AI (that is Owner brand only).</li>
+                        <li>Select <strong>your author Page</strong> only — not Book Promoter AI (Owner brand only).</li>
                         <li>If stuck in a loop, remove <strong>AuthorPromoter AI</strong> from <a href="https://www.facebook.com/settings?tab=business_tools&amp;section=active" target="_blank" rel="noopener">Business integrations</a>, then try again.</li>
                     </ol>
                 </div>
@@ -359,7 +360,7 @@ static class SocialConnectHelper
                     ? brandConnectBlock
                     : $"""
                 {authorSteps}
-                <p class="muted">Connect your <strong>author Facebook Page</strong> for book promos — not your personal news feed, and not the Book Promoter AI business Page.</p>
+                <p class="muted">Connect the Facebook <strong>Page</strong> you use for your author brand. Personal profile timelines cannot be used — only Pages.</p>
                 <div class="form-actions">
                     <a class="button" href="{H.Encode(connectHref)}" style="background:#1877F2">Sign in with Facebook</a>
                     <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
