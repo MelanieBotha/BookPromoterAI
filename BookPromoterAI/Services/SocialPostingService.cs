@@ -217,7 +217,7 @@ class SocialPostingService
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(account.AccessToken) || string.IsNullOrWhiteSpace(account.ExternalAccountId))
-            return new PostingOutcome { Result = PostingResult.Failure("Facebook is not connected. Reconnect your Page in My Account.") };
+            return new PostingOutcome { Result = PostingResult.Failure("Facebook is not connected. Connect your author Page in My Account (personal Facebook — not business portfolio).") };
 
         string? photoUrl = null;
         byte[]? photoBytes = null;

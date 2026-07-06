@@ -161,14 +161,31 @@ class FacebookService
         CancellationToken cancellationToken = default)
     {
         var hasPhoto = !string.IsNullOrWhiteSpace(photoUrl) || photoBytes is { Length: > 0 };
-        var first = hasPhoto
-            ? await TryPostPhotoAsync(connection.Page.Id, connection.Page.AccessToken, postText, photoUrl, photoBytes, photoMime, cancellationToken)
-            : await TryPostToPageFeedAsync(connection.Page.Id, connection.Page.AccessToken, postText, link: null, cancellationToken);
-        if (first.Success)
-            return (PostingResult.LiveOk(hasPhoto ? "Posted to Facebook Page with book cover." : "Posted to Facebook Page."), null);
+        if (hasPhoto)
+        {
+            var photo = await TryPostPhotoAsync(connection.Page.Id, connection.Page.AccessToken, postText, photoUrl, photoBytes, photoMime, cancellationToken);
+            if (photo.Success)
+                return (PostingResult.LiveOk("Posted to Facebook Page with book cover."), null);
 
-        if (!first.NeedsRefresh || string.IsNullOrWhiteSpace(connection.UserAccessToken))
-            return (PostingResult.Failure(first.Error), null);
+            if (!photo.NeedsRefresh)
+            {
+                var textOnly = await TryPostToPageFeedAsync(connection.Page.Id, connection.Page.AccessToken, postText, link: null, cancellationToken);
+                if (textOnly.Success)
+                    return (PostingResult.LiveOk($"Posted to Facebook Page (text only — {photo.Error})"), null);
+            }
+
+            if (!photo.NeedsRefresh || string.IsNullOrWhiteSpace(connection.UserAccessToken))
+                return (PostingResult.Failure(photo.Error), null);
+        }
+        else
+        {
+            var feed = await TryPostToPageFeedAsync(connection.Page.Id, connection.Page.AccessToken, postText, link: null, cancellationToken);
+            if (feed.Success)
+                return (PostingResult.LiveOk("Posted to Facebook Page."), null);
+
+            if (!feed.NeedsRefresh || string.IsNullOrWhiteSpace(connection.UserAccessToken))
+                return (PostingResult.Failure(feed.Error), null);
+        }
 
         var pages = await GetManagedPagesAsync(connection.UserAccessToken, cancellationToken);
         var refreshedPage = pages.FirstOrDefault(p => p.Id == connection.Page.Id);
@@ -182,6 +199,16 @@ class FacebookService
         {
             return (PostingResult.LiveOk(hasPhoto ? "Posted to Facebook Page with book cover." : "Posted to Facebook Page."),
                 new FacebookTokenUpdate(refreshedPage.AccessToken, connection.UserAccessToken));
+        }
+
+        if (hasPhoto && !retry.NeedsRefresh)
+        {
+            var retryText = await TryPostToPageFeedAsync(refreshedPage.Id, refreshedPage.AccessToken, postText, link: null, cancellationToken);
+            if (retryText.Success)
+            {
+                return (PostingResult.LiveOk($"Posted to Facebook Page (text only — {retry.Error})"),
+                    new FacebookTokenUpdate(refreshedPage.AccessToken, connection.UserAccessToken));
+            }
         }
 
         return (PostingResult.Failure(retry.Error),
@@ -279,14 +306,15 @@ class FacebookService
         string? photoMime,
         CancellationToken cancellationToken)
     {
-        if (!string.IsNullOrWhiteSpace(photoUrl))
+        // Upload bytes first — Meta often returns 400 when fetching cover URLs itself.
+        if (photoBytes is { Length: > 0 })
         {
-            var fromUrl = await TryPostPhotoUrlAsync(pageId, pageAccessToken, postText, photoUrl, cancellationToken);
-            if (fromUrl.Success) return fromUrl;
+            var fromBytes = await TryPostPhotoBytesAsync(pageId, pageAccessToken, postText, photoBytes, photoMime, cancellationToken);
+            if (fromBytes.Success) return fromBytes;
         }
 
-        if (photoBytes is { Length: > 0 })
-            return await TryPostPhotoBytesAsync(pageId, pageAccessToken, postText, photoBytes, photoMime, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(photoUrl))
+            return await TryPostPhotoUrlAsync(pageId, pageAccessToken, postText, photoUrl, cancellationToken);
 
         return (false, false, "Book cover image could not be attached.");
     }
@@ -350,15 +378,32 @@ class FacebookService
 
     static (bool Success, bool NeedsRefresh, string Error) ClassifyPostFailure(System.Net.HttpStatusCode status, string body)
     {
-        if (status == System.Net.HttpStatusCode.Unauthorized ||
-            body.Contains("expired", StringComparison.OrdinalIgnoreCase) ||
-            body.Contains("Session has expired", StringComparison.OrdinalIgnoreCase))
-            return (false, true, "Facebook Page token expired.");
+        var message = DescribeGraphError(body, "");
+        var code = TryParseGraphErrorCode(body);
 
-        if (status == System.Net.HttpStatusCode.Forbidden)
-            return (false, false, "Facebook API access denied. Confirm pages_manage_posts is enabled and you are a Page admin.");
+        if (status == System.Net.HttpStatusCode.Unauthorized ||
+            code is 190 or 102 ||
+            body.Contains("expired", StringComparison.OrdinalIgnoreCase) ||
+            body.Contains("Session has expired", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("access token", StringComparison.OrdinalIgnoreCase))
+            return (false, true, string.IsNullOrWhiteSpace(message) ? "Facebook Page token expired." : message);
+
+        if (status == System.Net.HttpStatusCode.Forbidden || code == 200)
+            return (false, false, string.IsNullOrWhiteSpace(message)
+                ? "Facebook API access denied. Confirm pages_manage_posts is enabled and reconnect your Page."
+                : message);
 
         return (false, false, DescribePostError(status, body));
+    }
+
+    static int? TryParseGraphErrorCode(string body)
+    {
+        try
+        {
+            var err = System.Text.Json.JsonSerializer.Deserialize<FacebookGraphErrorResponse>(body);
+            return err?.Error?.Code;
+        }
+        catch { return null; }
     }
 
     public static bool IsBookPromoterBrandPage(FacebookPage page) =>
@@ -380,9 +425,12 @@ class FacebookService
 
     static string DescribePostError(System.Net.HttpStatusCode status, string detail)
     {
+        var meta = DescribeGraphError(detail, "");
+        if (!string.IsNullOrWhiteSpace(meta))
+            return meta;
         if (detail.Contains("duplicate", StringComparison.OrdinalIgnoreCase))
             return "Facebook rejected the post as a duplicate.";
-        return $"Facebook error ({(int)status}). Try again or reconnect your Page.";
+        return $"Facebook error ({(int)status}). Try again or reconnect your Page in My Account.";
     }
 
     sealed class FacebookTokenResponse
