@@ -1,4 +1,12 @@
 {
+  "1.9.63": {
+    "title": "BookPromoter AI v1.9.63 — What's new",
+    "updated": [
+      "Request business_management in Facebook scope OAuth so Book Promoter AI Page appears when linked to Meta Business"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.9.62": {
     "title": "BookPromoter AI v1.9.62 — What's new",
     "updated": [

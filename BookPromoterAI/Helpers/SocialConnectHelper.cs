@@ -273,6 +273,8 @@ static class SocialConnectHelper
                         <li>Sign in as <strong>Melanie Botha</strong> (your personal profile — the one that admins the Book Promoter AI Page).</li>
                         <li>Remove <strong>AuthorPromoter AI</strong> from <a href="https://www.facebook.com/settings?tab=business_tools&amp;section=active" target="_blank" rel="noopener">Business integrations → Active</a> (must be <strong>0 active</strong>).</li>
                         <li>On Meta&rsquo;s dialog: click <strong>Edit settings</strong> (never Continue alone) → tick <strong>Book Promoter AI</strong> only → Save.</li>
+                        <li><strong>Book Promoter AI missing from the list?</strong> That Page is linked to your Meta Business portfolio — the app must request <code>business_management</code> (v1.9.63+). Also confirm Melanie Botha (personal) has <strong>Full control</strong> on the Page in <a href="https://business.facebook.com/settings/pages" target="_blank" rel="noopener">Business Suite → Pages → Book Promoter AI → Page access</a>.</li>
+                        <li>Do <strong>not</strong> connect <strong>Melanie Botha Novels</strong> for brand posting — that is your author Page, not Book Promoter AI.</li>
                         <li>Success = browser returns to <strong>bookpromoterai.us</strong>.</li>
                     </ol>
                 </div>

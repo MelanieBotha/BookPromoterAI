@@ -9,7 +9,8 @@ class FacebookService
     public const string CallbackPath = "/social-accounts/oauth-callback/facebook";
     /// <summary>Legacy Meta redirect URI (underscore path) — still accepted for token exchange.</summary>
     public const string LegacyCallbackPath = "/social_accounts/oauth_callback/facebook";
-    public const string Scopes = "pages_show_list,pages_manage_posts,pages_read_engagement,public_profile";
+    // business_management is required for Pages linked to a Meta Business portfolio (Book Promoter AI).
+    public const string Scopes = "pages_show_list,pages_manage_posts,pages_read_engagement,business_management,public_profile";
     /// <summary>Permissions to enable on the Meta Login Configuration (config mode only).</summary>
     public static readonly string[] LoginConfigurationPermissions =
         ["pages_show_list", "pages_manage_posts", "pages_read_engagement", "business_management", "public_profile"];
@@ -136,8 +137,10 @@ class FacebookService
                 return FacebookAuthOutcome.NeedsPageSelection(pages, userToken);
             if (pages.Count == 1)
                 return FacebookAuthOutcome.Failed(
-                    $"Meta only granted \"{pages[0].Name}\" (not Book Promoter AI). On Facebook click Edit settings → Choose Pages → tick Book Promoter AI only. " +
-                    MetaBusinessIntegrationHelp);
+                    $"Meta only granted \"{pages[0].Name}\" (not Book Promoter AI). " +
+                    "Your personal Facebook account must be a Page admin on Book Promoter AI (Page ID 1210277848829044). " +
+                    "In Meta Business Suite → Settings → Pages → Book Promoter AI → Page access, add Melanie Botha with Full control, then reconnect. " +
+                    "Do not connect Melanie Botha Novels for brand posting.");
             return FacebookAuthOutcome.Failed("Could not select the Book Promoter AI Page.");
         }
 
