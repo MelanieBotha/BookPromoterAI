@@ -284,7 +284,7 @@ static class OwnerPromoPage
                         {connectedRows}
                     </div>
                     <h3 style="margin-top:20px">Connect a brand platform</h3>
-                    <p class="muted small-text">Facebook, Bluesky, X, and LinkedIn support live brand posting when connected. Tumblr and other author-only platforms are on <strong>My Account</strong> for book promos.</p>
+                    <p class="muted small-text">Facebook, Bluesky, X, LinkedIn, and Tumblr support live brand posting when connected. Pick your <strong>bookpromoterai</strong> Tumblr blog on Owner; use <strong>My Account</strong> for author book promos on your personal blog.</p>
                     {SocialConnectHelper.NextPlatformHint(settings)}
                     <div class="connect-buttons">
                         {SocialConnectHelper.ConnectButtons(returnPath, settings)}

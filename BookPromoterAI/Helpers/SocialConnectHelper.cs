@@ -622,27 +622,19 @@ static class SocialConnectHelper
 
     public static string TumblrSetupPage(string returnUrl, string? notice, AppSettings? settings)
     {
-        if (IsBrandContext(returnUrl))
-        {
-            return $"""
-                <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>Tumblr — author accounts only</h1></div></section>
-                <section class="panel">
-                    <p class="notice error">Tumblr is for <strong>author book promos</strong> on My Account, not for BookPromoter AI brand marketing.</p>
-                    <p class="muted">Owner brand social accounts (app promos) are separate. Connect Tumblr from <strong>My Account</strong> with your author login to post about your books.</p>
-                    <a class="button secondary" href="{H.Encode(returnUrl)}">Back to Owner</a>
-                </section>
-                """;
-        }
-
+        var brandContext = IsBrandContext(returnUrl);
         var brand = SocialPlatforms.Brand("Tumblr");
         var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<p class="notice">{H.Encode(notice)}</p>""";
         var configured = settings?.IsTumblrConfigured == true;
         var callbackExample = settings is not null && !string.IsNullOrWhiteSpace(settings.PublicBaseUrl)
             ? TumblrService.CallbackUrl(settings.PublicBaseUrl.TrimEnd('/'))
             : $"https://bookpromoterai.us{TumblrService.CallbackPath}";
+        var contextCopy = brandContext
+            ? """<p class="muted">Sign in with the Tumblr account that owns your <strong>BookPromoter AI</strong> blog (e.g. <code>bookpromoterai.tumblr.com</code>). App promos with logo and links to <code>/start</code> and <code>/trial</code> will post here — separate from author book promos on My Account.</p>"""
+            : """<p class="muted">Sign in with your <strong>author</strong> Tumblr account. BookPromoter AI will post text and book-cover photos to the blog you choose — not the BookPromoter AI brand blog (connect that on Owner → Brand Social).</p>""";
         var connectBlock = configured
             ? $"""
-                <p class="muted">BookPromoter AI will post text and book-cover photos to <strong>your author Tumblr blog</strong> — not the BookPromoter AI brand account.</p>
+                {contextCopy}
                 <form method="post" action="/social-accounts/connect/Tumblr/start" class="form">
                     <input type="hidden" name="return" value="{H.Encode(returnUrl)}">
                     <div class="form-actions">
@@ -656,8 +648,9 @@ static class SocialConnectHelper
                 <p class="muted">Owner: open <strong>Owner → Social Media APIs → Tumblr</strong> for setup steps.</p>
                 <a class="button secondary" href="/my-account">Back</a>
                 """;
+        var heading = brandContext ? "Connect BookPromoter AI on Tumblr" : "Connect Tumblr";
         return $"""
-            <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>Connect Tumblr</h1></div></section>
+            <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>{heading}</h1></div></section>
             <section class="panel oauth-panel">
                 <div class="oauth-platform-badge" style="background:{brand.Color}">{H.Encode(brand.Initial)}</div>
                 <h2>Live Tumblr posting</h2>
@@ -670,6 +663,7 @@ static class SocialConnectHelper
 
     public static string TumblrBlogPickPage(TumblrBlogPickPending pending, string token, string? notice = null)
     {
+        var brandContext = SocialAccountKinds.IsBrand(pending.Kind);
         var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<div class="notice error">{H.Encode(notice)}</div>""";
         var options = new StringBuilder();
         foreach (var blog in pending.Blogs)
@@ -686,10 +680,13 @@ static class SocialConnectHelper
                 """);
         }
 
+        var pickIntro = brandContext
+            ? """<p class="muted">Choose your <strong>BookPromoter AI</strong> Tumblr blog (e.g. <code>bookpromoterai.tumblr.com</code>) for app marketing posts.</p>"""
+            : """<p class="muted">BookPromoter AI will publish scheduled book promos to the author blog you select.</p>""";
         return $"""
             <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>Choose your Tumblr blog</h1></div></section>
             <section class="panel oauth-panel">
-                <p class="muted">BookPromoter AI will publish scheduled book promos to the blog you select.</p>
+                {pickIntro}
                 {noticeHtml}
                 <form method="post" action="/social-accounts/connect/Tumblr/select-blog" class="stacked-form">
                     <input type="hidden" name="token" value="{H.Encode(token)}">

@@ -406,12 +406,13 @@ class SocialPostingService
         if (string.IsNullOrWhiteSpace(account.AccessToken) ||
             string.IsNullOrWhiteSpace(account.RefreshToken) ||
             string.IsNullOrWhiteSpace(account.ExternalAccountId))
-            return new PostingOutcome { Result = PostingResult.Failure("Tumblr is not connected. Reconnect your account in My Account.") };
+            return new PostingOutcome { Result = PostingResult.Failure("Tumblr is not connected. Reconnect your account in My Account or Owner.") };
 
-        var baseUrl = ResolveBaseUrl(media?.AppBaseUrl);
+        var baseUrl = ResolveBaseUrl(media?.AppBaseUrl ?? brandMedia?.AppBaseUrl);
         string? imageUrl = null;
         string? clickThruUrl = null;
         string? tags = null;
+        var isBrand = brandMedia is not null;
 
         if (media is not null)
         {
@@ -429,10 +430,12 @@ class SocialPostingService
         }
         else if (brandMedia is not null)
         {
-            // Brand posts use text on Tumblr (logo URL varies by deployment).
+            imageUrl = PostBranding.AbsoluteLogoUrl(baseUrl);
+            clickThruUrl = $"{baseUrl}/start";
+            tags = TumblrPostFormatter.BuildBrandTags();
         }
 
-        var htmlBody = TumblrPostFormatter.ToHtmlCaption(postText, baseUrl);
+        var htmlBody = TumblrPostFormatter.ToHtmlCaption(postText, baseUrl, includeAppCta: !isBrand);
         var tokens = new TumblrTokenSet(account.AccessToken, account.RefreshToken);
         var result = await _tumblr.PostAsync(
             tokens, account.ExternalAccountId, htmlBody, imageUrl, clickThruUrl, tags, cancellationToken);

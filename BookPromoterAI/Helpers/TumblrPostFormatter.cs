@@ -12,7 +12,7 @@ static class TumblrPostFormatter
 
     static readonly Regex UrlRegex = new(@"https?://[^\s<>""']+", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    public static string ToHtmlCaption(string postText, string appBaseUrl)
+    public static string ToHtmlCaption(string postText, string appBaseUrl, bool includeAppCta = true)
     {
         var sb = new StringBuilder();
         var paragraphOpen = false;
@@ -53,9 +53,13 @@ static class TumblrPostFormatter
         if (bookUrl is not null)
             AppendPlainUrlFallback(sb, bookUrl);
 
-        AppendAppCta(sb, appBaseUrl);
+        if (includeAppCta)
+            AppendAppCta(sb, appBaseUrl);
         return sb.ToString();
     }
+
+    public static string BuildBrandTags() =>
+        string.Join(",", new[] { "bookpromoter ai", "authors", "indie author", "book marketing", "writing", "books", "self publishing" });
 
     public static string BuildTags(string? bookTitle, string? authorName, string? genre)
     {

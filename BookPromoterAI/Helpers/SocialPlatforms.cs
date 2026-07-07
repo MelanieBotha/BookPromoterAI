@@ -72,7 +72,7 @@ static class SocialPlatforms
         // Content
         D("Substack", "Content & Blogging", Integration.InProgress, "#FF6719", "SS"),
         D("Medium", "Content & Blogging", Integration.InProgress, "#000000", "Me"),
-        D("Tumblr", "Content & Blogging", Integration.PendingCredentials, "#36465D", "Tu", s => s.IsTumblrConfigured, disabledReason: "add Tumblr API keys in Owner", allowBrandConnect: false),
+        D("Tumblr", "Content & Blogging", Integration.Live, "#36465D", "Tu", s => s.IsTumblrConfigured, disabledReason: "add Tumblr API keys in Owner"),
         D("WordPress", "Content & Blogging", Integration.InProgress, "#21759B", "WP"),
         D("Patreon", "Content & Blogging", Integration.Researching, "#FF424D", "Pa"),
         D("Ko-fi", "Content & Blogging", Integration.Researching, "#29ABE0", "K"),
