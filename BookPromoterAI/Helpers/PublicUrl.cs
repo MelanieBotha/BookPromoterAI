@@ -87,4 +87,29 @@ static class PublicUrl
             if (seen.Add(callback)) yield return callback;
         }
     }
+
+    /// <summary>Tumblr default callback must match the URL registered at tumblr.com/oauth/apps exactly.</summary>
+    public static string TumblrCallbackUrl(HttpRequest request, AppSettings settings)
+    {
+        if (!string.IsNullOrWhiteSpace(settings.PublicBaseUrl))
+            return TumblrService.CallbackUrl(settings.PublicBaseUrl.TrimEnd('/'));
+
+        return TumblrService.CallbackUrl(Local(request));
+    }
+
+    public static IEnumerable<string> TumblrCallbackUrlsForMeta(AppSettings settings)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var baseUrl in new[]
+                 {
+                     settings.PublicBaseUrl.TrimEnd('/'),
+                     "https://bookpromoterai.us",
+                     "https://bookpromoterai-production.up.railway.app"
+                 })
+        {
+            if (string.IsNullOrWhiteSpace(baseUrl)) continue;
+            var callback = TumblrService.CallbackUrl(baseUrl);
+            if (seen.Add(callback)) yield return callback;
+        }
+    }
 }

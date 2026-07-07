@@ -752,7 +752,7 @@ static class SocialAccountRoutes
             var saveUserId = SocialAccountKinds.IsBrand(kind) ? store.PrimaryOwnerUserId() : userId;
             if (saveUserId == 0) return Results.Redirect("/start");
 
-            var callbackUrl = TumblrService.CallbackUrl(PublicUrl.Base(request, settings));
+            var callbackUrl = PublicUrl.TumblrCallbackUrl(request, settings);
             var (ok, error, requestToken, requestSecret) = await tumblrService.RequestTokenAsync(callbackUrl);
             if (!ok || string.IsNullOrWhiteSpace(requestToken) || string.IsNullOrWhiteSpace(requestSecret))
             {

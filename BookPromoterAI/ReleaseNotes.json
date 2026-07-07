@@ -1,4 +1,12 @@
 {
+  "1.13.1": {
+    "title": "BookPromoter AI v1.13.1 — What's new",
+    "updated": [
+      "Fix Tumblr OAuth 401: include oauth_callback in the signed Authorization header"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.13.0": {
     "title": "BookPromoter AI v1.13.0 — What's new",
     "updated": [

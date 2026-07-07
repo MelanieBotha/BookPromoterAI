@@ -43,7 +43,7 @@ static class TumblrOAuth1
         var signatureBase =
             $"{method.ToUpperInvariant()}&{PercentEncode(baseUrl)}&{PercentEncode(paramString)}";
 
-        var signingKey = $"{PercentEncode(consumerSecret)}&{PercentEncode(tokenSecret ?? "")}";
+        var signingKey = $"{consumerSecret}&{tokenSecret ?? ""}";
         using var hmac = new HMACSHA1(Encoding.UTF8.GetBytes(signingKey));
         var signature = Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(signatureBase)));
 
@@ -52,7 +52,7 @@ static class TumblrOAuth1
         {
             foreach (var (key, value) in extraParameters)
             {
-                if (!key.StartsWith("oauth_", StringComparison.Ordinal))
+                if (key.StartsWith("oauth_", StringComparison.Ordinal))
                     result[key] = value;
             }
         }
@@ -82,4 +82,7 @@ static class TumblrOAuth1
                     Uri.UnescapeDataString(part[(eq + 1)..]));
             })
             .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.Ordinal);
+
+    public static string Truncate(string text, int max) =>
+        text.Length <= max ? text : text[..max] + "…";
 }

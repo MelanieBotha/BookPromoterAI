@@ -535,9 +535,9 @@ static class OwnerPage
                                         </ul>
                                         """)}
                                 <p class="muted">Register an app at <a href="https://www.tumblr.com/oauth/apps" target="_blank" rel="noopener">tumblr.com/oauth/apps</a> (OAuth 1.0a).</p>
-                                <p class="muted">Set this <strong>Default callback URL</strong> in your Tumblr app:</p>
+                                <p class="muted">Set this <strong>Default callback URL</strong> in your Tumblr app (must match exactly):</p>
                                 <ul class="plan-features">
-                                    <li><code>{H.Encode(TumblrService.CallbackUrl(appBaseUrl.TrimEnd('/')))}</code></li>
+                                    {string.Concat(PublicUrl.TumblrCallbackUrlsForMeta(store.Settings).Select(u => $"<li><code>{H.Encode(u)}</code></li>"))}
                                 </ul>
                                 <p class="muted">Add Railway variables, then redeploy:</p>
                                 <ul class="plan-features">

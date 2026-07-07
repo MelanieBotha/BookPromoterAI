@@ -45,7 +45,10 @@ class TumblrService
         var response = await _http.SendAsync(request, cancellationToken);
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
         if (!response.IsSuccessStatusCode)
-            return (false, $"Tumblr request token failed ({(int)response.StatusCode}).", null, null);
+        {
+            var detail = string.IsNullOrWhiteSpace(body) ? "" : $" {TumblrOAuth1.Truncate(body, 120)}";
+            return (false, $"Tumblr request token failed ({(int)response.StatusCode}).{detail}", null, null);
+        }
 
         var parsed = TumblrOAuth1.ParseFormBody(body);
         if (!parsed.TryGetValue("oauth_token", out var token) ||
