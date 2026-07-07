@@ -11,7 +11,8 @@ static class OwnerRoutes
             store.EnsureWeeklyOwnerBrandMailingDraft(baseUrl);
             await store.RefreshOwnerBrandPostMetricsAsync(metrics);
             var section = http.Request.Query["section"].ToString();
-            return RenderOwner(http, store, settings, releaseNotes, activeSection: section);
+            var shuffle = http.Request.Query.ContainsKey("shuffle");
+            return RenderOwner(http, store, settings, releaseNotes, activeSection: section, shufflePromoPreviews: shuffle);
         });
 
         app.MapGet("/owner/promos", () => Results.Redirect("/owner-promos"));
@@ -232,12 +233,20 @@ static class OwnerRoutes
         app.MapPost("/owner-login", (AppStoreDb store) => OwnerGuard(store) ?? Results.Redirect("/owner-promos"));
     }
 
-    static IResult RenderOwner(HttpContext http, AppStoreDb store, AppSettings settings, ReleaseNotesCatalog releaseNotes, string notice = "", string? activeSection = null, string facebookDiagnosticsHtml = "")
+    static IResult RenderOwner(
+        HttpContext http,
+        AppStoreDb store,
+        AppSettings settings,
+        ReleaseNotesCatalog releaseNotes,
+        string notice = "",
+        string? activeSection = null,
+        string facebookDiagnosticsHtml = "",
+        bool shufflePromoPreviews = false)
     {
         try
         {
             return Results.Content(
-                H.RenderPage(http, "Owner", OwnerPage.Render(store, notice, PublicUrl.Base(http.Request, settings), releaseNotes, activeSection, facebookDiagnosticsHtml), store),
+                H.RenderPage(http, "Owner", OwnerPage.Render(store, notice, PublicUrl.Base(http.Request, settings), releaseNotes, activeSection, facebookDiagnosticsHtml, shufflePromoPreviews), store),
                 "text/html");
         }
         catch (Exception ex)

@@ -1213,7 +1213,7 @@ class AppStoreDb
         using var db = Db();
         var settings = EnsureMailingListSettingsRow(db, uid, MailingListKinds.Brand);
         if (regenerate) settings.WeekTrackerStart++;
-        var seed = settings.WeekTrackerStart + (settings.DraftGeneratedAt?.DayOfYear ?? 0);
+        var seed = AppPromoGenerator.WeeklyPromoSeed(DateTime.UtcNow, "brand-email", settings.WeekTrackerStart);
         var (subject, body) = AppPromoGenerator.GeneratePromoEmail(baseUrl, seed);
         settings.PendingSubject = subject;
         settings.PendingBody = body;
@@ -1508,7 +1508,7 @@ class AppStoreDb
         bool regenerate)
     {
         if (regenerate) settings.WeekTrackerStart++;
-        var seed = settings.WeekTrackerStart + (settings.DraftGeneratedAt?.DayOfYear ?? 0);
+        var seed = AppPromoGenerator.WeeklyPromoSeed(DateTime.UtcNow, "brand-email", settings.WeekTrackerStart);
         var (subject, body) = AppPromoGenerator.GeneratePromoEmail(baseUrl, seed);
         settings.PendingSubject = subject;
         settings.PendingBody = body;
@@ -3503,7 +3503,7 @@ class AppStoreDb
                 .FirstOrDefault(a => PostLimits.PlatformsMatch(a.Platform, schedule.Platform));
             if (account is null) continue;
 
-            var promoSeed = now.DayOfYear * 37 + schedule.PostsSentThisWeek * 13 + schedule.Platform.Length;
+            var promoSeed = AppPromoGenerator.WeeklyPromoSeed(now, schedule.Platform, schedule.PostsSentThisWeek);
             var postText = AppPromoGenerator.GeneratePromoPost(schedule.Platform, baseUrl, promoSeed);
             if (string.IsNullOrWhiteSpace(postText)) continue;
 
@@ -3642,7 +3642,7 @@ class AppStoreDb
         if (string.IsNullOrWhiteSpace(baseUrl))
             baseUrl = "https://bookpromoterai.us";
 
-        return new BookPostMedia(cover, trackingCode, ad.BookTitle, baseUrl);
+        return new BookPostMedia(cover, trackingCode, ad.BookTitle, baseUrl, book?.AuthorName, book?.Genre);
     }
 
     BrandPostMedia BuildBrandPostMedia(string appBaseUrl)
@@ -3769,6 +3769,7 @@ class AppStoreDb
         var accounts = await db.SocialAccounts
             .Where(a => a.UserId == owner.Id && a.IsConnected && a.AccountKind == SocialAccountKinds.Brand)
             .ToListAsync();
+        accounts = accounts.Where(a => SocialPlatforms.AllowsBrandConnect(a.Platform)).ToList();
 
         if (!string.IsNullOrWhiteSpace(platformFilter))
             accounts = accounts.Where(a => a.Platform.Equals(platformFilter, StringComparison.OrdinalIgnoreCase)).ToList();
@@ -3799,7 +3800,7 @@ class AppStoreDb
                 continue;
             }
 
-            var promoSeed = now.Ticks.GetHashCode() ^ account.Id * 17;
+            var promoSeed = AppPromoGenerator.WeeklyPromoSeed(now, account.Platform, 0);
             var postText = AppPromoGenerator.GeneratePromoPost(account.Platform, appBaseUrl, promoSeed);
             if (string.IsNullOrWhiteSpace(postText)) continue;
 
@@ -3860,7 +3861,16 @@ class AppStoreDb
             CreatedAt = DateTime.UtcNow
         };
 
-        var socialPosts = AppPromoGenerator.GenerateUpdatePosts(ToProductUpdate(update), appBaseUrl);
+        var ownerForSocial = db.Users.FirstOrDefault(u => u.Email == OwnerAccount.NormalizedEmail);
+        var brandPlatforms = ownerForSocial is null
+            ? Array.Empty<string>()
+            : (await db.SocialAccounts
+                .Where(a => a.UserId == ownerForSocial.Id && a.IsConnected && a.AccountKind == SocialAccountKinds.Brand)
+                .Select(a => a.Platform)
+                .ToListAsync())
+                .Where(SocialPlatforms.AllowsBrandConnect)
+                .ToArray();
+        var socialPosts = AppPromoGenerator.GenerateUpdatePosts(ToProductUpdate(update), appBaseUrl, brandPlatforms);
         update.SocialPostText = socialPosts.GetValueOrDefault("Facebook") ?? socialPosts.Values.FirstOrDefault();
 
         if (sendEmail)
@@ -3881,7 +3891,9 @@ class AppStoreDb
             var owner = db.Users.FirstOrDefault(u => u.Email == OwnerAccount.NormalizedEmail);
             if (owner is not null)
             {
-                var accounts = await db.SocialAccounts.Where(a => a.UserId == owner.Id && a.IsConnected && a.AccountKind == SocialAccountKinds.Brand).ToListAsync();
+                var accounts = (await db.SocialAccounts.Where(a => a.UserId == owner.Id && a.IsConnected && a.AccountKind == SocialAccountKinds.Brand).ToListAsync())
+                    .Where(a => SocialPlatforms.AllowsBrandConnect(a.Platform))
+                    .ToList();
                 foreach (var account in accounts)
                 {
                     var text = socialPosts.GetValueOrDefault(account.Platform)

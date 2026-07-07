@@ -40,6 +40,8 @@ static class SocialAccountRoutes
             var finalPlatform = platform == "__custom__" && !string.IsNullOrWhiteSpace(customPlatform) ? customPlatform : platform;
             if (SocialConnectHelper.IsPlatformDisabled(finalPlatform, store.Settings))
                 return Results.Redirect(returnUrl);
+            if (PostLimits.IsTumblr(finalPlatform) && SocialAccountKinds.IsBrand(kind))
+                return Results.Redirect(returnUrl);
             store.AddSocialAccount(new SocialAccount
             {
                 Platform = finalPlatform,
@@ -746,6 +748,8 @@ static class SocialAccountRoutes
             if (store.CheckSocialAccountLimit(kind) is not null) return Results.Redirect(returnUrl);
             if (!settings.IsTumblrConfigured)
                 return Results.Redirect($"/social-accounts/connect/Tumblr?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Tumblr API credentials are not configured.")}");
+            if (SocialAccountKinds.IsBrand(kind))
+                return Results.Redirect($"/social-accounts/connect/Tumblr?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Tumblr is for author book promos on My Account only.")}");
 
             var userId = store.GetCurrentDbUser()?.Id ?? 0;
             if (userId == 0) return Results.Redirect("/start");
@@ -793,10 +797,9 @@ static class SocialAccountRoutes
                 return Results.Redirect($"/social-accounts/connect/Tumblr?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Tumblr authorization was cancelled.")}");
             }
 
-            if (SocialAccountKinds.IsBrand(pending.Kind) && !OwnerAccount.IsOwnerEmail(
-                    store.GetUserEmailById(pending.UserId)))
+            if (SocialAccountKinds.IsBrand(pending.Kind))
             {
-                return Results.Redirect($"/social-accounts/connect/Tumblr?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Only the owner can connect brand accounts.")}");
+                return Results.Redirect($"/social-accounts/connect/Tumblr?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Tumblr is for author book promos on My Account only.")}");
             }
 
             var (ok, connectError, tokens) = await tumblrService.ExchangeAccessTokenAsync(
@@ -1180,6 +1183,8 @@ static class SocialAccountRoutes
 
             if (PostLimits.IsTumblr(platformName))
             {
+                if (SocialAccountKinds.IsBrand(kind))
+                    return Results.Redirect(returnUrl);
                 var connectUrl = $"/social-accounts/connect/Tumblr?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Use the Connect Tumblr button to sign in with Tumblr.")}";
                 return Results.Redirect(connectUrl);
             }

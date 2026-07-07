@@ -408,23 +408,34 @@ class SocialPostingService
             string.IsNullOrWhiteSpace(account.ExternalAccountId))
             return new PostingOutcome { Result = PostingResult.Failure("Tumblr is not connected. Reconnect your account in My Account.") };
 
+        var baseUrl = ResolveBaseUrl(media?.AppBaseUrl);
         string? imageUrl = null;
+        string? clickThruUrl = null;
+        string? tags = null;
+
         if (media is not null)
         {
-            var baseUrl = ResolveBaseUrl(media.AppBaseUrl);
             if (!string.IsNullOrWhiteSpace(media.TrackingCode))
+            {
                 imageUrl = PostBranding.BookCoverShareUrl(baseUrl, media.TrackingCode);
+                clickThruUrl = PostBranding.BookShareUrl(baseUrl, media.TrackingCode, "Tumblr");
+            }
             else if (!string.IsNullOrWhiteSpace(media.CoverImageUrl))
+            {
                 imageUrl = PostBranding.AbsoluteImageUrl(baseUrl, media.CoverImageUrl);
+            }
+
+            tags = TumblrPostFormatter.BuildTags(media.BookTitle, media.AuthorName, media.Genre);
         }
         else if (brandMedia is not null)
         {
             // Brand posts use text on Tumblr (logo URL varies by deployment).
         }
 
+        var htmlBody = TumblrPostFormatter.ToHtmlCaption(postText, baseUrl);
         var tokens = new TumblrTokenSet(account.AccessToken, account.RefreshToken);
         var result = await _tumblr.PostAsync(
-            tokens, account.ExternalAccountId, postText, imageUrl, cancellationToken);
+            tokens, account.ExternalAccountId, htmlBody, imageUrl, clickThruUrl, tags, cancellationToken);
         return new PostingOutcome { Result = result };
     }
 

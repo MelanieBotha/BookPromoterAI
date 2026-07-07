@@ -3,7 +3,12 @@ namespace BookPromoterAI;
 
 static class OwnerPromoPage
 {
-    public static string Render(AppStoreDb store, string appBaseUrl, ReleaseNotesCatalog? releaseNotes = null, string? activeSection = null)
+    public static string Render(
+        AppStoreDb store,
+        string appBaseUrl,
+        ReleaseNotesCatalog? releaseNotes = null,
+        string? activeSection = null,
+        bool shufflePromoPreviews = false)
     {
         var open = (string id) => string.Equals(id, activeSection, StringComparison.OrdinalIgnoreCase) ? " open" : "";
         var returnPath = SocialConnectHelper.OwnerReturnPath;
@@ -17,10 +22,26 @@ static class OwnerPromoPage
                 ? $"""<p class="notice success">Draft loaded automatically from <code>ReleaseNotes.json</code> for v{H.Encode(version)}. Review and click Publish update.</p>"""
                 : $"""<p class="notice error">No release notes found for v{H.Encode(version)}. Add an entry to <code>ReleaseNotes.json</code> when you bump the version.</p>""";
 
-        var promoSeed = Environment.TickCount ^ Random.Shared.Next();
-        var promoPosts = AppPromoGenerator.GeneratePromoPosts(appBaseUrl, promoSeed);
-        var logoPreviewUrl = PostBranding.LogoUrlForSite(appBaseUrl);
+        var now = DateTime.UtcNow;
         var socialAccounts = store.OwnerSocialAccounts;
+        var promoAccounts = socialAccounts
+            .Where(a => SocialPlatforms.AllowsBrandConnect(a.Platform))
+            .OrderBy(a => a.Platform, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var authorOnlyBrandAccounts = socialAccounts
+            .Where(a => !SocialPlatforms.AllowsBrandConnect(a.Platform))
+            .ToList();
+        var weekBaseSeed = shufflePromoPreviews
+            ? Random.Shared.Next()
+            : AppPromoGenerator.WeeklyPromoSeed(now, "owner-promo-preview");
+        var promoPosts = AppPromoGenerator.GeneratePromoPosts(
+            promoAccounts.Select(a => a.Platform),
+            appBaseUrl,
+            weekBaseSeed);
+        var logoPreviewUrl = PostBranding.LogoUrlForSite(appBaseUrl);
+        var authorOnlyNote = authorOnlyBrandAccounts.Count > 0
+            ? $"""<p class="notice">These connected accounts are <strong>author-only</strong> and are not used for BookPromoter AI brand promos: {H.Encode(string.Join(", ", authorOnlyBrandAccounts.Select(a => a.Platform)))}. Use <strong>My Account</strong> for book promos, or remove them here.</p>"""
+            : "";
         var accountNote = socialAccounts.Count > 0
             ? $"""<p class="notice success">{socialAccounts.Count} BookPromoter AI brand account(s) connected: {H.Encode(string.Join(", ", socialAccounts.Select(a => a.Platform)))}.</p>"""
             : """<p class="notice error">No brand accounts connected yet. Connect platforms below for BookPromoter AI promotions (separate from author book accounts on My Account).</p>""";
@@ -160,22 +181,31 @@ static class OwnerPromoPage
         foreach (var platform in SocialConnectHelper.DefaultPlatforms)
         {
             if (alreadyAdded.Contains(platform)) continue;
+            if (!SocialPlatforms.AllowsBrandConnect(platform)) continue;
             platformOptions.Append(SocialConnectHelper.RenderPlatformOption(platform, settings: settings));
         }
         platformOptions.Append("""<option value="__custom__">Other (type your own)...</option>""");
 
         var promoCards = new StringBuilder();
-        foreach (var platform in AppPromoGenerator.SupportedPlatforms)
+        if (promoAccounts.Count == 0)
         {
-            var text = promoPosts[platform];
-            var copyId = $"app-promo-{platform.Replace(" ", "").ToLowerInvariant()}";
+            promoCards.Append("""<p class="muted">Connect Facebook, Bluesky, X, LinkedIn, or another brand platform above to preview and post BookPromoter AI promos here.</p>""");
+        }
+        foreach (var account in promoAccounts)
+        {
+            var platform = account.Platform;
+            if (!promoPosts.TryGetValue(platform, out var text)) continue;
+            var copyId = $"app-promo-{platform.Replace(" ", "").Replace("(", "").Replace(")", "").ToLowerInvariant()}";
             var showsLogo = true;
             var logoBlock = showsLogo
                 ? $"""<img src="{H.Encode(logoPreviewUrl)}" alt="BookPromoter AI logo" class="promo-logo-thumb">"""
                 : "";
+            var liveBadge = account.IsLiveConnection
+                ? """<span class="status available">Live</span> """
+                : """<span class="status used">Manual</span> """;
             promoCards.Append($"""
                 <div class="promo-row plan-row">
-                    <span>{H.Encode(platform)}</span>
+                    <span>{liveBadge}{H.Encode(platform)}</span>
                     <span>
                         <div class="promo-preview-with-image">
                             {logoBlock}
@@ -243,6 +273,7 @@ static class OwnerPromoPage
                 <div class="panel owner-settings">
                     <p class="muted">Connect social accounts for <strong>BookPromoter AI marketing only</strong> (app promos, release updates). These are separate from <strong>author accounts</strong> on My Account, which authors use to promote their books.</p>
                     {accountNote}
+                    {authorOnlyNote}
                     <h3>Connected accounts</h3>
                     <div class="promo-table">
                         <div class="promo-header">
@@ -253,7 +284,7 @@ static class OwnerPromoPage
                         {connectedRows}
                     </div>
                     <h3 style="margin-top:20px">Connect a brand platform</h3>
-                    <p class="muted small-text">Facebook, Bluesky, X, and LinkedIn support live posting when connected.</p>
+                    <p class="muted small-text">Facebook, Bluesky, X, and LinkedIn support live brand posting when connected. Tumblr and other author-only platforms are on <strong>My Account</strong> for book promos.</p>
                     {SocialConnectHelper.NextPlatformHint(settings)}
                     <div class="connect-buttons">
                         {SocialConnectHelper.ConnectButtons(returnPath, settings)}
@@ -283,10 +314,11 @@ static class OwnerPromoPage
             <details class="owner-collapsible" id="owner-section-promote-app"{open("promote-app")}>
                 <summary class="owner-collapsible-heading">Promote BookPromoter AI (Social &amp; Email)</summary>
                 <div class="panel owner-settings">
-                    <p class="muted">Generate ready-to-share posts that promote BookPromoter AI. Each preview uses a random caption — refresh the page or click <strong>Shuffle previews</strong> for a new variation. Copy, post manually, enable <strong>Auto-post</strong> under Brand Social Accounts, or email registered users on the <strong>brand mailing list</strong> ({brandSubscriberCount} subscriber(s) — separate from author reader lists).</p>
+                    <p class="muted">Generate ready-to-share posts that promote BookPromoter AI. <strong>Captions rotate automatically each ISO week</strong> — auto-post and manual Post use this week&apos;s variation. Click <strong>Shuffle previews</strong> to try a different caption before posting.</p>
                     {accountNote}
+                    {authorOnlyNote}
                     {sendGridNote}
-                    <p class="muted small-text">All brand posts attach the BookPromoter AI logo image automatically on live platforms.</p>
+                    <p class="muted small-text">Only <strong>connected brand accounts</strong> appear below. Enable <strong>Auto-post</strong> under Brand Social Accounts, or email registered users on the <strong>brand mailing list</strong> ({brandSubscriberCount} subscriber(s) — separate from author reader lists).</p>
                     <div class="promo-table">
                         <div class="promo-header">
                             <strong>Platform</strong>

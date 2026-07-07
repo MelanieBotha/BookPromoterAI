@@ -124,6 +124,8 @@ class TumblrService
         string blogIdentifier,
         string postText,
         string? imageUrl = null,
+        string? clickThruUrl = null,
+        string? tags = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(blogIdentifier))
@@ -132,12 +134,17 @@ class TumblrService
         var blog = Uri.EscapeDataString(blogIdentifier.Trim());
         var url = $"{ApiBase}/blog/{blog}/post";
 
-        var form = new Dictionary<string, string>();
+        var form = new Dictionary<string, string> { ["format"] = "html" };
+        if (!string.IsNullOrWhiteSpace(tags))
+            form["tags"] = tags.Trim();
+
         if (!string.IsNullOrWhiteSpace(imageUrl))
         {
             form["type"] = "photo";
             form["source"] = imageUrl.Trim();
             form["caption"] = Truncate(postText, 4096);
+            if (!string.IsNullOrWhiteSpace(clickThruUrl))
+                form["link"] = clickThruUrl.Trim();
         }
         else
         {

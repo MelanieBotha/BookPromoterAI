@@ -53,6 +53,9 @@ static class SocialConnectHelper
         var buttons = new StringBuilder();
         foreach (var platform in DefaultPlatforms)
         {
+            if (IsBrandContext(returnUrl) && !SocialPlatforms.AllowsBrandConnect(platform))
+                continue;
+
             if (IsPlatformDisabled(platform, settings))
             {
                 var reason = DisabledPlatformReason(platform, settings);
@@ -619,6 +622,18 @@ static class SocialConnectHelper
 
     public static string TumblrSetupPage(string returnUrl, string? notice, AppSettings? settings)
     {
+        if (IsBrandContext(returnUrl))
+        {
+            return $"""
+                <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>Tumblr — author accounts only</h1></div></section>
+                <section class="panel">
+                    <p class="notice error">Tumblr is for <strong>author book promos</strong> on My Account, not for BookPromoter AI brand marketing.</p>
+                    <p class="muted">Owner brand social accounts (app promos) are separate. Connect Tumblr from <strong>My Account</strong> with your author login to post about your books.</p>
+                    <a class="button secondary" href="{H.Encode(returnUrl)}">Back to Owner</a>
+                </section>
+                """;
+        }
+
         var brand = SocialPlatforms.Brand("Tumblr");
         var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<p class="notice">{H.Encode(notice)}</p>""";
         var configured = settings?.IsTumblrConfigured == true;
@@ -627,7 +642,7 @@ static class SocialConnectHelper
             : $"https://bookpromoterai.us{TumblrService.CallbackPath}";
         var connectBlock = configured
             ? $"""
-                <p class="muted">BookPromoter AI will post text and book-cover photos to the Tumblr blog you choose.</p>
+                <p class="muted">BookPromoter AI will post text and book-cover photos to <strong>your author Tumblr blog</strong> — not the BookPromoter AI brand account.</p>
                 <form method="post" action="/social-accounts/connect/Tumblr/start" class="form">
                     <input type="hidden" name="return" value="{H.Encode(returnUrl)}">
                     <div class="form-actions">

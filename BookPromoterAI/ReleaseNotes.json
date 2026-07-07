@@ -1,4 +1,37 @@
 {
+  "1.13.5": {
+    "title": "BookPromoter AI v1.13.5 — What's new",
+    "updated": [
+      "Owner promos: preview table shows connected brand accounts only (not a fixed platform list)",
+      "Brand auto-post captions rotate each ISO week — 16 hooks and 8 hashtag sets so promos do not repeat weekly"
+    ],
+    "new": [],
+    "added": []
+  },
+  "1.13.4": {
+    "title": "BookPromoter AI v1.13.4 — What's new",
+    "updated": [
+      "Fix Tumblr hyperlinks: use the correct photo click-through field (link), set format=html, and add plain URL fallback so bookstore links work"
+    ],
+    "new": [],
+    "added": []
+  },
+  "1.13.3": {
+    "title": "BookPromoter AI v1.13.3 — What's new",
+    "updated": [
+      "Tumblr posts now include discovery tags, clickable bookstore links, cover click-through to your book page, and an author app CTA"
+    ],
+    "new": [],
+    "added": []
+  },
+  "1.13.2": {
+    "title": "BookPromoter AI v1.13.2 — What's new",
+    "updated": [
+      "Tumblr connect is author-only on My Account — hidden and blocked on Owner brand social"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.13.1": {
     "title": "BookPromoter AI v1.13.1 — What's new",
     "updated": [

@@ -32,6 +32,8 @@ static class SocialPlatforms
         public string Color { get; init; } = "#0f766e";
         public string BadgeInitial { get; init; } = "?";
         public bool ShowOnConnectBar { get; init; } = true;
+        /// <summary>If false, hidden from Owner → Brand Social connect (author My Account only).</summary>
+        public bool AllowBrandConnect { get; init; } = true;
         public string DisabledReason { get; init; } = "coming soon";
         public Func<AppSettings, bool>? IsConfigured { get; init; }
     }
@@ -70,7 +72,7 @@ static class SocialPlatforms
         // Content
         D("Substack", "Content & Blogging", Integration.InProgress, "#FF6719", "SS"),
         D("Medium", "Content & Blogging", Integration.InProgress, "#000000", "Me"),
-        D("Tumblr", "Content & Blogging", Integration.PendingCredentials, "#36465D", "Tu", s => s.IsTumblrConfigured, disabledReason: "add Tumblr API keys in Owner"),
+        D("Tumblr", "Content & Blogging", Integration.PendingCredentials, "#36465D", "Tu", s => s.IsTumblrConfigured, disabledReason: "add Tumblr API keys in Owner", allowBrandConnect: false),
         D("WordPress", "Content & Blogging", Integration.InProgress, "#21759B", "WP"),
         D("Patreon", "Content & Blogging", Integration.Researching, "#FF424D", "Pa"),
         D("Ko-fi", "Content & Blogging", Integration.Researching, "#29ABE0", "K"),
@@ -88,7 +90,8 @@ static class SocialPlatforms
 
     static Definition D(
         string name, string group, Integration integration, string color, string badge,
-        Func<AppSettings, bool>? configured = null, bool showOnBar = true, string? disabledReason = null) =>
+        Func<AppSettings, bool>? configured = null, bool showOnBar = true, string? disabledReason = null,
+        bool allowBrandConnect = true) =>
         new()
         {
             Name = name,
@@ -97,6 +100,7 @@ static class SocialPlatforms
             Color = color,
             BadgeInitial = badge,
             ShowOnConnectBar = showOnBar,
+            AllowBrandConnect = allowBrandConnect,
             IsConfigured = configured,
             DisabledReason = disabledReason ?? "coming soon"
         };
@@ -133,6 +137,9 @@ static class SocialPlatforms
     }
 
     public static bool IsConnectPlatform(string? platform) => TryGet(platform, out _);
+
+    public static bool AllowsBrandConnect(string? platform) =>
+        TryGet(platform, out var def) && def.AllowBrandConnect;
 
     /// <summary>Grey out platforms without a live connect + auto-post path yet.</summary>
     public static bool IsDisabled(string? platform, AppSettings? settings = null)

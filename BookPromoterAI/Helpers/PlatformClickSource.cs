@@ -19,6 +19,10 @@ static class PlatformClickSource
             "inkitt" => "inkitt",
             "pinterest" => "pinterest",
             "tiktok" => "tiktok",
+            "tumblr" => "tumblr",
+            "mastodon" => "mastodon",
+            "discord" => "discord",
+            "telegram" => "telegram",
             _ => new string(name.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant()
         };
     }
@@ -38,6 +42,10 @@ static class PlatformClickSource
             "inkitt" => "Inkitt",
             "pinterest" => "Pinterest",
             "tiktok" => "TikTok",
+            "tumblr" => "Tumblr",
+            "mastodon" => "Mastodon",
+            "discord" => "Discord",
+            "telegram" => "Telegram",
             "direct" => "Direct",
             _ => char.ToUpper(slugOrName.Trim()[0]) + slugOrName.Trim()[1..].ToLowerInvariant()
         };

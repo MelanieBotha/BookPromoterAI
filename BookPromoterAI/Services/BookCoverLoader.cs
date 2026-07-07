@@ -109,4 +109,10 @@ static class BookCoverLoader
 
 record BlueskyImageAttachment(byte[] Data, string MimeType, string AltText, int? Width, int? Height);
 
-record BookPostMedia(string? CoverImageUrl, string? TrackingCode, string BookTitle, string AppBaseUrl);
+record BookPostMedia(
+    string? CoverImageUrl,
+    string? TrackingCode,
+    string BookTitle,
+    string AppBaseUrl,
+    string? AuthorName = null,
+    string? Genre = null);

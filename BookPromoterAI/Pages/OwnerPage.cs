@@ -3,7 +3,7 @@ namespace BookPromoterAI;
 
 static class OwnerPage
 {
-    public static string Render(AppStoreDb store, string notice = "", string appBaseUrl = "", ReleaseNotesCatalog? releaseNotes = null, string? activeSection = null, string facebookDiagnosticsHtml = "")
+    public static string Render(AppStoreDb store, string notice = "", string appBaseUrl = "", ReleaseNotesCatalog? releaseNotes = null, string? activeSection = null, string facebookDiagnosticsHtml = "", bool shufflePromoPreviews = false)
     {
         if (string.IsNullOrWhiteSpace(appBaseUrl))
             appBaseUrl = "https://bookpromoterai.us";
@@ -324,7 +324,7 @@ static class OwnerPage
 
             {tierSections}
 
-            {PromoSection(store, appBaseUrl, releaseNotes, activeSection)}
+            {PromoSection(store, appBaseUrl, releaseNotes, activeSection, shufflePromoPreviews)}
 
             <details class="owner-collapsible" id="owner-section-feedback"{open("feedback")}>
                 <summary class="owner-collapsible-heading">Feedback &amp; Suggestions Report</summary>
@@ -620,11 +620,11 @@ static class OwnerPage
         </script>
         """;
 
-    static string PromoSection(AppStoreDb store, string appBaseUrl, ReleaseNotesCatalog? releaseNotes, string? activeSection)
+    static string PromoSection(AppStoreDb store, string appBaseUrl, ReleaseNotesCatalog? releaseNotes, string? activeSection, bool shufflePromoPreviews = false)
     {
         try
         {
-            return OwnerPromoPage.Render(store, appBaseUrl, releaseNotes, activeSection);
+            return OwnerPromoPage.Render(store, appBaseUrl, releaseNotes, activeSection, shufflePromoPreviews);
         }
         catch (Exception ex)
         {
