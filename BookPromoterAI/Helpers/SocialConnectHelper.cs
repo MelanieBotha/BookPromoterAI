@@ -121,6 +121,9 @@ static class SocialConnectHelper
         if (PostLimits.IsTelegram(platformName))
             return TelegramConnectPage(returnUrl, notice, brandContext);
 
+        if (PostLimits.IsTumblr(platformName))
+            return TumblrSetupPage(returnUrl, notice, settings);
+
         if (IsPlatformDisabled(platformName, settings))
         {
             var reason = DisabledPlatformReason(platformName, settings);
@@ -608,6 +611,77 @@ static class SocialConnectHelper
                     <div class="form-actions">
                         <button class="button" type="submit" style="background:{brand.Color}">Connect &amp; save</button>
                         <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
+                    </div>
+                </form>
+            </section>
+            """;
+    }
+
+    public static string TumblrSetupPage(string returnUrl, string? notice, AppSettings? settings)
+    {
+        var brand = SocialPlatforms.Brand("Tumblr");
+        var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<p class="notice">{H.Encode(notice)}</p>""";
+        var configured = settings?.IsTumblrConfigured == true;
+        var callbackExample = settings is not null && !string.IsNullOrWhiteSpace(settings.PublicBaseUrl)
+            ? TumblrService.CallbackUrl(settings.PublicBaseUrl.TrimEnd('/'))
+            : $"https://bookpromoterai.us{TumblrService.CallbackPath}";
+        var connectBlock = configured
+            ? $"""
+                <p class="muted">BookPromoter AI will post text and book-cover photos to the Tumblr blog you choose.</p>
+                <form method="post" action="/social-accounts/connect/Tumblr/start" class="form">
+                    <input type="hidden" name="return" value="{H.Encode(returnUrl)}">
+                    <div class="form-actions">
+                        <button class="button" type="submit" style="background:{brand.Color}">Sign in with Tumblr</button>
+                        <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
+                    </div>
+                </form>
+                """
+            : """
+                <p class="notice error">Tumblr API credentials are not configured yet. The app owner must add them in Railway before authors can connect.</p>
+                <p class="muted">Owner: open <strong>Owner → Social Media APIs → Tumblr</strong> for setup steps.</p>
+                <a class="button secondary" href="/my-account">Back</a>
+                """;
+        return $"""
+            <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>Connect Tumblr</h1></div></section>
+            <section class="panel oauth-panel">
+                <div class="oauth-platform-badge" style="background:{brand.Color}">{H.Encode(brand.Initial)}</div>
+                <h2>Live Tumblr posting</h2>
+                <p class="muted small-text">OAuth callback URL for your Tumblr app: <code>{H.Encode(callbackExample)}</code></p>
+                {noticeHtml}
+                {connectBlock}
+            </section>
+            """;
+    }
+
+    public static string TumblrBlogPickPage(TumblrBlogPickPending pending, string token, string? notice = null)
+    {
+        var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<div class="notice error">{H.Encode(notice)}</div>""";
+        var options = new StringBuilder();
+        foreach (var blog in pending.Blogs)
+        {
+            var primary = blog.Primary ? " <span class=\"muted\">(primary)</span>" : "";
+            options.Append($"""
+                <label class="plan-option">
+                    <input type="radio" name="blogId" value="{H.Encode(blog.Identifier)}" required>
+                    <span>
+                        <strong>{H.Encode(blog.Title)}</strong>
+                        <span class="muted"> {H.Encode(blog.Identifier)}{primary}</span>
+                    </span>
+                </label>
+                """);
+        }
+
+        return $"""
+            <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>Choose your Tumblr blog</h1></div></section>
+            <section class="panel oauth-panel">
+                <p class="muted">BookPromoter AI will publish scheduled book promos to the blog you select.</p>
+                {noticeHtml}
+                <form method="post" action="/social-accounts/connect/Tumblr/select-blog" class="stacked-form">
+                    <input type="hidden" name="token" value="{H.Encode(token)}">
+                    <fieldset class="plan-options">{options}</fieldset>
+                    <div class="form-actions">
+                        <button class="button" type="submit" style="background:#36465D">Connect this blog</button>
+                        <a class="button secondary" href="{H.Encode(pending.ReturnUrl)}">Cancel</a>
                     </div>
                 </form>
             </section>

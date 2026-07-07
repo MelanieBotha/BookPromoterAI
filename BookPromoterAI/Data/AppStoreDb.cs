@@ -107,6 +107,10 @@ class AppStoreDb
     public string RedditClientIdStatus => _settings.DescribeRedditClientId();
     public string RedditClientSecretStatus => _settings.DescribeRedditClientSecret();
 
+    public bool IsTumblrConfigured => _settings.IsTumblrConfigured;
+    public string TumblrConsumerKeyStatus => _settings.DescribeTumblrConsumerKey();
+    public string TumblrConsumerSecretStatus => _settings.DescribeTumblrConsumerSecret();
+
     public bool IsTikTokConfigured => _settings.IsTikTokConfigured;
     public string TikTokClientKeyStatus => _settings.DescribeTikTokClientKey();
     public string TikTokClientSecretStatus => _settings.DescribeTikTokClientSecret();

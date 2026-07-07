@@ -1,4 +1,12 @@
 {
+  "1.13.0": {
+    "title": "BookPromoter AI v1.13.0 — What's new",
+    "updated": [
+      "Tumblr live auto-posting: OAuth connect, blog picker, text posts with optional book cover photo"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.12.1": {
     "title": "BookPromoter AI v1.12.1 — What's new",
     "updated": [

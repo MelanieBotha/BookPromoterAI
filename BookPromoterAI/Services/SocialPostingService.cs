@@ -15,6 +15,7 @@ class SocialPostingService
     readonly RedditService _reddit;
     readonly MastodonService _mastodon;
     readonly DiscordTelegramPostingService _messaging;
+    readonly TumblrService _tumblr;
     readonly HttpClient _http;
     readonly UploadPaths _uploads;
 
@@ -26,6 +27,7 @@ class SocialPostingService
         RedditService reddit,
         MastodonService mastodon,
         DiscordTelegramPostingService messaging,
+        TumblrService tumblr,
         IHttpClientFactory httpFactory,
         UploadPaths uploads)
     {
@@ -36,6 +38,7 @@ class SocialPostingService
         _reddit = reddit;
         _mastodon = mastodon;
         _messaging = messaging;
+        _tumblr = tumblr;
         _uploads = uploads;
         _http = httpFactory.CreateClient(nameof(SocialPostingService));
         _http.Timeout = TimeSpan.FromSeconds(30);
@@ -71,6 +74,9 @@ class SocialPostingService
 
         if (PostLimits.IsTelegram(account.Platform) && account.IsLiveConnection)
             return await PostToTelegramLive(account, postText, cancellationToken);
+
+        if (PostLimits.IsTumblr(account.Platform) && account.IsLiveConnection)
+            return await PostToTumblrLive(account, postText, media, brandMedia, cancellationToken);
 
         var result = account.Platform.ToLowerInvariant() switch
         {
@@ -387,6 +393,38 @@ class SocialPostingService
 
         var result = await _messaging.PostTelegramAsync(
             account.AccessToken, account.ExternalAccountId, postText, cancellationToken);
+        return new PostingOutcome { Result = result };
+    }
+
+    async Task<PostingOutcome> PostToTumblrLive(
+        SocialAccount account,
+        string postText,
+        BookPostMedia? media,
+        BrandPostMedia? brandMedia,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(account.AccessToken) ||
+            string.IsNullOrWhiteSpace(account.RefreshToken) ||
+            string.IsNullOrWhiteSpace(account.ExternalAccountId))
+            return new PostingOutcome { Result = PostingResult.Failure("Tumblr is not connected. Reconnect your account in My Account.") };
+
+        string? imageUrl = null;
+        if (media is not null)
+        {
+            var baseUrl = ResolveBaseUrl(media.AppBaseUrl);
+            if (!string.IsNullOrWhiteSpace(media.TrackingCode))
+                imageUrl = PostBranding.BookCoverShareUrl(baseUrl, media.TrackingCode);
+            else if (!string.IsNullOrWhiteSpace(media.CoverImageUrl))
+                imageUrl = PostBranding.AbsoluteImageUrl(baseUrl, media.CoverImageUrl);
+        }
+        else if (brandMedia is not null)
+        {
+            // Brand posts use text on Tumblr (logo URL varies by deployment).
+        }
+
+        var tokens = new TumblrTokenSet(account.AccessToken, account.RefreshToken);
+        var result = await _tumblr.PostAsync(
+            tokens, account.ExternalAccountId, postText, imageUrl, cancellationToken);
         return new PostingOutcome { Result = result };
     }
 

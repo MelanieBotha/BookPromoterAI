@@ -225,6 +225,20 @@ class AppSettings
         return "OK - detected.";
     }
 
+    public string DescribeTumblrConsumerKey()
+    {
+        if (string.IsNullOrWhiteSpace(TumblrConsumerKey) || TumblrConsumerKey == "YOUR_TUMBLR_CONSUMER_KEY")
+            return "Missing - add Tumblr__ConsumerKey in Railway (from tumblr.com/oauth/apps).";
+        return "OK - detected.";
+    }
+
+    public string DescribeTumblrConsumerSecret()
+    {
+        if (string.IsNullOrWhiteSpace(TumblrConsumerSecret) || TumblrConsumerSecret == "YOUR_TUMBLR_CONSUMER_SECRET")
+            return "Missing - add Tumblr__ConsumerSecret in Railway.";
+        return "OK - detected.";
+    }
+
     public string DescribeTikTokClientKey()
     {
         if (string.IsNullOrWhiteSpace(TikTokClientKey) || TikTokClientKey == "YOUR_TIKTOK_CLIENT_KEY")

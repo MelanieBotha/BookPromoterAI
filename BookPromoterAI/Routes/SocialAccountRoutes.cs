@@ -235,6 +235,14 @@ static class SocialAccountRoutes
                     "text/html");
             }
 
+            if (PostLimits.IsTumblr(platformName))
+            {
+                var notice = request.Query["notice"].ToString();
+                return Results.Content(
+                    H.RenderPage(http, "Connect Tumblr", SocialConnectHelper.TumblrSetupPage(returnUrl, notice, settings), store),
+                    "text/html");
+            }
+
             if (PostLimits.IsTikTok(platformName))
             {
                 var notice = request.Query["notice"].ToString();
@@ -723,6 +731,179 @@ static class SocialAccountRoutes
             return Results.Redirect(returnUrl);
         });
 
+        app.MapPost("/social-accounts/connect/Tumblr/start", async (
+            HttpRequest request,
+            AppStoreDb store,
+            AppSettings settings,
+            TumblrService tumblrService,
+            IDistributedCache cache) =>
+        {
+            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
+            var form = await request.ReadFormAsync();
+            var returnUrl = SocialConnectHelper.ResolveReturnUrl(request, form["return"].ToString());
+            var kind = SocialConnectHelper.ResolveAccountKind(returnUrl);
+            if (SocialAccountKinds.IsBrand(kind) && !store.IsOwner) return Results.Redirect("/my-account");
+            if (store.CheckSocialAccountLimit(kind) is not null) return Results.Redirect(returnUrl);
+            if (!settings.IsTumblrConfigured)
+                return Results.Redirect($"/social-accounts/connect/Tumblr?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Tumblr API credentials are not configured.")}");
+
+            var userId = store.GetCurrentDbUser()?.Id ?? 0;
+            if (userId == 0) return Results.Redirect("/start");
+            var saveUserId = SocialAccountKinds.IsBrand(kind) ? store.PrimaryOwnerUserId() : userId;
+            if (saveUserId == 0) return Results.Redirect("/start");
+
+            var callbackUrl = TumblrService.CallbackUrl(PublicUrl.Base(request, settings));
+            var (ok, error, requestToken, requestSecret) = await tumblrService.RequestTokenAsync(callbackUrl);
+            if (!ok || string.IsNullOrWhiteSpace(requestToken) || string.IsNullOrWhiteSpace(requestSecret))
+            {
+                return Results.Redirect($"/social-accounts/connect/Tumblr?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(error)}");
+            }
+
+            await TumblrOAuthStateStore.SaveAsync(cache, requestToken, new TumblrOAuthPending
+            {
+                UserId = saveUserId,
+                ReturnUrl = returnUrl,
+                Kind = kind,
+                RequestToken = requestToken,
+                RequestTokenSecret = requestSecret
+            });
+            return Results.Redirect(tumblrService.BuildAuthorizeUrl(requestToken));
+        });
+
+        app.MapGet(TumblrService.CallbackPath, async (
+            HttpRequest request,
+            HttpContext http,
+            AppStoreDb store,
+            AppSettings settings,
+            TumblrService tumblrService,
+            IDistributedCache cache) =>
+        {
+            var oauthToken = request.Query["oauth_token"].ToString();
+            var verifier = request.Query["oauth_verifier"].ToString();
+            var pending = await TumblrOAuthStateStore.TakeAsync(cache, oauthToken);
+            var returnUrl = pending?.ReturnUrl ?? "/my-account";
+
+            if (pending is null)
+            {
+                return Results.Redirect($"/social-accounts/connect/Tumblr?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Tumblr login expired. Try connecting again.")}");
+            }
+
+            if (string.IsNullOrWhiteSpace(verifier))
+            {
+                return Results.Redirect($"/social-accounts/connect/Tumblr?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Tumblr authorization was cancelled.")}");
+            }
+
+            if (SocialAccountKinds.IsBrand(pending.Kind) && !OwnerAccount.IsOwnerEmail(
+                    store.GetUserEmailById(pending.UserId)))
+            {
+                return Results.Redirect($"/social-accounts/connect/Tumblr?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Only the owner can connect brand accounts.")}");
+            }
+
+            var (ok, connectError, tokens) = await tumblrService.ExchangeAccessTokenAsync(
+                pending.RequestToken, pending.RequestTokenSecret, verifier);
+            if (!ok || tokens is null)
+            {
+                return Results.Redirect($"/social-accounts/connect/Tumblr?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(connectError)}");
+            }
+
+            var userInfo = await tumblrService.GetUserInfoAsync(tokens);
+            if (userInfo is null || userInfo.Blogs.Count == 0)
+            {
+                return Results.Redirect($"/social-accounts/connect/Tumblr?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("No Tumblr blogs found on this account.")}");
+            }
+
+            if (userInfo.Blogs.Count == 1)
+            {
+                var blog = userInfo.Blogs[0];
+                store.AddSocialAccountForUser(pending.UserId, new SocialAccount
+                {
+                    Platform = "Tumblr",
+                    DisplayName = blog.Title,
+                    Handle = blog.Identifier,
+                    IsConnected = true,
+                    ConnectedViaOAuth = true,
+                    AccountKind = pending.Kind,
+                    AccessToken = tokens.Token,
+                    RefreshToken = tokens.TokenSecret,
+                    ExternalAccountId = blog.Identifier
+                }, pending.Kind);
+                if (SocialAccountKinds.IsAuthor(pending.Kind))
+                    store.AddScheduleForUser(pending.UserId, new SocialSchedule { Platform = "Tumblr", PostsPerWeek = 1, RequiresApproval = true });
+                return Results.Redirect(returnUrl);
+            }
+
+            var pickToken = Guid.NewGuid().ToString("N");
+            await TumblrBlogPickStateStore.SaveAsync(cache, pickToken, new TumblrBlogPickPending
+            {
+                UserId = pending.UserId,
+                ReturnUrl = returnUrl,
+                Kind = pending.Kind,
+                AccessToken = tokens.Token,
+                AccessTokenSecret = tokens.TokenSecret,
+                Username = userInfo.Username,
+                Blogs = userInfo.Blogs.Select(b => new TumblrBlogPickOption
+                {
+                    Identifier = b.Identifier,
+                    Title = b.Title,
+                    Primary = b.Primary
+                }).ToList()
+            });
+            return Results.Redirect($"/social-accounts/connect/Tumblr/select-blog?token={Uri.EscapeDataString(pickToken)}");
+        });
+
+        app.MapGet("/social-accounts/connect/Tumblr/select-blog", async (
+            HttpRequest request,
+            HttpContext http,
+            AppStoreDb store,
+            IDistributedCache cache) =>
+        {
+            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
+            var token = request.Query["token"].ToString();
+            var notice = request.Query["notice"].ToString();
+            var pending = await TumblrBlogPickStateStore.PeekAsync(cache, token);
+            if (pending is null) return Results.Redirect("/my-account");
+            return Results.Content(
+                H.RenderPage(http, "Choose Tumblr blog", SocialConnectHelper.TumblrBlogPickPage(pending, token, notice), store),
+                "text/html");
+        });
+
+        app.MapPost("/social-accounts/connect/Tumblr/select-blog", async (
+            HttpRequest request,
+            AppStoreDb store,
+            IDistributedCache cache) =>
+        {
+            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
+            var form = await request.ReadFormAsync();
+            var token = form["token"].ToString();
+            var blogId = form["blogId"].ToString();
+            var pending = await TumblrBlogPickStateStore.PeekAsync(cache, token);
+            if (pending is null) return Results.Redirect("/my-account");
+
+            var blog = pending.Blogs.FirstOrDefault(b =>
+                b.Identifier.Equals(blogId, StringComparison.OrdinalIgnoreCase));
+            if (blog is null)
+            {
+                return Results.Redirect($"/social-accounts/connect/Tumblr/select-blog?token={Uri.EscapeDataString(token)}&notice={Uri.EscapeDataString("Choose a Tumblr blog.")}");
+            }
+
+            await TumblrBlogPickStateStore.TakeAsync(cache, token);
+            store.AddSocialAccountForUser(pending.UserId, new SocialAccount
+            {
+                Platform = "Tumblr",
+                DisplayName = blog.Title,
+                Handle = blog.Identifier,
+                IsConnected = true,
+                ConnectedViaOAuth = true,
+                AccountKind = pending.Kind,
+                AccessToken = pending.AccessToken,
+                RefreshToken = pending.AccessTokenSecret,
+                ExternalAccountId = blog.Identifier
+            }, pending.Kind);
+            if (SocialAccountKinds.IsAuthor(pending.Kind))
+                store.AddScheduleForUser(pending.UserId, new SocialSchedule { Platform = "Tumblr", PostsPerWeek = 1, RequiresApproval = true });
+            return Results.Redirect(pending.ReturnUrl);
+        });
+
         app.MapPost("/social-accounts/connect/TikTok/start", async (
             HttpRequest request,
             AppStoreDb store,
@@ -994,6 +1175,12 @@ static class SocialAccountRoutes
             if (PostLimits.IsMastodon(platformName))
             {
                 var connectUrl = $"/social-accounts/connect/Mastodon?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Use the Connect Mastodon button to sign in with your server.")}";
+                return Results.Redirect(connectUrl);
+            }
+
+            if (PostLimits.IsTumblr(platformName))
+            {
+                var connectUrl = $"/social-accounts/connect/Tumblr?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Use the Connect Tumblr button to sign in with Tumblr.")}";
                 return Results.Redirect(connectUrl);
             }
 

@@ -341,7 +341,7 @@ static class OwnerPage
         string.Equals(sectionId, activeSection, StringComparison.OrdinalIgnoreCase) ? " open" : "";
 
     static readonly string[] ApiChildSections =
-        ["x-api", "linkedin-api", "facebook-api", "reddit-api", "tiktok-api"];
+        ["x-api", "linkedin-api", "facebook-api", "reddit-api", "tumblr-api", "tiktok-api"];
 
     static string ApiParentOpen(string? activeSection) =>
         string.Equals(activeSection, "apis", StringComparison.OrdinalIgnoreCase) ||
@@ -359,6 +359,7 @@ static class OwnerPage
             store.IsLinkedInConfigured,
             store.IsFacebookOAuthReady,
             store.IsRedditConfigured,
+            store.IsTumblrConfigured,
             store.IsTikTokConfigured
         }.Count(x => x);
         var total = ApiChildSections.Length;
@@ -518,6 +519,32 @@ static class OwnerPage
                                     <li><code>Reddit__ClientSecret</code></li>
                                 </ul>
                                 <p class="muted">Authors and owner pick a subreddit when connecting. The first line of each post becomes the Reddit title.</p>
+                            </div>
+                        </details>
+
+                        <details class="owner-collapsible owner-collapsible-nested" id="owner-section-tumblr-api"{open("tumblr-api")}>
+                            <summary class="owner-collapsible-heading">Tumblr{ApiStatusBadge(store.IsTumblrConfigured)}</summary>
+                            <div class="panel owner-settings">
+                                {(store.IsTumblrConfigured
+                                    ? """<p class="notice success">Tumblr API: Ready. Authors can connect with Sign in with Tumblr for live posting.</p>"""
+                                    : $"""
+                                        <p class="notice error">Tumblr is not configured yet.</p>
+                                        <ul class="plan-features">
+                                            <li><strong>Consumer key:</strong> {H.Encode(store.TumblrConsumerKeyStatus)}</li>
+                                            <li><strong>Consumer secret:</strong> {H.Encode(store.TumblrConsumerSecretStatus)}</li>
+                                        </ul>
+                                        """)}
+                                <p class="muted">Register an app at <a href="https://www.tumblr.com/oauth/apps" target="_blank" rel="noopener">tumblr.com/oauth/apps</a> (OAuth 1.0a).</p>
+                                <p class="muted">Set this <strong>Default callback URL</strong> in your Tumblr app:</p>
+                                <ul class="plan-features">
+                                    <li><code>{H.Encode(TumblrService.CallbackUrl(appBaseUrl.TrimEnd('/')))}</code></li>
+                                </ul>
+                                <p class="muted">Add Railway variables, then redeploy:</p>
+                                <ul class="plan-features">
+                                    <li><code>Tumblr__ConsumerKey</code></li>
+                                    <li><code>Tumblr__ConsumerSecret</code></li>
+                                </ul>
+                                <p class="muted">Authors choose which blog to post to when connecting. Posts include book cover photos when available.</p>
                             </div>
                         </details>
 

@@ -77,7 +77,8 @@ class SocialAccount
         && (!PostLimits.IsTikTok(Platform) || !string.IsNullOrWhiteSpace(ExternalAccountId))
         && (!PostLimits.IsMastodon(Platform) || (!string.IsNullOrWhiteSpace(ExternalAccountId) && !string.IsNullOrWhiteSpace(Handle)))
         && (!PostLimits.IsDiscord(Platform) || DiscordTelegramPostingService.IsDiscordWebhook(AccessToken))
-        && (!PostLimits.IsTelegram(Platform) || (!string.IsNullOrWhiteSpace(ExternalAccountId) && !string.IsNullOrWhiteSpace(AccessToken)));
+        && (!PostLimits.IsTelegram(Platform) || (!string.IsNullOrWhiteSpace(ExternalAccountId) && !string.IsNullOrWhiteSpace(AccessToken)))
+        && (!PostLimits.IsTumblr(Platform) || (!string.IsNullOrWhiteSpace(ExternalAccountId) && !string.IsNullOrWhiteSpace(AccessToken) && !string.IsNullOrWhiteSpace(RefreshToken)));
 }
 
 class TikTokVideo
