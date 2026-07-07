@@ -16,6 +16,7 @@ class SocialPostingService
     readonly MastodonService _mastodon;
     readonly DiscordTelegramPostingService _messaging;
     readonly TumblrService _tumblr;
+    readonly WordPressService _wordpress;
     readonly HttpClient _http;
     readonly UploadPaths _uploads;
 
@@ -28,6 +29,7 @@ class SocialPostingService
         MastodonService mastodon,
         DiscordTelegramPostingService messaging,
         TumblrService tumblr,
+        WordPressService wordpress,
         IHttpClientFactory httpFactory,
         UploadPaths uploads)
     {
@@ -39,6 +41,7 @@ class SocialPostingService
         _mastodon = mastodon;
         _messaging = messaging;
         _tumblr = tumblr;
+        _wordpress = wordpress;
         _uploads = uploads;
         _http = httpFactory.CreateClient(nameof(SocialPostingService));
         _http.Timeout = TimeSpan.FromSeconds(30);
@@ -77,6 +80,9 @@ class SocialPostingService
 
         if (PostLimits.IsTumblr(account.Platform) && account.IsLiveConnection)
             return await PostToTumblrLive(account, postText, media, brandMedia, cancellationToken);
+
+        if (PostLimits.IsWordPress(account.Platform) && account.IsLiveConnection)
+            return await PostToWordPressLive(account, postText, media, brandMedia, cancellationToken);
 
         var result = account.Platform.ToLowerInvariant() switch
         {
@@ -439,6 +445,64 @@ class SocialPostingService
         var tokens = new TumblrTokenSet(account.AccessToken, account.RefreshToken);
         var result = await _tumblr.PostAsync(
             tokens, account.ExternalAccountId, htmlBody, imageUrl, clickThruUrl, tags, cancellationToken);
+        return new PostingOutcome { Result = result };
+    }
+
+    async Task<PostingOutcome> PostToWordPressLive(
+        SocialAccount account,
+        string postText,
+        BookPostMedia? media,
+        BrandPostMedia? brandMedia,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(account.AccessToken) ||
+            string.IsNullOrWhiteSpace(account.ExternalAccountId) ||
+            string.IsNullOrWhiteSpace(account.Handle))
+            return new PostingOutcome { Result = PostingResult.Failure("WordPress is not connected. Reconnect your site in My Account or Owner.") };
+
+        var baseUrl = ResolveBaseUrl(media?.AppBaseUrl ?? brandMedia?.AppBaseUrl);
+        var isBrand = brandMedia is not null;
+        var connection = new WordPressConnection(
+            account.ExternalAccountId,
+            account.Handle,
+            account.AccessToken,
+            account.DisplayName);
+
+        byte[]? imageBytes = null;
+        string? imageMime = null;
+        string? imageFileName = null;
+        if (media is not null)
+        {
+            var image = await BookCoverLoader.TryLoadAsync(
+                _http,
+                _uploads.Path,
+                baseUrl,
+                media.BookTitle,
+                media.CoverImageUrl,
+                media.TrackingCode,
+                cancellationToken);
+            if (image is not null)
+            {
+                imageBytes = image.Data;
+                imageMime = image.MimeType;
+                imageFileName = "book-cover.jpg";
+            }
+        }
+        else if (brandMedia is not null)
+        {
+            var logo = await BrandLogoLoader.TryLoadAsync(_http, baseUrl, cancellationToken);
+            if (logo is not null)
+            {
+                imageBytes = logo.Data;
+                imageMime = logo.MimeType;
+                imageFileName = "bookpromoter-ai-logo.png";
+            }
+        }
+
+        var title = WordPressPostFormatter.BuildTitle(postText, media?.BookTitle, isBrand);
+        var html = WordPressPostFormatter.ToHtmlContent(postText, baseUrl, isBrand);
+        var result = await _wordpress.PostAsync(
+            connection, title, html, imageBytes, imageMime, imageFileName, cancellationToken);
         return new PostingOutcome { Result = result };
     }
 

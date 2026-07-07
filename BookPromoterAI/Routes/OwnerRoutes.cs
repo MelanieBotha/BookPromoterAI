@@ -205,7 +205,7 @@ static class OwnerRoutes
         {
             if (OwnerGuard(store) is { } guard) return guard;
             store.ToggleFeedbackInvestigated(id);
-            return Results.Redirect("/owner-promos");
+            return Results.Redirect("/owner-promos?section=feedback");
         });
 
         app.MapPost("/owner/facebook-diagnostics", async (

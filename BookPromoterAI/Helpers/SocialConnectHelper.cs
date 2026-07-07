@@ -127,6 +127,9 @@ static class SocialConnectHelper
         if (PostLimits.IsTumblr(platformName))
             return TumblrSetupPage(returnUrl, notice, settings);
 
+        if (PostLimits.IsWordPress(platformName))
+            return WordPressConnectPage(returnUrl, notice, brandContext);
+
         if (IsPlatformDisabled(platformName, settings))
         {
             var reason = DisabledPlatformReason(platformName, settings);
@@ -657,6 +660,38 @@ static class SocialConnectHelper
                 <p class="muted small-text">OAuth callback URL for your Tumblr app: <code>{H.Encode(callbackExample)}</code></p>
                 {noticeHtml}
                 {connectBlock}
+            </section>
+            """;
+    }
+
+    static string WordPressConnectPage(string returnUrl, string notice, bool brandContext)
+    {
+        var heading = brandContext
+            ? "Connect BookPromoter AI on WordPress"
+            : "Connect your WordPress blog";
+        var intro = brandContext
+            ? "Post BookPromoter AI app promos to your <strong>brand WordPress site</strong> (e.g. bookpromoterai.wordpress.com)."
+            : "Auto-post book promos as blog posts on your author WordPress site.";
+        var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<div class="notice error">{H.Encode(notice)}</div>""";
+        return $"""
+            <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>{heading}</h1></div></section>
+            <section class="panel oauth-panel">
+                <div class="oauth-platform-badge" style="background:#21759B">WP</div>
+                <h2>Live WordPress posting</h2>
+                <p class="muted">{intro}</p>
+                <p class="muted">In WordPress admin: <strong>Users → Profile → Application Passwords</strong>. Create one named <em>BookPromoter AI</em> and paste it below. Works on self-hosted WordPress and WordPress.com sites that support application passwords.</p>
+                {noticeHtml}
+                <form method="post" action="/social-accounts/oauth-callback/{Uri.EscapeDataString("WordPress")}" class="form">
+                    <input type="hidden" name="return" value="{H.Encode(returnUrl)}">
+                    <label>Site URL <input name="siteUrl" placeholder="https://yourblog.com" required autocomplete="url"></label>
+                    <label>WordPress username <input name="username" placeholder="admin" required autocomplete="username"></label>
+                    <label>Application password <input name="appPassword" type="password" placeholder="xxxx xxxx xxxx xxxx" required autocomplete="off"></label>
+                    <label>Display name <input name="displayName" placeholder="{(brandContext ? "BookPromoter AI" : "My Author Blog")}"></label>
+                    <div class="form-actions">
+                        <button class="button" type="submit" style="background:#21759B">Connect &amp; enable live posting</button>
+                        <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
+                    </div>
+                </form>
             </section>
             """;
     }

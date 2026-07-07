@@ -152,10 +152,13 @@ static class PostLimits
     public static bool IsTumblr(string platform) =>
         platform.Equals("Tumblr", StringComparison.OrdinalIgnoreCase);
 
+    public static bool IsWordPress(string platform) =>
+        platform.Equals("WordPress", StringComparison.OrdinalIgnoreCase);
+
     public static bool RequiresLiveConnection(string platform) =>
         IsBluesky(platform) || IsX(platform) || IsLinkedIn(platform) || IsFacebook(platform) ||
         IsReddit(platform) || IsMastodon(platform) || IsDiscord(platform) || IsTelegram(platform) ||
-        IsTumblr(platform);
+        IsTumblr(platform) || IsWordPress(platform);
 
     public static string LiveReconnectHint(string platform)
     {
@@ -177,6 +180,8 @@ static class PostLimits
             return "Telegram is not connected for live posting. In My Account, reconnect with your bot token and chat ID.";
         if (IsTumblr(platform))
             return "Tumblr is not connected for live posting. In My Account, remove your Tumblr account and reconnect.";
+        if (IsWordPress(platform))
+            return "WordPress is not connected for live posting. In My Account, remove your WordPress account and reconnect with an application password.";
         return $"Connect {platform} for live posting in My Account.";
     }
 
@@ -200,6 +205,8 @@ static class PostLimits
             return "Reconnect Telegram with your bot token in My Account to use Post now.";
         if (IsTumblr(platform))
             return "Reconnect Tumblr with Sign in with Tumblr in My Account to use Post now.";
+        if (IsWordPress(platform))
+            return "Reconnect WordPress with your application password in My Account to use Post now.";
         return $"Reconnect {platform} in My Account to use Post now.";
     }
 
@@ -214,6 +221,7 @@ static class PostLimits
         if (IsDiscord(a) && IsDiscord(b)) return true;
         if (IsTelegram(a) && IsTelegram(b)) return true;
         if (IsTumblr(a) && IsTumblr(b)) return true;
+        if (IsWordPress(a) && IsWordPress(b)) return true;
         return IsReddit(a) && IsReddit(b);
     }
 }

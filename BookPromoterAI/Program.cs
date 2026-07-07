@@ -78,6 +78,7 @@ builder.Services.AddReddit();
 builder.Services.AddTikTok();
 builder.Services.AddMastodonAndMessaging();
 builder.Services.AddTumblr();
+builder.Services.AddWordPress();
 builder.Services.AddSingleton<LocalSpeechService>();
 builder.Services.AddSingleton<SocialPostMetricsService>();
 builder.Services.AddSingleton<VideoRenderService>();

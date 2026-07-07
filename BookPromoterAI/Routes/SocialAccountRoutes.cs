@@ -1105,7 +1105,7 @@ static class SocialAccountRoutes
             return Results.Redirect(returnUrl);
         });
 
-        app.MapPost("/social-accounts/oauth-callback/{platform}", async (string platform, HttpRequest request, HttpContext http, AppStoreDb store, BlueskyService bluesky, DiscordTelegramPostingService messaging) =>
+        app.MapPost("/social-accounts/oauth-callback/{platform}", async (string platform, HttpRequest request, HttpContext http, AppStoreDb store, BlueskyService bluesky, WordPressService wordpress, DiscordTelegramPostingService messaging) =>
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
             var form = await request.ReadFormAsync();
@@ -1148,6 +1148,37 @@ static class SocialAccountRoutes
                 return Results.Redirect(returnUrl);
             }
 
+            if (PostLimits.IsWordPress(platformName))
+            {
+                var siteUrl = form["siteUrl"].ToString();
+                var username = form["username"].ToString();
+                var appPassword = form["appPassword"].ToString();
+                var displayName = form["displayName"].ToString();
+                var (ok, error, connection) = await wordpress.VerifyAsync(siteUrl, username, appPassword);
+                if (!ok || connection is null)
+                {
+                    var connectUrl = $"/social-accounts/connect/{Uri.EscapeDataString(platformName)}?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(error)}";
+                    return Results.Redirect(connectUrl);
+                }
+
+                store.AddSocialAccount(new SocialAccount
+                {
+                    Platform = platformName,
+                    DisplayName = string.IsNullOrWhiteSpace(displayName)
+                        ? (SocialAccountKinds.IsBrand(kind) ? "BookPromoter AI" : connection.DisplayName)
+                        : displayName.Trim(),
+                    Handle = connection.Username,
+                    IsConnected = true,
+                    ConnectedViaOAuth = true,
+                    AccountKind = kind,
+                    AccessToken = connection.AppPassword,
+                    ExternalAccountId = connection.SiteUrl
+                }, kind);
+                if (SocialAccountKinds.IsAuthor(kind))
+                    store.AddSchedule(new SocialSchedule { Platform = platformName, PostsPerWeek = 1, RequiresApproval = true });
+                return Results.Redirect(returnUrl);
+            }
+
             if (PostLimits.IsX(platformName))
             {
                 var connectUrl = $"/social-accounts/connect/X?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Use the Connect X button to sign in with X.")}";
@@ -1181,6 +1212,12 @@ static class SocialAccountRoutes
             if (PostLimits.IsTumblr(platformName))
             {
                 var connectUrl = $"/social-accounts/connect/Tumblr?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Use the Connect Tumblr button to sign in with Tumblr.")}";
+                return Results.Redirect(connectUrl);
+            }
+
+            if (PostLimits.IsWordPress(platformName))
+            {
+                var connectUrl = $"/social-accounts/connect/WordPress?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Use the Connect WordPress button and enter your application password.")}";
                 return Results.Redirect(connectUrl);
             }
 

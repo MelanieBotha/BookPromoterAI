@@ -730,42 +730,29 @@ static class OwnerPage
             ("General Feedback",  "#c55a11", "#ffffff"),
         };
 
+        var allEntries = store.FeedbackEntries;
         var sections = new StringBuilder();
         foreach (var (category, bgColor, textColor) in categories)
         {
-            var entries = store.FeedbackEntries
-                .Where(f => f.Category == category)
+            var entries = allEntries
+                .Where(f => f.Category == category && !f.Investigated)
                 .OrderByDescending(f => f.SubmittedAt)
                 .ToList();
 
             var rows = new StringBuilder();
             foreach (var entry in entries)
             {
-                var investigatedCheck = entry.Investigated
-                    ? """<span class="feedback-tick">&#10003;</span>"""
-                    : $"""<form method="post" action="/owner/feedback/investigate/{entry.Id}" style="display:inline"><button class="feedback-check-btn" type="submit" title="Mark as investigated">&#9744;</button></form>""";
-
-                // Truncate thank-you email preview to first 120 chars
-                var emailPreview = entry.ThankYouEmail.Length > 120
-                    ? entry.ThankYouEmail[..120] + "..."
-                    : entry.ThankYouEmail;
-
-                rows.Append($"""
-                    <tr class="{(entry.Investigated ? "investigated" : "")}">
-                        <td>{entry.SubmittedAt:d/M/yyyy}</td>
-                        <td>{H.Encode(entry.Category)}</td>
-                        <td>{H.Encode(entry.Email)}</td>
-                        <td>{H.Encode(entry.Message)}</td>
-                        <td class="email-preview">{H.Encode(emailPreview)}</td>
-                        <td class="center">{investigatedCheck}</td>
-                    </tr>
-                    """);
+                rows.Append(FeedbackRow(entry, showInvestigateAction: true));
             }
 
-            // Always show at least 3 empty rows like the spreadsheet
-            var emptyRows = Math.Max(0, 3 - entries.Count);
-            for (var i = 0; i < emptyRows; i++)
-                rows.Append("""<tr><td></td><td></td><td></td><td></td><td></td><td class="center"><input type="checkbox" disabled></td></tr>""");
+            if (entries.Count == 0)
+                rows.Append("""<tr><td colspan="6" class="muted center">No open items — checked items are in the archive below.</td></tr>""");
+            else
+            {
+                var emptyRows = Math.Max(0, 3 - entries.Count);
+                for (var i = 0; i < emptyRows; i++)
+                    rows.Append("""<tr class="feedback-empty-row"><td></td><td></td><td></td><td></td><td></td><td class="center"></td></tr>""");
+            }
 
             sections.Append($"""
                 <section class="panel owner-settings feedback-category-section">
@@ -793,8 +780,69 @@ static class OwnerPage
                 """);
         }
 
+        var archived = allEntries
+            .Where(f => f.Investigated)
+            .OrderByDescending(f => f.SubmittedAt)
+            .ToList();
+        var archiveRows = new StringBuilder();
+        if (archived.Count == 0)
+        {
+            archiveRows.Append("""<tr><td colspan="6" class="muted center">No archived feedback yet.</td></tr>""");
+        }
+        else
+        {
+            foreach (var entry in archived)
+                archiveRows.Append(FeedbackRow(entry, showInvestigateAction: false));
+        }
+
+        sections.Append($"""
+            <details class="owner-collapsible feedback-archive" style="margin-top:20px">
+                <summary class="owner-collapsible-heading">Archive ({archived.Count} investigated)</summary>
+                <div class="panel owner-settings">
+                    <p class="muted small-text">Items you marked investigated leave the blocks above and appear here. Click <strong>Restore</strong> to move one back to the active queue.</p>
+                    <div class="feedback-table-wrapper">
+                        <table class="feedback-tracker-table feedback-archive-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Category</th>
+                                    <th>Email address</th>
+                                    <th>Message</th>
+                                    <th>Emailed Thank you</th>
+                                    <th>Archive</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {archiveRows}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </details>
+            """);
+
+        return sections.ToString();
+    }
+
+    static string FeedbackRow(FeedbackEntry entry, bool showInvestigateAction)
+    {
+        var emailPreview = entry.ThankYouEmail.Length > 120
+            ? entry.ThankYouEmail[..120] + "..."
+            : entry.ThankYouEmail;
+
+        var actionCell = showInvestigateAction
+            ? $"""<form method="post" action="/owner/feedback/investigate/{entry.Id}" style="display:inline"><button class="feedback-check-btn" type="submit" title="Mark as investigated">&#9744;</button></form>"""
+            : $"""<form method="post" action="/owner/feedback/investigate/{entry.Id}" style="display:inline"><button class="button secondary small" type="submit" title="Move back to active queue">Restore</button></form>""";
+
         return $"""
-            {sections}
+            <tr>
+                <td>{entry.SubmittedAt:d/M/yyyy}</td>
+                <td>{H.Encode(entry.Category)}</td>
+                <td>{H.Encode(entry.Email)}</td>
+                <td>{H.Encode(entry.Message)}</td>
+                <td class="email-preview">{H.Encode(emailPreview)}</td>
+                <td class="center">{actionCell}</td>
+            </tr>
             """;
     }
 }
