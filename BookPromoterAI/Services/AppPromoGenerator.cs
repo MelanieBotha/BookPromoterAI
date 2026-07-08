@@ -68,8 +68,10 @@ static class AppPromoGenerator
     {
         var s = Math.Abs(seed ?? Random.Shared.Next());
         var url = appBaseUrl.TrimEnd('/');
-        var startUrl = $"{url}/start";
-        var trialUrl = $"{url}/trial";
+        var slug = PlatformClickSource.SlugForPlatform(platform);
+        var track = string.IsNullOrWhiteSpace(slug) ? "" : $"?from={Uri.EscapeDataString(slug)}";
+        var startUrl = $"{url}/start{track}";
+        var trialUrl = $"{url}/trial{track}";
         var hook = Hooks[s % Hooks.Length];
         var tags = Tags[(s / Hooks.Length) % Tags.Length];
         var useTrialCta = s % 3 != 0;

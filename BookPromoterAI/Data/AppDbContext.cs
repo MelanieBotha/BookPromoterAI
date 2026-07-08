@@ -44,6 +44,7 @@ class AppDbContext : DbContext
     public DbSet<DbMailingListSettings> MailingListSettings => Set<DbMailingListSettings>();
     public DbSet<DbProductUpdate> ProductUpdates => Set<DbProductUpdate>();
     public DbSet<DbTikTokVideo> TikTokVideos => Set<DbTikTokVideo>();
+    public DbSet<DbBrandClick> BrandClicks => Set<DbBrandClick>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -59,6 +60,11 @@ class AppDbContext : DbContext
         model.Entity<DbSubscriptionPlan>()
             .Property(p => p.FeaturesJson)
             .HasColumnName("Features");
+
+        // One aggregate row per (month, platform, destination) for brand-website clicks
+        model.Entity<DbBrandClick>()
+            .HasIndex(c => new { c.MonthKey, c.Platform, c.Destination })
+            .IsUnique();
 
         // Seed the four subscription plans
         model.Entity<DbSubscriptionPlan>().HasData(
@@ -376,6 +382,17 @@ class DbProductUpdate
     public int EmailsSent { get; set; }
     public int EmailsFailed { get; set; }
     public int SocialPostsSent { get; set; }
+}
+
+// Tracks clicks to the BookPromoter AI marketing site (/start, /trial) attributed
+// to the brand social platform that drove the visit. Aggregated per calendar month.
+class DbBrandClick
+{
+    public int Id { get; set; }
+    public string MonthKey { get; set; } = ""; // yyyy-MM (UTC)
+    public string Platform { get; set; } = ""; // normalized platform name, e.g. "Tumblr"
+    public string Destination { get; set; } = ""; // "start" or "trial"
+    public int Clicks { get; set; }
 }
 
 class DbTikTokVideo

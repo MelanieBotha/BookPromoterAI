@@ -108,7 +108,7 @@ static class MyAccountPage
                 <h2>Author Social Accounts &amp; Posting Schedule</h2>
                 <p class="muted">Connect platforms where you promote <strong>your books</strong>. Set posts/week, approval, and auto-post for each author account.</p>
                 {ownerBrandNote}
-                <p class="muted small-text">Check "Auto-post", set <strong>posts/week</strong> above 0, then click <strong>Save Posting Schedule</strong>. If "Approval required" is checked, approve posts in the Ad Library first. Auto-posting runs immediately on save and every few minutes after that. <strong>Facebook</strong>, <strong>Bluesky</strong>, <strong>X</strong>, <strong>LinkedIn</strong>, <strong>WordPress</strong>, <strong>Tumblr</strong>, and others post live when connected.</p>
+                <p class="muted small-text">Check "Auto-post", set <strong>posts/week</strong> above 0, then click <strong>Save Posting Schedule</strong>. If "Approval required" is checked, approve posts in the Ad Library first. Auto-posting runs immediately on save and every few minutes after that. <strong>Facebook</strong>, <strong>Bluesky</strong>, <strong>X</strong>, <strong>LinkedIn</strong>, <strong>WordPress</strong>, <strong>Medium</strong>, <strong>Tumblr</strong>, <strong>Flickr</strong>, and others post live when connected.</p>
                 {nextPlatformHint}
                 {limitText}
                 {limitNotice}

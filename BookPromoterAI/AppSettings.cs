@@ -39,6 +39,9 @@ class AppSettings
     public string TumblrConsumerKey { get; init; } = "";
     public string TumblrConsumerSecret { get; init; } = "";
 
+    public string FlickrApiKey { get; init; } = "";
+    public string FlickrApiSecret { get; init; } = "";
+
     public bool IsSendGridConfigured =>
         !string.IsNullOrWhiteSpace(SendGridApiKey) &&
         SendGridApiKey != "YOUR_SENDGRID_API_KEY_HERE" &&
@@ -96,6 +99,12 @@ class AppSettings
         TumblrConsumerKey != "YOUR_TUMBLR_CONSUMER_KEY" &&
         !string.IsNullOrWhiteSpace(TumblrConsumerSecret) &&
         TumblrConsumerSecret != "YOUR_TUMBLR_CONSUMER_SECRET";
+
+    public bool IsFlickrConfigured =>
+        !string.IsNullOrWhiteSpace(FlickrApiKey) &&
+        FlickrApiKey != "YOUR_FLICKR_API_KEY" &&
+        !string.IsNullOrWhiteSpace(FlickrApiSecret) &&
+        FlickrApiSecret != "YOUR_FLICKR_API_SECRET";
 
     public bool FacebookUsesConfigLogin =>
         string.Equals(FacebookOAuthMode, "config", StringComparison.OrdinalIgnoreCase);
@@ -239,6 +248,20 @@ class AppSettings
         return "OK - detected.";
     }
 
+    public string DescribeFlickrApiKey()
+    {
+        if (string.IsNullOrWhiteSpace(FlickrApiKey) || FlickrApiKey == "YOUR_FLICKR_API_KEY")
+            return "Missing - add Flickr__ApiKey in Railway (from flickr.com/services/apps/create).";
+        return "OK - detected.";
+    }
+
+    public string DescribeFlickrApiSecret()
+    {
+        if (string.IsNullOrWhiteSpace(FlickrApiSecret) || FlickrApiSecret == "YOUR_FLICKR_API_SECRET")
+            return "Missing - add Flickr__ApiSecret in Railway.";
+        return "OK - detected.";
+    }
+
     public string DescribeTikTokClientKey()
     {
         if (string.IsNullOrWhiteSpace(TikTokClientKey) || TikTokClientKey == "YOUR_TIKTOK_CLIENT_KEY")
@@ -324,7 +347,9 @@ class AppSettings
             PinterestAppId = CleanSecret(config["Pinterest:AppId"]),
             PinterestAppSecret = CleanSecret(config["Pinterest:AppSecret"]),
             TumblrConsumerKey = CleanSecret(config["Tumblr:ConsumerKey"]),
-            TumblrConsumerSecret = CleanSecret(config["Tumblr:ConsumerSecret"])
+            TumblrConsumerSecret = CleanSecret(config["Tumblr:ConsumerSecret"]),
+            FlickrApiKey = CleanSecret(config["Flickr:ApiKey"]),
+            FlickrApiSecret = CleanSecret(config["Flickr:ApiSecret"])
         };
     }
 

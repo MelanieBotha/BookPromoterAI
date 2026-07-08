@@ -243,6 +243,14 @@ static class SocialAccountRoutes
                     "text/html");
             }
 
+            if (PostLimits.IsFlickr(platformName))
+            {
+                var notice = request.Query["notice"].ToString();
+                return Results.Content(
+                    H.RenderPage(http, "Connect Flickr", SocialConnectHelper.FlickrSetupPage(returnUrl, notice, settings), store),
+                    "text/html");
+            }
+
             if (PostLimits.IsTikTok(platformName))
             {
                 var notice = request.Query["notice"].ToString();
@@ -904,6 +912,103 @@ static class SocialAccountRoutes
             return Results.Redirect(pending.ReturnUrl);
         });
 
+        app.MapPost("/social-accounts/connect/Flickr/start", async (
+            HttpRequest request,
+            AppStoreDb store,
+            AppSettings settings,
+            FlickrService flickrService,
+            IDistributedCache cache) =>
+        {
+            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
+            var form = await request.ReadFormAsync();
+            var returnUrl = SocialConnectHelper.ResolveReturnUrl(request, form["return"].ToString());
+            var kind = SocialConnectHelper.ResolveAccountKind(returnUrl);
+            if (SocialAccountKinds.IsBrand(kind) && !store.IsOwner) return Results.Redirect("/my-account");
+            if (store.CheckSocialAccountLimit(kind) is not null) return Results.Redirect(returnUrl);
+            if (!settings.IsFlickrConfigured)
+                return Results.Redirect($"/social-accounts/connect/Flickr?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Flickr API credentials are not configured.")}");
+
+            var userId = store.GetCurrentDbUser()?.Id ?? 0;
+            if (userId == 0) return Results.Redirect("/start");
+            var saveUserId = SocialAccountKinds.IsBrand(kind) ? store.PrimaryOwnerUserId() : userId;
+            if (saveUserId == 0) return Results.Redirect("/start");
+
+            var callbackUrl = PublicUrl.FlickrCallbackUrl(request, settings);
+            var (ok, error, requestToken, requestSecret) = await flickrService.RequestTokenAsync(callbackUrl);
+            if (!ok || string.IsNullOrWhiteSpace(requestToken) || string.IsNullOrWhiteSpace(requestSecret))
+            {
+                return Results.Redirect($"/social-accounts/connect/Flickr?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(error)}");
+            }
+
+            await FlickrOAuthStateStore.SaveAsync(cache, requestToken, new FlickrOAuthPending
+            {
+                UserId = saveUserId,
+                ReturnUrl = returnUrl,
+                Kind = kind,
+                RequestToken = requestToken,
+                RequestTokenSecret = requestSecret
+            });
+            return Results.Redirect(flickrService.BuildAuthorizeUrl(requestToken));
+        });
+
+        app.MapGet(FlickrService.CallbackPath, async (
+            HttpRequest request,
+            AppStoreDb store,
+            FlickrService flickrService,
+            IDistributedCache cache) =>
+        {
+            var oauthToken = request.Query["oauth_token"].ToString();
+            var verifier = request.Query["oauth_verifier"].ToString();
+            var pending = await FlickrOAuthStateStore.TakeAsync(cache, oauthToken);
+            var returnUrl = pending?.ReturnUrl ?? "/my-account";
+
+            if (pending is null)
+            {
+                return Results.Redirect($"/social-accounts/connect/Flickr?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Flickr login expired. Try connecting again.")}");
+            }
+
+            if (string.IsNullOrWhiteSpace(verifier))
+            {
+                return Results.Redirect($"/social-accounts/connect/Flickr?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Flickr authorization was cancelled.")}");
+            }
+
+            if (SocialAccountKinds.IsBrand(pending.Kind) && !OwnerAccount.IsOwnerEmail(
+                    store.GetUserEmailById(pending.UserId)))
+            {
+                return Results.Redirect($"/social-accounts/connect/Flickr?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Only the owner can connect brand accounts.")}");
+            }
+
+            var (ok, connectError, tokens) = await flickrService.ExchangeAccessTokenAsync(
+                pending.RequestToken, pending.RequestTokenSecret, verifier);
+            if (!ok || tokens is null)
+            {
+                return Results.Redirect($"/social-accounts/connect/Flickr?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(connectError)}");
+            }
+
+            var userInfo = await flickrService.GetUserInfoAsync(tokens);
+            var displayName = userInfo?.DisplayName ?? tokens.FullName;
+            if (string.IsNullOrWhiteSpace(displayName))
+                displayName = tokens.Username;
+            if (string.IsNullOrWhiteSpace(displayName))
+                displayName = "Flickr";
+
+            store.AddSocialAccountForUser(pending.UserId, new SocialAccount
+            {
+                Platform = "Flickr",
+                DisplayName = displayName,
+                Handle = userInfo?.Username ?? tokens.Username,
+                IsConnected = true,
+                ConnectedViaOAuth = true,
+                AccountKind = pending.Kind,
+                AccessToken = tokens.Token,
+                RefreshToken = tokens.TokenSecret,
+                ExternalAccountId = userInfo?.UserNsid ?? tokens.UserNsid
+            }, pending.Kind);
+            if (SocialAccountKinds.IsAuthor(pending.Kind))
+                store.AddScheduleForUser(pending.UserId, new SocialSchedule { Platform = "Flickr", PostsPerWeek = 1, RequiresApproval = true });
+            return Results.Redirect(returnUrl);
+        });
+
         app.MapPost("/social-accounts/connect/TikTok/start", async (
             HttpRequest request,
             AppStoreDb store,
@@ -1105,7 +1210,7 @@ static class SocialAccountRoutes
             return Results.Redirect(returnUrl);
         });
 
-        app.MapPost("/social-accounts/oauth-callback/{platform}", async (string platform, HttpRequest request, HttpContext http, AppStoreDb store, BlueskyService bluesky, WordPressService wordpress, DiscordTelegramPostingService messaging) =>
+        app.MapPost("/social-accounts/oauth-callback/{platform}", async (string platform, HttpRequest request, HttpContext http, AppStoreDb store, BlueskyService bluesky, WordPressService wordpress, MediumService medium, DiscordTelegramPostingService messaging) =>
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
             var form = await request.ReadFormAsync();
@@ -1179,6 +1284,35 @@ static class SocialAccountRoutes
                 return Results.Redirect(returnUrl);
             }
 
+            if (PostLimits.IsMedium(platformName))
+            {
+                var integrationToken = form["integrationToken"].ToString();
+                var displayName = form["displayName"].ToString();
+                var (ok, error, connection) = await medium.VerifyAsync(integrationToken);
+                if (!ok || connection is null)
+                {
+                    var connectUrl = $"/social-accounts/connect/{Uri.EscapeDataString(platformName)}?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(error)}";
+                    return Results.Redirect(connectUrl);
+                }
+
+                store.AddSocialAccount(new SocialAccount
+                {
+                    Platform = platformName,
+                    DisplayName = string.IsNullOrWhiteSpace(displayName)
+                        ? (SocialAccountKinds.IsBrand(kind) ? "BookPromoter AI" : connection.DisplayName)
+                        : displayName.Trim(),
+                    Handle = string.IsNullOrWhiteSpace(connection.Username) ? connection.DisplayName : connection.Username,
+                    IsConnected = true,
+                    ConnectedViaOAuth = true,
+                    AccountKind = kind,
+                    AccessToken = connection.IntegrationToken,
+                    ExternalAccountId = connection.UserId
+                }, kind);
+                if (SocialAccountKinds.IsAuthor(kind))
+                    store.AddSchedule(new SocialSchedule { Platform = platformName, PostsPerWeek = 1, RequiresApproval = true });
+                return Results.Redirect(returnUrl);
+            }
+
             if (PostLimits.IsX(platformName))
             {
                 var connectUrl = $"/social-accounts/connect/X?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Use the Connect X button to sign in with X.")}";
@@ -1215,9 +1349,21 @@ static class SocialAccountRoutes
                 return Results.Redirect(connectUrl);
             }
 
+            if (PostLimits.IsFlickr(platformName))
+            {
+                var connectUrl = $"/social-accounts/connect/Flickr?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Use the Connect Flickr button to sign in with Flickr.")}";
+                return Results.Redirect(connectUrl);
+            }
+
             if (PostLimits.IsWordPress(platformName))
             {
                 var connectUrl = $"/social-accounts/connect/WordPress?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Use the Connect WordPress button and enter your application password.")}";
+                return Results.Redirect(connectUrl);
+            }
+
+            if (PostLimits.IsMedium(platformName))
+            {
+                var connectUrl = $"/social-accounts/connect/Medium?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Use the Connect Medium button and enter your integration token.")}";
                 return Results.Redirect(connectUrl);
             }
 

@@ -110,6 +110,9 @@ class AppStoreDb
     public bool IsTumblrConfigured => _settings.IsTumblrConfigured;
     public string TumblrConsumerKeyStatus => _settings.DescribeTumblrConsumerKey();
     public string TumblrConsumerSecretStatus => _settings.DescribeTumblrConsumerSecret();
+    public bool IsFlickrConfigured => _settings.IsFlickrConfigured;
+    public string FlickrApiKeyStatus => _settings.DescribeFlickrApiKey();
+    public string FlickrApiSecretStatus => _settings.DescribeFlickrApiSecret();
 
     public bool IsTikTokConfigured => _settings.IsTikTokConfigured;
     public string TikTokClientKeyStatus => _settings.DescribeTikTokClientKey();
@@ -1880,6 +1883,84 @@ class AppStoreDb
             }
         }
         return totals.OrderByDescending(kv => kv.Value).ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
+    }
+
+    // ── Brand website clicks (bookpromoterai.us /start & /trial) ───────
+    /// <summary>Records a click on the marketing site attributed to the social platform that drove it.</summary>
+    public void RecordBrandWebsiteClick(string? platformSlug, string destination)
+    {
+        var dest = string.Equals(destination, "trial", StringComparison.OrdinalIgnoreCase) ? "trial" : "start";
+        var platform = PlatformClickSource.Normalize(platformSlug);
+        var monthKey = DateTime.UtcNow.ToString("yyyy-MM");
+
+        using var db = Db();
+        var row = db.BrandClicks.FirstOrDefault(c =>
+            c.MonthKey == monthKey && c.Platform == platform && c.Destination == dest);
+        if (row is null)
+        {
+            db.BrandClicks.Add(new DbBrandClick { MonthKey = monthKey, Platform = platform, Destination = dest, Clicks = 1 });
+        }
+        else
+        {
+            row.Clicks++;
+        }
+        db.SaveChanges();
+    }
+
+    /// <summary>Total brand-website clicks per platform (all time), highest first. Owner only.</summary>
+    public Dictionary<string, int> OwnerBrandWebsiteClicksByPlatform()
+    {
+        if (!IsOwner) return [];
+        using var db = Db();
+        var totals = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var row in db.BrandClicks.AsNoTracking().Select(c => new { c.Platform, c.Clicks }).AsEnumerable())
+            totals[row.Platform] = totals.GetValueOrDefault(row.Platform) + row.Clicks;
+        return totals.OrderByDescending(kv => kv.Value).ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Brand-website clicks for the current UTC month, all platforms combined. Owner only.</summary>
+    public int OwnerBrandWebsiteClicksThisMonth()
+    {
+        if (!IsOwner) return 0;
+        var monthKey = DateTime.UtcNow.ToString("yyyy-MM");
+        using var db = Db();
+        return db.BrandClicks.AsNoTracking().Where(c => c.MonthKey == monthKey).Sum(c => (int?)c.Clicks) ?? 0;
+    }
+
+    /// <summary>Total brand-website clicks across all time. Owner only.</summary>
+    public int OwnerBrandWebsiteClicksAllTime()
+    {
+        if (!IsOwner) return 0;
+        using var db = Db();
+        return db.BrandClicks.AsNoTracking().Sum(c => (int?)c.Clicks) ?? 0;
+    }
+
+    /// <summary>Brand-website clicks grouped by month then platform. Owner only.</summary>
+    public Dictionary<string, Dictionary<string, int>> OwnerBrandWebsiteClicksByMonth()
+    {
+        if (!IsOwner) return [];
+        using var db = Db();
+        var result = new Dictionary<string, Dictionary<string, int>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var row in db.BrandClicks.AsNoTracking().Select(c => new { c.MonthKey, c.Platform, c.Clicks }).AsEnumerable())
+        {
+            if (!result.TryGetValue(row.MonthKey, out var platforms))
+            {
+                platforms = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                result[row.MonthKey] = platforms;
+            }
+            platforms[row.Platform] = platforms.GetValueOrDefault(row.Platform) + row.Clicks;
+        }
+        return result;
+    }
+
+    /// <summary>Brand-website clicks split by destination page ("start" sign-up, "trial" access code). Owner only.</summary>
+    public (int Start, int Trial) OwnerBrandWebsiteClicksByDestination()
+    {
+        if (!IsOwner) return (0, 0);
+        using var db = Db();
+        var start = db.BrandClicks.AsNoTracking().Where(c => c.Destination == "start").Sum(c => (int?)c.Clicks) ?? 0;
+        var trial = db.BrandClicks.AsNoTracking().Where(c => c.Destination == "trial").Sum(c => (int?)c.Clicks) ?? 0;
+        return (start, trial);
     }
 
     public async Task RefreshOwnerBrandPostMetricsAsync(SocialPostMetricsService metrics, CancellationToken cancellationToken = default)

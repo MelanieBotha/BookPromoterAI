@@ -17,6 +17,8 @@ class SocialPostingService
     readonly DiscordTelegramPostingService _messaging;
     readonly TumblrService _tumblr;
     readonly WordPressService _wordpress;
+    readonly MediumService _medium;
+    readonly FlickrService _flickr;
     readonly HttpClient _http;
     readonly UploadPaths _uploads;
 
@@ -30,6 +32,8 @@ class SocialPostingService
         DiscordTelegramPostingService messaging,
         TumblrService tumblr,
         WordPressService wordpress,
+        MediumService medium,
+        FlickrService flickr,
         IHttpClientFactory httpFactory,
         UploadPaths uploads)
     {
@@ -42,6 +46,8 @@ class SocialPostingService
         _messaging = messaging;
         _tumblr = tumblr;
         _wordpress = wordpress;
+        _medium = medium;
+        _flickr = flickr;
         _uploads = uploads;
         _http = httpFactory.CreateClient(nameof(SocialPostingService));
         _http.Timeout = TimeSpan.FromSeconds(30);
@@ -83,6 +89,12 @@ class SocialPostingService
 
         if (PostLimits.IsWordPress(account.Platform) && account.IsLiveConnection)
             return await PostToWordPressLive(account, postText, media, brandMedia, cancellationToken);
+
+        if (PostLimits.IsMedium(account.Platform) && account.IsLiveConnection)
+            return await PostToMediumLive(account, postText, media, brandMedia, cancellationToken);
+
+        if (PostLimits.IsFlickr(account.Platform) && account.IsLiveConnection)
+            return await PostToFlickrLive(account, postText, media, brandMedia, cancellationToken);
 
         var result = account.Platform.ToLowerInvariant() switch
         {
@@ -503,6 +515,156 @@ class SocialPostingService
         var html = WordPressPostFormatter.ToHtmlContent(postText, baseUrl, isBrand);
         var result = await _wordpress.PostAsync(
             connection, title, html, imageBytes, imageMime, imageFileName, cancellationToken);
+        return new PostingOutcome { Result = result };
+    }
+
+    async Task<PostingOutcome> PostToMediumLive(
+        SocialAccount account,
+        string postText,
+        BookPostMedia? media,
+        BrandPostMedia? brandMedia,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(account.AccessToken) || string.IsNullOrWhiteSpace(account.ExternalAccountId))
+            return new PostingOutcome { Result = PostingResult.Failure("Medium is not connected. Reconnect your account in My Account or Owner.") };
+
+        var baseUrl = ResolveBaseUrl(media?.AppBaseUrl ?? brandMedia?.AppBaseUrl);
+        var isBrand = brandMedia is not null;
+        var connection = new MediumConnection(
+            account.ExternalAccountId,
+            account.Handle ?? "",
+            account.DisplayName,
+            account.AccessToken);
+
+        string? heroImageUrl = null;
+        string? heroAlt = null;
+        if (media is not null)
+        {
+            if (!string.IsNullOrWhiteSpace(media.TrackingCode))
+            {
+                heroImageUrl = PostBranding.BookCoverShareUrl(baseUrl, media.TrackingCode);
+                heroAlt = $"{media.BookTitle} cover";
+            }
+            else if (!string.IsNullOrWhiteSpace(media.CoverImageUrl))
+            {
+                heroImageUrl = PostBranding.AbsoluteImageUrl(baseUrl, media.CoverImageUrl);
+                heroAlt = $"{media.BookTitle} cover";
+            }
+        }
+        else if (brandMedia is not null)
+        {
+            heroImageUrl = BrandLogoLoader.PublicLogoUrl(baseUrl);
+            heroAlt = "BookPromoter AI";
+        }
+
+        if (heroImageUrl is null)
+        {
+            byte[]? imageBytes = null;
+            string? imageMime = null;
+            string? imageFileName = null;
+            if (media is not null)
+            {
+                var image = await BookCoverLoader.TryLoadAsync(
+                    _http,
+                    _uploads.Path,
+                    baseUrl,
+                    media.BookTitle,
+                    media.CoverImageUrl,
+                    media.TrackingCode,
+                    cancellationToken);
+                if (image is not null)
+                {
+                    imageBytes = image.Data;
+                    imageMime = image.MimeType;
+                    imageFileName = "book-cover.jpg";
+                    heroAlt = $"{media.BookTitle} cover";
+                }
+            }
+            else if (brandMedia is not null)
+            {
+                var logo = await BrandLogoLoader.TryLoadAsync(_http, baseUrl, cancellationToken);
+                if (logo is not null)
+                {
+                    imageBytes = logo.Data;
+                    imageMime = logo.MimeType;
+                    imageFileName = "bookpromoter-ai-logo.png";
+                    heroAlt = "BookPromoter AI";
+                }
+            }
+
+            if (imageBytes is { Length: > 0 } && !string.IsNullOrWhiteSpace(imageMime))
+            {
+                var upload = await _medium.UploadImageAsync(
+                    connection, imageBytes, imageMime, imageFileName, cancellationToken);
+                if (upload.Ok)
+                    heroImageUrl = upload.Url;
+            }
+        }
+
+        var title = MediumPostFormatter.BuildTitle(postText, media?.BookTitle, isBrand);
+        var html = MediumPostFormatter.ToHtmlContent(postText, baseUrl, isBrand, heroImageUrl, heroAlt);
+        var tags = MediumPostFormatter.BuildTags(isBrand, media?.Genre);
+        var result = await _medium.PostAsync(connection, title, html, tags, cancellationToken);
+        return new PostingOutcome { Result = result };
+    }
+
+    async Task<PostingOutcome> PostToFlickrLive(
+        SocialAccount account,
+        string postText,
+        BookPostMedia? media,
+        BrandPostMedia? brandMedia,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(account.AccessToken) ||
+            string.IsNullOrWhiteSpace(account.RefreshToken) ||
+            string.IsNullOrWhiteSpace(account.ExternalAccountId))
+            return new PostingOutcome { Result = PostingResult.Failure("Flickr is not connected. Reconnect your account in My Account or Owner.") };
+
+        var baseUrl = ResolveBaseUrl(media?.AppBaseUrl ?? brandMedia?.AppBaseUrl);
+        var isBrand = brandMedia is not null;
+        var tokens = new FlickrTokenSet(
+            account.AccessToken,
+            account.RefreshToken,
+            account.ExternalAccountId,
+            account.Handle ?? "",
+            account.DisplayName);
+
+        byte[]? imageBytes = null;
+        string? imageMime = null;
+        if (media is not null)
+        {
+            var image = await BookCoverLoader.TryLoadAsync(
+                _http,
+                _uploads.Path,
+                baseUrl,
+                media.BookTitle,
+                media.CoverImageUrl,
+                media.TrackingCode,
+                cancellationToken);
+            if (image is not null)
+            {
+                imageBytes = image.Data;
+                imageMime = image.MimeType;
+            }
+        }
+        else if (brandMedia is not null)
+        {
+            var logo = await BrandLogoLoader.TryLoadAsync(_http, baseUrl, cancellationToken);
+            if (logo is not null)
+            {
+                imageBytes = logo.Data;
+                imageMime = logo.MimeType;
+            }
+        }
+
+        if (imageBytes is null || imageBytes.Length == 0 || string.IsNullOrWhiteSpace(imageMime))
+            return new PostingOutcome { Result = PostingResult.Failure("Flickr requires a photo. Add a book cover or brand logo before posting.") };
+
+        var title = FlickrPostFormatter.BuildTitle(postText, media?.BookTitle, isBrand);
+        var description = FlickrPostFormatter.BuildDescription(postText, baseUrl, isBrand);
+        var tags = FlickrPostFormatter.BuildTags(isBrand, media?.Genre);
+        var result = await _flickr.UploadPhotoAsync(
+            tokens, imageBytes, imageMime, title, description, tags, cancellationToken);
         return new PostingOutcome { Result = result };
     }
 

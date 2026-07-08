@@ -79,7 +79,9 @@ class SocialAccount
         && (!PostLimits.IsDiscord(Platform) || DiscordTelegramPostingService.IsDiscordWebhook(AccessToken))
         && (!PostLimits.IsTelegram(Platform) || (!string.IsNullOrWhiteSpace(ExternalAccountId) && !string.IsNullOrWhiteSpace(AccessToken)))
         && (!PostLimits.IsTumblr(Platform) || (!string.IsNullOrWhiteSpace(ExternalAccountId) && !string.IsNullOrWhiteSpace(AccessToken) && !string.IsNullOrWhiteSpace(RefreshToken)))
-        && (!PostLimits.IsWordPress(Platform) || (!string.IsNullOrWhiteSpace(ExternalAccountId) && !string.IsNullOrWhiteSpace(AccessToken) && !string.IsNullOrWhiteSpace(Handle)));
+        && (!PostLimits.IsWordPress(Platform) || (!string.IsNullOrWhiteSpace(ExternalAccountId) && !string.IsNullOrWhiteSpace(AccessToken) && !string.IsNullOrWhiteSpace(Handle)))
+        && (!PostLimits.IsMedium(Platform) || (!string.IsNullOrWhiteSpace(ExternalAccountId) && !string.IsNullOrWhiteSpace(AccessToken)))
+        && (!PostLimits.IsFlickr(Platform) || (!string.IsNullOrWhiteSpace(ExternalAccountId) && !string.IsNullOrWhiteSpace(AccessToken) && !string.IsNullOrWhiteSpace(RefreshToken)));
 }
 
 class TikTokVideo

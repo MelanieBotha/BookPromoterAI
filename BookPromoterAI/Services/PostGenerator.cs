@@ -38,6 +38,12 @@ class PostGenerator
             _ when PostLimits.IsTumblr(platform) => hasLink
                 ? $"{hook}\n\n{book.Description}\n\nGet your copy:\n{link}"
                 : $"{hook}\n\n{book.Description}\n\n{linkLine}",
+            _ when PostLimits.IsMedium(platform) => hasLink
+                ? $"{hook}\n\n{book.Description}\n\nGet your copy:\n{link}"
+                : $"{hook}\n\n{book.Description}\n\n{linkLine}",
+            _ when PostLimits.IsFlickr(platform) => hasLink
+                ? $"{hook}\n\n{book.Description}\n\nGet your copy:\n{link}"
+                : $"{hook}\n\n{book.Description}\n\n{linkLine}",
             "Reddit" => hasLink
                 ? $"{hook}\n\n{book.Description}\n\n{link}"
                 : $"{hook}\n\n{book.Description}\n\n{linkLine}",

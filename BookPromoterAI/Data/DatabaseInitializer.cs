@@ -136,6 +136,20 @@ static class DatabaseInitializer
                 "20260706044301_AddTikTokVideos",
                 "8.0.0");
         }
+
+        if (!TableExists(db, "BrandClicks"))
+        {
+            db.Database.ExecuteSqlRaw("""
+                CREATE TABLE IF NOT EXISTS "BrandClicks" (
+                    "Id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    "MonthKey" TEXT NOT NULL,
+                    "Platform" TEXT NOT NULL,
+                    "Destination" TEXT NOT NULL,
+                    "Clicks" INTEGER NOT NULL DEFAULT 0
+                );
+                """);
+            db.Database.ExecuteSqlRaw("""CREATE UNIQUE INDEX IF NOT EXISTS "IX_BrandClicks_MonthKey_Platform_Destination" ON "BrandClicks" ("MonthKey", "Platform", "Destination");""");
+        }
     }
 
     static void RepairMailingListSettingsIndex(AppDbContext db)

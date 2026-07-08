@@ -112,4 +112,28 @@ static class PublicUrl
             if (seen.Add(callback)) yield return callback;
         }
     }
+
+    public static string FlickrCallbackUrl(HttpRequest request, AppSettings settings)
+    {
+        if (!string.IsNullOrWhiteSpace(settings.PublicBaseUrl))
+            return FlickrService.CallbackUrl(settings.PublicBaseUrl.TrimEnd('/'));
+
+        return FlickrService.CallbackUrl(Local(request));
+    }
+
+    public static IEnumerable<string> FlickrCallbackUrlsForMeta(AppSettings settings)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var baseUrl in new[]
+                 {
+                     settings.PublicBaseUrl.TrimEnd('/'),
+                     "https://bookpromoterai.us",
+                     "https://bookpromoterai-production.up.railway.app"
+                 })
+        {
+            if (string.IsNullOrWhiteSpace(baseUrl)) continue;
+            var callback = FlickrService.CallbackUrl(baseUrl);
+            if (seen.Add(callback)) yield return callback;
+        }
+    }
 }

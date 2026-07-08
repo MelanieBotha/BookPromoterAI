@@ -71,7 +71,7 @@ static class SocialPlatforms
         D("Scribble Hub", "Books & Reading", Integration.Researching, "#4A6741", "SH"),
         // Content
         D("Substack", "Content & Blogging", Integration.InProgress, "#FF6719", "SS"),
-        D("Medium", "Content & Blogging", Integration.InProgress, "#000000", "Me"),
+        D("Medium", "Content & Blogging", Integration.AppPassword, "#000000", "Me"),
         D("Tumblr", "Content & Blogging", Integration.Live, "#36465D", "Tu", s => s.IsTumblrConfigured, disabledReason: "add Tumblr API keys in Owner"),
         D("WordPress", "Content & Blogging", Integration.AppPassword, "#21759B", "WP"),
         D("Patreon", "Content & Blogging", Integration.Researching, "#FF424D", "Pa"),
@@ -81,7 +81,7 @@ static class SocialPlatforms
         D("Rumble", "Other", Integration.Researching, "#85C742", "Ru"),
         D("Kick", "Other", Integration.Researching, "#111111", "K"),
         D("Vimeo", "Other", Integration.VideoRequired, "#1AB7EA", "Vi"),
-        D("Flickr", "Other", Integration.InProgress, "#FF0084", "Fl"),
+        D("Flickr", "Other", Integration.PendingCredentials, "#FF0084", "Fl", s => s.IsFlickrConfigured, disabledReason: "Flickr Pro + API keys in Owner"),
         D("MeWe", "Other", Integration.Researching, "#007DA1", "MW"),
         D("VK", "Other", Integration.Researching, "#0077FF", "VK"),
         D("Weibo", "Other", Integration.Researching, "#E6162D", "WB"),

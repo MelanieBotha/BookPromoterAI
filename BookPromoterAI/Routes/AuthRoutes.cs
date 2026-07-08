@@ -6,6 +6,9 @@ static class AuthRoutes
     {
         app.MapGet("/start", (HttpContext http, AppStoreDb store) =>
         {
+            var startFrom = http.Request.Query["from"].ToString();
+            if (!string.IsNullOrWhiteSpace(startFrom))
+                store.RecordBrandWebsiteClick(startFrom, "start");
             if (!store.IsLoggedIn)
                 return Results.Content(H.RenderMarketingPage(http, "Start", AuthPages.StartLogin(""), store), "text/html");
             if (store.IsOwner)
@@ -108,7 +111,12 @@ static class AuthRoutes
         });
 
         app.MapGet("/trial", (HttpContext http, AppStoreDb store) =>
-            Results.Content(H.RenderMarketingPage(http, "Access Code", AuthPages.TrialRequest(""), store), "text/html"));
+        {
+            var trialFrom = http.Request.Query["from"].ToString();
+            if (!string.IsNullOrWhiteSpace(trialFrom))
+                store.RecordBrandWebsiteClick(trialFrom, "trial");
+            return Results.Content(H.RenderMarketingPage(http, "Access Code", AuthPages.TrialRequest(""), store), "text/html");
+        });
 
         app.MapPost("/trial/request", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings) =>
         {

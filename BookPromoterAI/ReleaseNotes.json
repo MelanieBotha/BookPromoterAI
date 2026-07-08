@@ -1,4 +1,31 @@
 {
+  "1.17.0": {
+    "title": "BookPromoter AI v1.17.0 — What's new",
+    "updated": [],
+    "new": [
+      "Owner website analytics: see how many visitors each brand social platform drives to bookpromoterai.us sign-up and access-code pages, with monthly and all-time click totals",
+      "Owner website analytics chart: stacked 6-month bar chart plus a per-platform monthly breakdown table"
+    ],
+    "added": [
+      "Brand promo links now carry per-platform tracking so Owner can measure which platforms convert best"
+    ]
+  },
+  "1.16.0": {
+    "title": "BookPromoter AI v1.16.0 — What's new",
+    "updated": [
+      "Flickr live posting: OAuth connect and upload book-cover or brand-logo photos with caption and tags (requires Flickr API keys in Owner)"
+    ],
+    "new": [],
+    "added": []
+  },
+  "1.15.0": {
+    "title": "BookPromoter AI v1.15.0 — What's new",
+    "updated": [
+      "Medium live posting: connect with a legacy integration token and publish book promos or brand stories with cover image and tags"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.14.0": {
     "title": "BookPromoter AI v1.14.0 — What's new",
     "updated": [

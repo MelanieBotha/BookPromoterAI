@@ -149,6 +149,67 @@ static class OwnerPromoPage
         if (promoClicks.Count == 0)
             promoClickRows.Append("""<p class="muted">No tracked book-link clicks from social posts yet.</p>""");
 
+        // ── Website clicks driven by brand promos (bookpromoterai.us) ──────
+        var websiteClicksByPlatform = store.OwnerBrandWebsiteClicksByPlatform();
+        var websiteClicksThisMonth = store.OwnerBrandWebsiteClicksThisMonth();
+        var websiteClicksAllTime = store.OwnerBrandWebsiteClicksAllTime();
+        var (startClicks, trialClicks) = store.OwnerBrandWebsiteClicksByDestination();
+        var websiteByMonth = store.OwnerBrandWebsiteClicksByMonth();
+        var websiteMonths = RecentMonths();
+        var websiteChart = BuildWebsiteClickChart(websiteByMonth, websiteMonths);
+        var websiteMonthlyTable = BuildWebsiteMonthlyTable(websiteByMonth, websiteMonths, websiteClicksByPlatform.Keys.ToList());
+
+        var websiteClickRows = new StringBuilder();
+        foreach (var (platform, clicks) in websiteClicksByPlatform)
+        {
+            var share = websiteClicksAllTime > 0 ? (int)Math.Round(clicks * 100.0 / websiteClicksAllTime) : 0;
+            websiteClickRows.Append($"""
+                <div class="promo-row">
+                    <span>{H.Encode(platform)}</span>
+                    <span class="muted">Visits to bookpromoterai.us</span>
+                    <span><strong>{clicks}</strong> <span class="muted">({share}%)</span></span>
+                </div>
+                """);
+        }
+        if (websiteClicksByPlatform.Count == 0)
+            websiteClickRows.Append("""<p class="muted">No website clicks tracked yet. Post BookPromoter AI brand promos — their sign-up and access-code links now carry per-platform tracking.</p>""");
+
+        var websiteClickSection = $"""
+            <p class="muted small-text">Visitors who clicked a brand promo's <strong>Create account</strong> or <strong>Access code</strong> link and landed on bookpromoterai.us, attributed to the platform that drove them.</p>
+            <div class="analytics-summary-grid">
+                <div class="analytics-card">
+                    <span class="analytics-num">{websiteClicksThisMonth}</span>
+                    <span class="analytics-label">Clicks This Month</span>
+                </div>
+                <div class="analytics-card">
+                    <span class="analytics-num">{websiteClicksAllTime}</span>
+                    <span class="analytics-label">Total Clicks (All Time)</span>
+                </div>
+                <div class="analytics-card">
+                    <span class="analytics-num">{startClicks}</span>
+                    <span class="analytics-label">Sign-up Page (/start)</span>
+                </div>
+                <div class="analytics-card">
+                    <span class="analytics-num">{trialClicks}</span>
+                    <span class="analytics-label">Access Code Page (/trial)</span>
+                </div>
+            </div>
+            <div class="chart-wrap" style="margin-top:16px">
+                <p class="muted small-text">Website clicks per month (last 6 months, stacked by platform).</p>
+                {websiteChart}
+            </div>
+            <div class="promo-table" style="margin-top:16px">
+                <div class="promo-header">
+                    <strong>Platform</strong>
+                    <strong>Source</strong>
+                    <strong>Clicks (all time)</strong>
+                </div>
+                {websiteClickRows}
+            </div>
+            <h4 style="margin-top:20px">Clicks per platform &mdash; last 6 months</h4>
+            {websiteMonthlyTable}
+            """;
+
         var brandPostingLogSection = $"""
             <h3 style="margin-top:24px">Brand posting activity log</h3>
             <p class="muted small-text">Recent BookPromoter AI brand posts. Likes and clicks refresh from connected platforms when you open this page (about hourly). Author book promos use tracking links — see totals below.</p>
@@ -268,6 +329,11 @@ static class OwnerPromoPage
         var brandSubscriberCount = store.OwnerBrandMailingListSubscriberCount;
 
         return $"""
+            <section class="panel owner-settings" id="owner-section-website-analytics">
+                <h2>Website Analytics &mdash; Clicks to BookPromoter AI</h2>
+                {websiteClickSection}
+            </section>
+
             <details class="owner-collapsible" id="owner-section-owner-social"{open("owner-social")}>
                 <summary class="owner-collapsible-heading">BookPromoter AI Brand Social Accounts</summary>
                 <div class="panel owner-settings">
@@ -411,6 +477,145 @@ static class OwnerPromoPage
 
             {CopyScript()}
             {OwnerCustomPlatformScript()}
+            """;
+    }
+
+    // Last 6 calendar months (oldest → newest) as (yyyy-MM, "MMM yyyy").
+    static List<(string Key, string Label)> RecentMonths()
+    {
+        var months = new List<(string, string)>();
+        for (var i = 5; i >= 0; i--)
+        {
+            var d = DateTime.UtcNow.AddMonths(-i);
+            months.Add((d.ToString("yyyy-MM"), d.ToString("MMM yyyy")));
+        }
+        return months;
+    }
+
+    // Stacked SVG bar chart: total website clicks per month, coloured by platform.
+    static string BuildWebsiteClickChart(
+        Dictionary<string, Dictionary<string, int>> byMonth,
+        List<(string Key, string Label)> months)
+    {
+        var platforms = byMonth.Values.SelectMany(m => m.Keys)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (platforms.Count == 0)
+            return """<p class="muted">No website clicks tracked yet.</p>""";
+
+        var colours = new[] { "#0f766e", "#6366f1", "#f59e0b", "#ef4444", "#10b981", "#8b5cf6", "#f97316", "#06b6d4", "#84cc16", "#ec4899" };
+        var chartWidth = 560;
+        var chartHeight = 220;
+        var barAreaWidth = chartWidth - 60;
+        var barWidth = (int)(barAreaWidth / months.Count * 0.6);
+        var gap = (int)(barAreaWidth / months.Count);
+
+        int ClicksFor(string monthKey, string platform) =>
+            byMonth.TryGetValue(monthKey, out var p) && p.TryGetValue(platform, out var v) ? v : 0;
+
+        var monthlyTotals = months.Select(m => platforms.Sum(p => ClicksFor(m.Key, p))).ToList();
+        var maxTotal = Math.Max(1, monthlyTotals.Max());
+
+        var bars = new StringBuilder();
+        var labels = new StringBuilder();
+        for (var mi = 0; mi < months.Count; mi++)
+        {
+            var (key, label) = months[mi];
+            var x = 50 + mi * gap + (gap - barWidth) / 2;
+            var stackY = chartHeight - 30;
+            labels.Append($"""<text x="{x + barWidth / 2}" y="{chartHeight - 10}" text-anchor="middle" font-size="11" fill="#667085">{H.Encode(label[..3])}</text>""");
+            for (var pi = 0; pi < platforms.Count; pi++)
+            {
+                var clicks = ClicksFor(key, platforms[pi]);
+                if (clicks == 0) continue;
+                var barH = Math.Max(1, (int)((double)clicks / maxTotal * (chartHeight - 50)));
+                stackY -= barH;
+                var colour = colours[pi % colours.Length];
+                bars.Append($"""<rect x="{x}" y="{stackY}" width="{barWidth}" height="{barH}" fill="{colour}" rx="2"><title>{H.Encode(platforms[pi])}: {clicks} clicks in {label}</title></rect>""");
+            }
+        }
+
+        var yAxis = new StringBuilder();
+        for (var tick = 0; tick <= 4; tick++)
+        {
+            var val = (int)(maxTotal * tick / 4.0);
+            var y = chartHeight - 30 - (int)((double)tick / 4 * (chartHeight - 50));
+            yAxis.Append($"""
+                <line x1="45" y1="{y}" x2="{chartWidth - 10}" y2="{y}" stroke="#d7dde8" stroke-width="1"/>
+                <text x="40" y="{y + 4}" text-anchor="end" font-size="10" fill="#667085">{val}</text>
+                """);
+        }
+
+        var legend = new StringBuilder();
+        for (var pi = 0; pi < Math.Min(platforms.Count, colours.Length); pi++)
+        {
+            legend.Append($"""
+                <div class="chart-legend-item">
+                    <span class="chart-legend-dot" style="background:{colours[pi % colours.Length]}"></span>
+                    <span>{H.Encode(platforms[pi])}</span>
+                </div>
+                """);
+        }
+
+        return $"""
+            <svg viewBox="0 0 {chartWidth} {chartHeight}" xmlns="http://www.w3.org/2000/svg" class="bar-svg">
+                {yAxis}
+                {bars}
+                {labels}
+            </svg>
+            <div class="chart-legend">{legend}</div>
+            """;
+    }
+
+    // Platform rows × month columns breakdown with totals.
+    static string BuildWebsiteMonthlyTable(
+        Dictionary<string, Dictionary<string, int>> byMonth,
+        List<(string Key, string Label)> months,
+        List<string> platforms)
+    {
+        if (platforms.Count == 0)
+            return """<p class="muted">No website clicks tracked yet.</p>""";
+
+        int ClicksFor(string monthKey, string platform) =>
+            byMonth.TryGetValue(monthKey, out var p) && p.TryGetValue(platform, out var v) ? v : 0;
+
+        var header = new StringBuilder("<tr><th>Platform</th>");
+        foreach (var (_, label) in months)
+            header.Append($"<th>{H.Encode(label[..3])}</th>");
+        header.Append("<th>Total</th></tr>");
+
+        var rows = new StringBuilder();
+        foreach (var platform in platforms)
+        {
+            rows.Append($"<tr><td>{H.Encode(platform)}</td>");
+            var rowTotal = 0;
+            foreach (var (key, _) in months)
+            {
+                var v = ClicksFor(key, platform);
+                rowTotal += v;
+                rows.Append($"<td>{(v > 0 ? v.ToString() : "")}</td>");
+            }
+            rows.Append($"<td><strong>{rowTotal}</strong></td></tr>");
+        }
+
+        rows.Append("<tr class=\"totals-row\"><td><strong>Total</strong></td>");
+        var grandTotal = 0;
+        foreach (var (key, _) in months)
+        {
+            var colTotal = platforms.Sum(p => ClicksFor(key, p));
+            grandTotal += colTotal;
+            rows.Append($"<td><strong>{(colTotal > 0 ? colTotal.ToString() : "")}</strong></td>");
+        }
+        rows.Append($"<td><strong>{grandTotal}</strong></td></tr>");
+
+        return $"""
+            <div class="analytics-table-scroll">
+                <table class="analytics-month-table">
+                    <thead>{header}</thead>
+                    <tbody>{rows}</tbody>
+                </table>
+            </div>
             """;
     }
 

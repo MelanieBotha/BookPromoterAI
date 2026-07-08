@@ -341,7 +341,7 @@ static class OwnerPage
         string.Equals(sectionId, activeSection, StringComparison.OrdinalIgnoreCase) ? " open" : "";
 
     static readonly string[] ApiChildSections =
-        ["x-api", "linkedin-api", "facebook-api", "reddit-api", "tumblr-api", "tiktok-api"];
+        ["x-api", "linkedin-api", "facebook-api", "reddit-api", "tumblr-api", "flickr-api", "tiktok-api"];
 
     static string ApiParentOpen(string? activeSection) =>
         string.Equals(activeSection, "apis", StringComparison.OrdinalIgnoreCase) ||
@@ -360,6 +360,7 @@ static class OwnerPage
             store.IsFacebookOAuthReady,
             store.IsRedditConfigured,
             store.IsTumblrConfigured,
+            store.IsFlickrConfigured,
             store.IsTikTokConfigured
         }.Count(x => x);
         var total = ApiChildSections.Length;
@@ -545,6 +546,32 @@ static class OwnerPage
                                     <li><code>Tumblr__ConsumerSecret</code></li>
                                 </ul>
                                 <p class="muted">Authors choose which blog to post to when connecting. Posts include book cover photos when available.</p>
+                            </div>
+                        </details>
+
+                        <details class="owner-collapsible owner-collapsible-nested" id="owner-section-flickr-api"{open("flickr-api")}>
+                            <summary class="owner-collapsible-heading">Flickr{ApiStatusBadge(store.IsFlickrConfigured)}</summary>
+                            <div class="panel owner-settings">
+                                {(store.IsFlickrConfigured
+                                    ? """<p class="notice success">Flickr API: Ready. Authors and owner can connect with Sign in with Flickr for live photo posting.</p>"""
+                                    : $"""
+                                        <p class="notice error">Flickr is not configured yet.</p>
+                                        <ul class="plan-features">
+                                            <li><strong>API key:</strong> {H.Encode(store.FlickrApiKeyStatus)}</li>
+                                            <li><strong>API secret:</strong> {H.Encode(store.FlickrApiSecretStatus)}</li>
+                                        </ul>
+                                        """)}
+                                <p class="muted">Create an app at <a href="https://www.flickr.com/services/apps/create/" target="_blank" rel="noopener">flickr.com/services/apps/create</a>. <strong>Flickr Pro is required</strong> — free accounts cannot create API keys.</p>
+                                <p class="muted">Set this <strong>Callback URL</strong> in your Flickr app (must match exactly):</p>
+                                <ul class="plan-features">
+                                    {string.Concat(PublicUrl.FlickrCallbackUrlsForMeta(store.Settings).Select(u => $"<li><code>{H.Encode(u)}</code></li>"))}
+                                </ul>
+                                <p class="muted">Add Railway variables, then redeploy:</p>
+                                <ul class="plan-features">
+                                    <li><code>Flickr__ApiKey</code></li>
+                                    <li><code>Flickr__ApiSecret</code></li>
+                                </ul>
+                                <p class="muted">Posts upload book cover or brand logo photos with caption and discovery tags.</p>
                             </div>
                         </details>
 

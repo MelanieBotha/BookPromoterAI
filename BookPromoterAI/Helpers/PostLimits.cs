@@ -155,10 +155,16 @@ static class PostLimits
     public static bool IsWordPress(string platform) =>
         platform.Equals("WordPress", StringComparison.OrdinalIgnoreCase);
 
+    public static bool IsMedium(string platform) =>
+        platform.Equals("Medium", StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsFlickr(string platform) =>
+        platform.Equals("Flickr", StringComparison.OrdinalIgnoreCase);
+
     public static bool RequiresLiveConnection(string platform) =>
         IsBluesky(platform) || IsX(platform) || IsLinkedIn(platform) || IsFacebook(platform) ||
         IsReddit(platform) || IsMastodon(platform) || IsDiscord(platform) || IsTelegram(platform) ||
-        IsTumblr(platform) || IsWordPress(platform);
+        IsTumblr(platform) || IsWordPress(platform) || IsMedium(platform) || IsFlickr(platform);
 
     public static string LiveReconnectHint(string platform)
     {
@@ -182,6 +188,10 @@ static class PostLimits
             return "Tumblr is not connected for live posting. In My Account, remove your Tumblr account and reconnect.";
         if (IsWordPress(platform))
             return "WordPress is not connected for live posting. In My Account, remove your WordPress account and reconnect with an application password.";
+        if (IsMedium(platform))
+            return "Medium is not connected for live posting. In My Account, remove your Medium account and reconnect with an integration token.";
+        if (IsFlickr(platform))
+            return "Flickr is not connected for live posting. In My Account, remove your Flickr account and reconnect with Sign in with Flickr.";
         return $"Connect {platform} for live posting in My Account.";
     }
 
@@ -207,6 +217,10 @@ static class PostLimits
             return "Reconnect Tumblr with Sign in with Tumblr in My Account to use Post now.";
         if (IsWordPress(platform))
             return "Reconnect WordPress with your application password in My Account to use Post now.";
+        if (IsMedium(platform))
+            return "Reconnect Medium with your integration token in My Account to use Post now.";
+        if (IsFlickr(platform))
+            return "Reconnect Flickr with Sign in with Flickr in My Account to use Post now.";
         return $"Reconnect {platform} in My Account to use Post now.";
     }
 
@@ -222,6 +236,8 @@ static class PostLimits
         if (IsTelegram(a) && IsTelegram(b)) return true;
         if (IsTumblr(a) && IsTumblr(b)) return true;
         if (IsWordPress(a) && IsWordPress(b)) return true;
+        if (IsMedium(a) && IsMedium(b)) return true;
+        if (IsFlickr(a) && IsFlickr(b)) return true;
         return IsReddit(a) && IsReddit(b);
     }
 }

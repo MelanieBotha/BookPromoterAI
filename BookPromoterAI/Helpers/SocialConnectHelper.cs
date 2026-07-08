@@ -127,8 +127,14 @@ static class SocialConnectHelper
         if (PostLimits.IsTumblr(platformName))
             return TumblrSetupPage(returnUrl, notice, settings);
 
+        if (PostLimits.IsFlickr(platformName))
+            return FlickrSetupPage(returnUrl, notice, settings);
+
         if (PostLimits.IsWordPress(platformName))
             return WordPressConnectPage(returnUrl, notice, brandContext);
+
+        if (PostLimits.IsMedium(platformName))
+            return MediumConnectPage(returnUrl, notice, brandContext);
 
         if (IsPlatformDisabled(platformName, settings))
         {
@@ -689,6 +695,77 @@ static class SocialConnectHelper
                     <label>Display name <input name="displayName" placeholder="{(brandContext ? "BookPromoter AI" : "My Author Blog")}"></label>
                     <div class="form-actions">
                         <button class="button" type="submit" style="background:#21759B">Connect &amp; enable live posting</button>
+                        <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
+                    </div>
+                </form>
+            </section>
+            """;
+    }
+
+    public static string FlickrSetupPage(string returnUrl, string? notice, AppSettings? settings)
+    {
+        var brandContext = IsBrandContext(returnUrl);
+        var brand = SocialPlatforms.Brand("Flickr");
+        var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<div class="notice error">{H.Encode(notice)}</div>""";
+        var configured = settings?.IsFlickrConfigured == true;
+        var callbackExample = configured && !string.IsNullOrWhiteSpace(settings?.PublicBaseUrl)
+            ? FlickrService.CallbackUrl(settings.PublicBaseUrl.TrimEnd('/'))
+            : $"https://bookpromoterai.us{FlickrService.CallbackPath}";
+        var contextNote = brandContext
+            ? """<p class="muted">Sign in with the Flickr account for <strong>BookPromoter AI</strong> brand promos. Posts upload your book cover or brand logo with caption and tags.</p>"""
+            : """<p class="muted">Sign in with your <strong>author</strong> Flickr account. BookPromoter AI uploads book-cover photos with your promo caption.</p>""";
+        var connectBlock = configured
+            ? $"""
+                <form method="post" action="/social-accounts/connect/Flickr/start" class="form">
+                    <input type="hidden" name="return" value="{H.Encode(returnUrl)}">
+                    <div class="form-actions">
+                        <button class="button" type="submit" style="background:{brand.Color}">Sign in with Flickr</button>
+                        <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
+                    </div>
+                </form>
+                """
+            : """
+                <p class="notice error">Flickr API credentials are not configured yet. The app owner must add them in Railway before authors can connect.</p>
+                <p class="muted">Owner: open <strong>Owner → Social Media APIs → Flickr</strong> for setup steps.</p>
+                """;
+        var heading = brandContext ? "Connect BookPromoter AI on Flickr" : "Connect Flickr";
+        return $"""
+            <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>{heading}</h1></div></section>
+            <section class="panel oauth-panel">
+                <div class="oauth-platform-badge" style="background:{brand.Color}">{H.Encode(brand.Initial)}</div>
+                <h2>Live Flickr posting</h2>
+                {contextNote}
+                <p class="notice">Flickr only allows <strong>Pro</strong> subscribers to create API keys. Free Flickr accounts cannot connect for auto-posting.</p>
+                <p class="muted small-text">OAuth callback URL for your Flickr app: <code>{H.Encode(callbackExample)}</code></p>
+                {noticeHtml}
+                {connectBlock}
+            </section>
+            """;
+    }
+
+    static string MediumConnectPage(string returnUrl, string notice, bool brandContext)
+    {
+        var heading = brandContext
+            ? "Connect BookPromoter AI on Medium"
+            : "Connect your Medium account";
+        var intro = brandContext
+            ? "Publish BookPromoter AI app promos as Medium stories on your <strong>brand Medium profile</strong>."
+            : "Auto-post book promos as Medium stories on your author profile.";
+        var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<div class="notice error">{H.Encode(notice)}</div>""";
+        return $"""
+            <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>{heading}</h1></div></section>
+            <section class="panel oauth-panel">
+                <div class="oauth-platform-badge" style="background:#000000">Me</div>
+                <h2>Live Medium posting</h2>
+                <p class="muted">{intro}</p>
+                <p class="notice">Medium stopped issuing <strong>new</strong> integration tokens. Auto-posting only works if you already have a legacy token from <a href="https://medium.com/me/settings" target="_blank" rel="noopener">medium.com/me/settings</a> → <strong>Integration tokens</strong>. If that section is missing, API posting is not available on your account yet.</p>
+                {noticeHtml}
+                <form method="post" action="/social-accounts/oauth-callback/{Uri.EscapeDataString("Medium")}" class="form">
+                    <input type="hidden" name="return" value="{H.Encode(returnUrl)}">
+                    <label>Integration token <input name="integrationToken" type="password" placeholder="paste your Medium token" required autocomplete="off"></label>
+                    <label>Display name <input name="displayName" placeholder="{(brandContext ? "BookPromoter AI" : "My Medium")}"></label>
+                    <div class="form-actions">
+                        <button class="button" type="submit" style="background:#000000">Connect &amp; enable live posting</button>
                         <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
                     </div>
                 </form>
