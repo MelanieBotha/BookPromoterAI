@@ -79,7 +79,7 @@ class SocialPostingService
             return await PostToMastodonLive(account, postText, media, brandMedia, cancellationToken);
 
         if (PostLimits.IsDiscord(account.Platform) && account.IsLiveConnection)
-            return await PostToDiscordLive(account, postText, cancellationToken);
+            return await PostToDiscordLive(account, postText, media, brandMedia, cancellationToken);
 
         if (PostLimits.IsTelegram(account.Platform) && account.IsLiveConnection)
             return await PostToTelegramLive(account, postText, cancellationToken);
@@ -392,12 +392,55 @@ class SocialPostingService
     async Task<PostingOutcome> PostToDiscordLive(
         SocialAccount account,
         string postText,
+        BookPostMedia? media,
+        BrandPostMedia? brandMedia,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(account.AccessToken))
             return new PostingOutcome { Result = PostingResult.Failure("Discord is not connected. Reconnect your webhook in My Account.") };
 
-        var result = await _messaging.PostDiscordWebhookAsync(account.AccessToken, postText, cancellationToken);
+        byte[]? imageBytes = null;
+        string? imageMime = null;
+        string? fileName = null;
+        if (media is not null)
+        {
+            var baseUrl = ResolveBaseUrl(media.AppBaseUrl);
+            var image = await BookCoverLoader.TryLoadAsync(
+                _http,
+                _uploads.Path,
+                baseUrl,
+                media.BookTitle,
+                media.CoverImageUrl,
+                media.TrackingCode,
+                cancellationToken);
+            if (image is not null)
+            {
+                imageBytes = image.Data;
+                imageMime = image.MimeType;
+                fileName = BuildDiscordFileName(media.BookTitle, imageMime);
+            }
+        }
+        else if (brandMedia is not null)
+        {
+            var logo = await BrandLogoLoader.TryLoadAsync(
+                _http,
+                ResolveBaseUrl(brandMedia.AppBaseUrl),
+                cancellationToken);
+            if (logo is not null)
+            {
+                imageBytes = logo.Data;
+                imageMime = logo.MimeType;
+                fileName = BuildDiscordFileName("bookpromoter-ai-logo", imageMime);
+            }
+        }
+
+        var result = await _messaging.PostDiscordWebhookAsync(
+            account.AccessToken,
+            postText,
+            imageBytes,
+            imageMime,
+            fileName,
+            cancellationToken);
         return new PostingOutcome { Result = result };
     }
 
@@ -672,6 +715,27 @@ class SocialPostingService
     {
         var baseUrl = appBaseUrl?.TrimEnd('/');
         return string.IsNullOrWhiteSpace(baseUrl) ? "https://bookpromoterai.us" : baseUrl;
+    }
+
+    static string BuildDiscordFileName(string? seed, string? imageMime)
+    {
+        var baseName = string.IsNullOrWhiteSpace(seed)
+            ? "image"
+            : new string(seed.Trim().ToLowerInvariant()
+                .Select(ch => char.IsLetterOrDigit(ch) ? ch : '-')
+                .ToArray())
+                .Trim('-');
+        if (string.IsNullOrWhiteSpace(baseName))
+            baseName = "image";
+
+        var ext = imageMime?.ToLowerInvariant() switch
+        {
+            "image/png" => ".png",
+            "image/gif" => ".gif",
+            "image/webp" => ".webp",
+            _ => ".jpg"
+        };
+        return baseName + ext;
     }
 
     async Task<PostingResult> PostToFacebook(SocialAccount account, string postText)

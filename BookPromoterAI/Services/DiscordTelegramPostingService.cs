@@ -1,4 +1,8 @@
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Text.Json.Serialization;
 
 namespace BookPromoterAI;
@@ -12,16 +16,28 @@ class DiscordTelegramPostingService
 
     public static bool IsDiscordWebhook(string? token) =>
         !string.IsNullOrWhiteSpace(token) &&
-        token.Contains("discord.com/api/webhooks/", StringComparison.OrdinalIgnoreCase);
+        Uri.TryCreate(token.Trim(), UriKind.Absolute, out var uri) &&
+        (uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)) &&
+        (uri.Host.Equals("discord.com", StringComparison.OrdinalIgnoreCase)
+            || uri.Host.Equals("discordapp.com", StringComparison.OrdinalIgnoreCase)
+            || uri.Host.Equals("ptb.discord.com", StringComparison.OrdinalIgnoreCase)
+            || uri.Host.Equals("canary.discord.com", StringComparison.OrdinalIgnoreCase)) &&
+        Regex.IsMatch(uri.AbsolutePath, "^/api(?:/v\\d+)?/webhooks/[^/]+/[^/]+/?$", RegexOptions.IgnoreCase);
 
     public async Task<PostingResult> PostDiscordWebhookAsync(
-        string webhookUrl, string postText, CancellationToken cancellationToken = default)
+        string webhookUrl,
+        string postText,
+        byte[]? imageBytes = null,
+        string? imageMime = null,
+        string? fileName = null,
+        CancellationToken cancellationToken = default)
     {
         if (!IsDiscordWebhook(webhookUrl))
             return PostingResult.Failure("Discord webhook URL looks invalid. Reconnect in My Account.");
 
-        var payload = new { content = Truncate(postText, 2000) };
-        var response = await _http.PostAsJsonAsync(webhookUrl.Trim(), payload, cancellationToken);
+        using HttpResponseMessage response = imageBytes is { Length: > 0 } && !string.IsNullOrWhiteSpace(imageMime)
+            ? await PostDiscordMultipartAsync(webhookUrl.Trim(), postText, imageBytes, imageMime, fileName, cancellationToken)
+            : await _http.PostAsJsonAsync(webhookUrl.Trim(), new { content = Truncate(postText, 2000) }, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             var err = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -75,6 +91,35 @@ class DiscordTelegramPostingService
 
     static string Truncate(string text, int max) =>
         text.Length <= max ? text : text[..(max - 1)] + "…";
+
+    async Task<HttpResponseMessage> PostDiscordMultipartAsync(
+        string webhookUrl,
+        string postText,
+        byte[] imageBytes,
+        string imageMime,
+        string? fileName,
+        CancellationToken cancellationToken)
+    {
+        using var form = new MultipartFormDataContent();
+        var payloadJson = JsonSerializer.Serialize(new
+        {
+            content = Truncate(postText, 2000)
+        });
+        form.Add(new StringContent(payloadJson, Encoding.UTF8, "application/json"), "payload_json");
+
+        var image = new ByteArrayContent(imageBytes);
+        image.Headers.ContentType = MediaTypeHeaderValue.Parse(imageMime);
+        form.Add(image, "files[0]", string.IsNullOrWhiteSpace(fileName) ? DefaultFileName(imageMime) : fileName.Trim());
+        return await _http.PostAsync(webhookUrl, form, cancellationToken);
+    }
+
+    static string DefaultFileName(string imageMime) => imageMime.ToLowerInvariant() switch
+    {
+        "image/png" => "cover.png",
+        "image/gif" => "cover.gif",
+        "image/webp" => "cover.webp",
+        _ => "cover.jpg"
+    };
 }
 
 sealed class TelegramResponse<T>

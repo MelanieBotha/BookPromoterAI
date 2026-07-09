@@ -1,4 +1,12 @@
 {
+  "1.17.1": {
+    "title": "BookPromoter AI v1.17.1 — What's new",
+    "updated": [
+      "Discord live posting now attaches book covers and brand logos to webhook posts, with stricter webhook URL validation"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.17.0": {
     "title": "BookPromoter AI v1.17.0 — What's new",
     "updated": [],

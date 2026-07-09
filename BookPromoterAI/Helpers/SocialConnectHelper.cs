@@ -590,7 +590,7 @@ static class SocialConnectHelper
                 <div class="oauth-platform-badge" style="background:{brand.Color}">{H.Encode(brand.Initial)}</div>
                 <h2>Channel webhook</h2>
                 {noticeHtml}
-                <p class="muted">Create a webhook in your Discord channel (Channel settings → Integrations → Webhooks). BookPromoter AI will post scheduled promos there automatically.</p>
+                <p class="muted">Create a webhook in your Discord channel (Channel settings → Integrations → Webhooks). BookPromoter AI will post scheduled promos there automatically, including the book cover or BookPromoter AI logo when available.</p>
                 <form method="post" action="/social-accounts/oauth-callback/Discord" class="form">
                     <input type="hidden" name="return" value="{H.Encode(returnUrl)}">
                     <label>Display name <input name="displayName" value="Discord Channel"></label>
