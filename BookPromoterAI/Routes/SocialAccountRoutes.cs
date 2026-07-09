@@ -38,7 +38,7 @@ static class SocialAccountRoutes
             var platform = form["platform"].ToString();
             var customPlatform = form["customPlatform"].ToString().Trim();
             var finalPlatform = platform == "__custom__" && !string.IsNullOrWhiteSpace(customPlatform) ? customPlatform : platform;
-            if (SocialConnectHelper.IsPlatformDisabled(finalPlatform, store.Settings))
+            if (SocialConnectHelper.IsPlatformDisabled(finalPlatform, store.Settings, SocialAccountKinds.IsBrand(kind)))
                 return Results.Redirect(returnUrl);
             store.AddSocialAccount(new SocialAccount
             {
@@ -65,7 +65,7 @@ static class SocialAccountRoutes
             var platform = form["platform"].ToString();
             var customPlatform = form["customPlatform"].ToString().Trim();
             var finalPlatform = platform == "__custom__" && !string.IsNullOrWhiteSpace(customPlatform) ? customPlatform : platform;
-            if (SocialConnectHelper.IsPlatformDisabled(finalPlatform, store.Settings))
+            if (SocialConnectHelper.IsPlatformDisabled(finalPlatform, store.Settings, SocialAccountKinds.IsBrand(kind)))
                 return Results.Redirect(returnUrl);
             account.Platform = finalPlatform;
             account.DisplayName = form["displayName"].ToString();
@@ -110,7 +110,7 @@ static class SocialAccountRoutes
             var saveUserId = SocialAccountKinds.IsBrand(kind) ? store.PrimaryOwnerUserId() : userId;
             if (saveUserId == 0) return Results.Redirect("/start");
             var platformName = Uri.UnescapeDataString(platform);
-            if (SocialConnectHelper.IsPlatformDisabled(platformName, settings))
+            if (SocialConnectHelper.IsPlatformDisabled(platformName, settings, SocialAccountKinds.IsBrand(kind)))
                 return Results.Redirect(returnUrl);
 
             if (PostLimits.IsX(platformName))
@@ -1219,7 +1219,7 @@ static class SocialAccountRoutes
             if (SocialAccountKinds.IsBrand(kind) && !store.IsOwner) return Results.Redirect("/my-account");
             if (store.CheckSocialAccountLimit(kind) is not null) return Results.Redirect(returnUrl);
             var platformName = Uri.UnescapeDataString(platform);
-            if (SocialConnectHelper.IsPlatformDisabled(platformName, store.Settings))
+            if (SocialConnectHelper.IsPlatformDisabled(platformName, store.Settings, SocialAccountKinds.IsBrand(kind)))
                 return Results.Redirect(returnUrl);
 
             if (PostLimits.IsBluesky(platformName))

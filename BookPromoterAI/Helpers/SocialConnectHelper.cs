@@ -7,14 +7,15 @@ static class SocialConnectHelper
     public const string OwnerReturnPath = "/owner-promos";
     public const string VideosReturnPath = "/videos";
 
-    public static string[] DefaultPlatforms => SocialPlatforms.ConnectBarNames.ToArray();
+    public static string[] DefaultPlatforms(AppSettings? settings, bool brandContext = false) =>
+        SocialPlatforms.ReadyConnectBarNames(settings, brandContext).ToArray();
 
     /// <summary>Platforms with live OAuth or app-password connect and posting.</summary>
-    public static bool IsPlatformLive(string? platform, AppSettings? settings = null) =>
-        SocialPlatforms.IsLive(platform, settings);
+    public static bool IsPlatformLive(string? platform, AppSettings? settings = null, bool brandContext = false) =>
+        SocialPlatforms.IsReadyToConnect(platform, settings, brandContext);
 
-    public static bool IsPlatformDisabled(string? platform, AppSettings? settings = null) =>
-        SocialPlatforms.IsDisabled(platform, settings);
+    public static bool IsPlatformDisabled(string? platform, AppSettings? settings = null, bool brandContext = false) =>
+        !SocialPlatforms.IsReadyToConnect(platform, settings, brandContext);
 
     public static string DisabledPlatformReason(string platform, AppSettings? settings = null) =>
         SocialPlatforms.DisabledReason(platform);
@@ -50,20 +51,10 @@ static class SocialConnectHelper
 
     public static string ConnectButtons(string returnUrl, AppSettings? settings = null)
     {
+        var brandContext = IsBrandContext(returnUrl);
         var buttons = new StringBuilder();
-        foreach (var platform in DefaultPlatforms)
+        foreach (var platform in SocialPlatforms.ReadyConnectBarNames(settings, brandContext))
         {
-            if (IsBrandContext(returnUrl) && !SocialPlatforms.AllowsBrandConnect(platform))
-                continue;
-
-            if (IsPlatformDisabled(platform, settings))
-            {
-                var reason = DisabledPlatformReason(platform, settings);
-                buttons.Append($"""
-                    <span class="button platform-disabled" title="{H.Encode(reason)}">{H.Encode(DisabledPlatformLabel(platform, settings))}</span>
-                    """);
-                continue;
-            }
             var color = SocialPlatforms.Color(platform);
             var href = $"/social-accounts/connect/{Uri.EscapeDataString(platform)}?return={Uri.EscapeDataString(returnUrl)}";
             buttons.Append($"""
@@ -72,27 +63,30 @@ static class SocialConnectHelper
                 </a>
                 """);
         }
+
+        if (buttons.Length == 0)
+        {
+            return brandContext
+                ? """<p class="muted">No brand connect buttons yet. Add API keys under <strong>Owner → Social Media APIs</strong>, or connect <strong>Bluesky</strong>, <strong>Discord</strong>, or <strong>Telegram</strong> (no extra keys needed).</p>"""
+                : """<p class="muted">No connect buttons yet. <strong>Bluesky</strong>, <strong>Discord</strong>, and <strong>Telegram</strong> work without Owner API keys. Other platforms appear here after the app owner adds credentials in <strong>Owner → Social Media APIs</strong>.</p>""";
+        }
+
         return buttons.ToString();
     }
 
-    public static string RenderPlatformOption(string value, bool selected = false, AppSettings? settings = null)
+    public static string RenderPlatformOption(
+        string value,
+        bool selected = false,
+        AppSettings? settings = null,
+        bool brandContext = false)
     {
-        if (IsPlatformDisabled(value, settings))
-            return $"""<option value="" disabled>{H.Encode(DisabledPlatformLabel(value, settings))}</option>""";
+        if (!selected && !SocialPlatforms.IsReadyToConnect(value, settings, brandContext))
+            return "";
         var sel = selected ? " selected" : "";
         return $"""<option value="{H.Encode(value)}"{sel}>{H.Encode(value)}</option>""";
     }
 
-    public static string NextPlatformHint(AppSettings? settings = null)
-    {
-        var next = SocialPlatforms.NextPlatformName(settings);
-        if (next is null) return "";
-        var reason = SocialPlatforms.DisabledReason(next);
-        var after = SocialPlatforms.NextPlatformAfter(next, settings);
-        if (after is not null)
-            return $"""<p class="muted small-text">Greyed-out platforms are not ready yet. <strong>Next: {H.Encode(next)}</strong> ({H.Encode(reason)}), then <strong>{H.Encode(after)}</strong>.</p>""";
-        return $"""<p class="muted small-text">Greyed-out platforms are not ready yet. <strong>Next: {H.Encode(next)}</strong>.</p>""";
-    }
+    public static string NextPlatformHint(AppSettings? settings = null) => "";
 
     public static string OAuthAuthorizePage(string platformName, string returnUrl, string notice = "", AppSettings? settings = null)
     {
@@ -136,7 +130,7 @@ static class SocialConnectHelper
         if (PostLimits.IsMedium(platformName))
             return MediumConnectPage(returnUrl, notice, brandContext);
 
-        if (IsPlatformDisabled(platformName, settings))
+        if (IsPlatformDisabled(platformName, settings, brandContext))
         {
             var reason = DisabledPlatformReason(platformName, settings);
             return $"""

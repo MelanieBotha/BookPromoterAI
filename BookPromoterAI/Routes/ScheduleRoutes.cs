@@ -90,7 +90,11 @@ static class ScheduleRoutes
         }
 
         if (schedules.Any(s => s.AutoPostEnabled))
-            lines.Add("Bluesky, X, LinkedIn, and Facebook post live when connected. Other platforms need OAuth (coming soon) or use Post now / copy from the Ad Library.");
+        {
+            var ready = SocialPlatforms.ReadyConnectBarNames(store.Settings);
+            if (ready.Count > 0)
+                lines.Add($"Live posting when connected: {string.Join(", ", ready)}.");
+        }
 
         var body = string.Join("<br>", lines.Select(H.Encode));
         return $"""<div class="notice success">{body}</div>""";

@@ -97,7 +97,6 @@ static class MyAccountPage
 
         // ── OAuth connect buttons ─────────────────────────────────────
         var connectButtons = SocialConnectHelper.ConnectButtons("/my-account", store.Settings);
-        var nextPlatformHint = SocialConnectHelper.NextPlatformHint(store.Settings);
 
         var ownerBrandNote = store.IsOwner
             ? $"""<p class="notice">BookPromoter AI brand accounts (e.g. @{BrandConstants.OfficialBlueskyHandle}) are managed separately on <a href="/owner-promos?section=owner-social">Owner → BookPromoter AI Brand Social Accounts</a>.</p>"""
@@ -108,8 +107,7 @@ static class MyAccountPage
                 <h2>Author Social Accounts &amp; Posting Schedule</h2>
                 <p class="muted">Connect platforms where you promote <strong>your books</strong>. Set posts/week, approval, and auto-post for each author account.</p>
                 {ownerBrandNote}
-                <p class="muted small-text">Check "Auto-post", set <strong>posts/week</strong> above 0, then click <strong>Save Posting Schedule</strong>. If "Approval required" is checked, approve posts in the Ad Library first. Auto-posting runs immediately on save and every few minutes after that. <strong>Facebook</strong>, <strong>Bluesky</strong>, <strong>X</strong>, <strong>LinkedIn</strong>, <strong>WordPress</strong>, <strong>Medium</strong>, <strong>Tumblr</strong>, <strong>Flickr</strong>, and others post live when connected.</p>
-                {nextPlatformHint}
+                <p class="muted small-text">Check "Auto-post", set <strong>posts/week</strong> above 0, then click <strong>Save Posting Schedule</strong>. If "Approval required" is checked, approve posts in the Ad Library first. Auto-posting runs immediately on save and every few minutes after that. Connect buttons below appear only for platforms that are configured and ready.</p>
                 {limitText}
                 {limitNotice}
                 <form method="post" action="/schedule" class="schedule-list">
@@ -157,12 +155,12 @@ static class MyAccountPage
         var alreadyAdded = store.AuthorSocialAccounts.Select(a => a.Platform).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var currentPlatform = editingAccount?.Platform ?? "";
 
-        var optionsByGroup = SchedulePage.AllPlatforms
+        var optionsByGroup = SchedulePage.AvailablePlatforms(store.Settings)
             .Where(p => !alreadyAdded.Contains(p.Value) || p.Value.Equals(currentPlatform, StringComparison.OrdinalIgnoreCase))
             .GroupBy(p => p.Group);
 
         var isCustom = !string.IsNullOrWhiteSpace(currentPlatform) &&
-                       !SchedulePage.AllPlatforms.Any(p => p.Value.Equals(currentPlatform, StringComparison.OrdinalIgnoreCase));
+                       !SchedulePage.AvailablePlatforms(store.Settings).Any(p => p.Value.Equals(currentPlatform, StringComparison.OrdinalIgnoreCase));
 
         var options = new StringBuilder();
         options.Append("""<option value="">Choose a platform...</option>""");

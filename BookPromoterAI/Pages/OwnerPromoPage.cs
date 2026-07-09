@@ -239,13 +239,12 @@ static class OwnerPromoPage
         var alreadyAdded = socialAccounts.Select(a => a.Platform).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var platformOptions = new StringBuilder();
         platformOptions.Append("""<option value="">Choose a platform...</option>""");
-        foreach (var platform in SocialConnectHelper.DefaultPlatforms)
+        foreach (var platform in SocialConnectHelper.DefaultPlatforms(settings, brandContext: true))
         {
             if (alreadyAdded.Contains(platform)) continue;
             if (!SocialPlatforms.AllowsBrandConnect(platform)) continue;
-            platformOptions.Append(SocialConnectHelper.RenderPlatformOption(platform, settings: settings));
+            platformOptions.Append(SocialConnectHelper.RenderPlatformOption(platform, settings: settings, brandContext: true));
         }
-        platformOptions.Append("""<option value="__custom__">Other (type your own)...</option>""");
 
         var promoCards = new StringBuilder();
         if (promoAccounts.Count == 0)
@@ -350,8 +349,7 @@ static class OwnerPromoPage
                         {connectedRows}
                     </div>
                     <h3 style="margin-top:20px">Connect a brand platform</h3>
-                    <p class="muted small-text">Facebook, Bluesky, X, LinkedIn, and Tumblr support live brand posting when connected. Pick your <strong>bookpromoterai</strong> Tumblr blog on Owner; use <strong>My Account</strong> for author book promos on your personal blog.</p>
-                    {SocialConnectHelper.NextPlatformHint(settings)}
+                    <p class="muted small-text">Connect buttons appear only for platforms that are configured and ready. Pick your <strong>bookpromoterai</strong> Tumblr blog on Owner; use <strong>My Account</strong> for author book promos on your personal blog.</p>
                     <div class="connect-buttons">
                         {SocialConnectHelper.ConnectButtons(returnPath, settings)}
                     </div>

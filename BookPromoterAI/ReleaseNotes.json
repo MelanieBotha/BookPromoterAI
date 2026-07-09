@@ -1,4 +1,20 @@
 {
+  "1.17.3": {
+    "title": "BookPromoter AI v1.17.3 — What's new",
+    "updated": [
+      "Connect buttons and schedule options now appear only for platforms that are configured and ready — no greyed-out or placeholder buttons"
+    ],
+    "new": [],
+    "added": []
+  },
+  "1.17.2": {
+    "title": "BookPromoter AI v1.17.2 — What's new",
+    "updated": [
+      "Connect and schedule UI now only lists platforms with live posting today: Facebook, X, LinkedIn, Bluesky, Tumblr, Discord, and Telegram"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.17.1": {
     "title": "BookPromoter AI v1.17.1 — What's new",
     "updated": [

@@ -9,7 +9,7 @@ static class OwnerSocialEditPage
         var settings = store.Settings;
         var platformOptions = new StringBuilder();
         platformOptions.Append(SocialConnectHelper.RenderPlatformOption(account.Platform, selected: true, settings));
-        foreach (var platform in SocialConnectHelper.DefaultPlatforms)
+        foreach (var platform in SocialConnectHelper.DefaultPlatforms(settings, brandContext: true))
         {
             if (platform.Equals(account.Platform, StringComparison.OrdinalIgnoreCase)) continue;
             platformOptions.Append(SocialConnectHelper.RenderPlatformOption(platform, settings: settings));

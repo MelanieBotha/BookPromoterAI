@@ -3,8 +3,10 @@ namespace BookPromoterAI;
 
 static class SchedulePage
 {
-    public static readonly (string Value, string Group)[] AllPlatforms =
-        SocialPlatforms.Catalog.Select(p => (p.Name, p.Group)).ToArray();
+    public static IReadOnlyList<(string Value, string Group)> AvailablePlatforms(AppSettings settings, bool brandContext = false) =>
+        SocialPlatforms.ReadyCatalog(settings, brandContext)
+            .Select(p => (p.Name, p.Group))
+            .ToArray();
 
     public static string Render(AppStoreDb store, string notice)
     {
@@ -57,7 +59,7 @@ static class SchedulePage
             : """<p class="muted small-text">Your plan includes unlimited AI posts per month.</p>""";
 
         var alreadyAdded = store.Schedules.Select(s => s.Platform).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var optionsByGroup = AllPlatforms
+        var optionsByGroup = AvailablePlatforms(store.Settings)
             .Where(p => !alreadyAdded.Contains(p.Value))
             .GroupBy(p => p.Group);
 
@@ -70,30 +72,20 @@ static class SchedulePage
                 dropdownOptions.Append(SocialConnectHelper.RenderPlatformOption(value, settings: store.Settings));
             dropdownOptions.Append("</optgroup>");
         }
-        dropdownOptions.Append("""<option value="__custom__">Other (type your own)...</option>""");
 
-        var script = """
-            <script>
-            function onPlatformSelect(select) {
-                var customLabel = document.getElementById('custom-platform-label');
-                var hidden = document.getElementById('platform-hidden');
-                var customInput = document.getElementById('custom-platform-input');
-                if (select.value === '__custom__') {
-                    customLabel.style.display = 'block';
-                    hidden.value = '';
-                    hidden.name = '';
-                    customInput.required = true;
-                    customInput.name = 'newPlatform';
-                } else {
-                    customLabel.style.display = 'none';
-                    hidden.value = select.value;
-                    hidden.name = 'newPlatform';
-                    customInput.required = false;
-                    customInput.name = '';
-                }
-            }
-            </script>
-            """;
+        var addPlatformSection = optionsByGroup.Any()
+            ? $"""
+                <p class="muted">Pick a platform that is configured and ready. Connect more on <a href="/my-account">My Account</a>.</p>
+                <form method="post" action="/schedule/add-platform" class="inline-form">
+                    <label>Platform
+                        <select id="platform-select" name="newPlatform" required>
+                            {dropdownOptions}
+                        </select>
+                    </label>
+                    <button class="button" type="submit">Add to Schedule</button>
+                </form>
+                """
+            : """<p class="muted">No additional platforms are ready to schedule. Connect platforms on <a href="/my-account">My Account</a> — buttons appear as each integration is configured.</p>""";
 
         return $"""
             {removeForms}
@@ -111,23 +103,8 @@ static class SchedulePage
 
             <section class="panel">
                 <h2>Add a Platform</h2>
-                <p class="muted">Select from the list or type your own. Greyed-out options are not ready for auto-posting yet.</p>
-                {SocialConnectHelper.NextPlatformHint(store.Settings)}
-                <form method="post" action="/schedule/add-platform" class="inline-form">
-                    <label>Platform
-                        <select id="platform-select" onchange="onPlatformSelect(this)">
-                            {dropdownOptions}
-                        </select>
-                    </label>
-                    <label id="custom-platform-label" style="display:none">Custom name
-                        <input id="custom-platform-input" placeholder="Enter platform name">
-                    </label>
-                    <input type="hidden" id="platform-hidden" name="newPlatform">
-                    <button class="button" type="submit">Add to Schedule</button>
-                </form>
+                {addPlatformSection}
             </section>
-
-            {script}
             """;
     }
 }
