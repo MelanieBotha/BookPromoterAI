@@ -25,10 +25,18 @@ static class PostLimits
         ["LinkedIn"] = LinkedInMaxGraphemes,
         ["Reddit"] = RedditMaxGraphemes,
         ["Mastodon"] = MastodonMaxGraphemes,
+        ["Telegram"] = TelegramMaxGraphemes,
+        ["Discord"] = DiscordMaxGraphemes,
     };
 
     /// <summary>Mastodon default post limit.</summary>
     public const int MastodonMaxGraphemes = 500;
+
+    /// <summary>Telegram message text limit.</summary>
+    public const int TelegramMaxGraphemes = 4096;
+
+    /// <summary>Discord webhook message limit.</summary>
+    public const int DiscordMaxGraphemes = 2000;
 
     public static int? GetMaxGraphemes(string platform)
     {

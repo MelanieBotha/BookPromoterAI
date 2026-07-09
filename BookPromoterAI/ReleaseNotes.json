@@ -1,4 +1,12 @@
 {
+  "1.17.4": {
+    "title": "BookPromoter AI v1.17.4 — What's new",
+    "updated": [
+      "Telegram live posting: validate bot and chat on connect, attach book covers and brand logos to channel posts, and enforce Telegram message limits"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.17.3": {
     "title": "BookPromoter AI v1.17.3 — What's new",
     "updated": [

@@ -1410,18 +1410,28 @@ static class SocialAccountRoutes
                     return Results.Redirect(connectUrl);
                 }
 
+                var (chatOk, chatError, chatTitle) = await messaging.ValidateTelegramChatAsync(botToken, chatId);
+                if (!chatOk)
+                {
+                    var connectUrl = $"/social-accounts/connect/Telegram?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(chatError)}";
+                    return Results.Redirect(connectUrl);
+                }
+
+                var defaultName = SocialAccountKinds.IsBrand(kind) ? "BookPromoter AI" : "Telegram Channel";
+                var displayName = string.IsNullOrWhiteSpace(form["displayName"].ToString())
+                    ? (string.IsNullOrWhiteSpace(chatTitle) ? defaultName : chatTitle.Trim())
+                    : form["displayName"].ToString().Trim();
+
                 store.AddSocialAccount(new SocialAccount
                 {
                     Platform = "Telegram",
-                    DisplayName = string.IsNullOrWhiteSpace(form["displayName"].ToString())
-                        ? (SocialAccountKinds.IsBrand(kind) ? "BookPromoter AI" : "Telegram Channel")
-                        : form["displayName"].ToString().Trim(),
+                    DisplayName = displayName,
                     Handle = string.IsNullOrWhiteSpace(username) ? "bot" : $"@{username}",
                     IsConnected = true,
                     ConnectedViaOAuth = true,
                     AccountKind = kind,
                     AccessToken = botToken,
-                    ExternalAccountId = chatId
+                    ExternalAccountId = chatId.Trim()
                 }, kind);
                 if (SocialAccountKinds.IsAuthor(kind))
                     store.AddSchedule(new SocialSchedule { Platform = "Telegram", PostsPerWeek = 1, RequiresApproval = true });

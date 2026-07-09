@@ -82,7 +82,7 @@ class SocialPostingService
             return await PostToDiscordLive(account, postText, media, brandMedia, cancellationToken);
 
         if (PostLimits.IsTelegram(account.Platform) && account.IsLiveConnection)
-            return await PostToTelegramLive(account, postText, cancellationToken);
+            return await PostToTelegramLive(account, postText, media, brandMedia, cancellationToken);
 
         if (PostLimits.IsTumblr(account.Platform) && account.IsLiveConnection)
             return await PostToTumblrLive(account, postText, media, brandMedia, cancellationToken);
@@ -417,7 +417,7 @@ class SocialPostingService
             {
                 imageBytes = image.Data;
                 imageMime = image.MimeType;
-                fileName = BuildDiscordFileName(media.BookTitle, imageMime);
+                fileName = BuildMessagingFileName(media.BookTitle, imageMime);
             }
         }
         else if (brandMedia is not null)
@@ -430,7 +430,7 @@ class SocialPostingService
             {
                 imageBytes = logo.Data;
                 imageMime = logo.MimeType;
-                fileName = BuildDiscordFileName("bookpromoter-ai-logo", imageMime);
+                fileName = BuildMessagingFileName("bookpromoter-ai-logo", imageMime);
             }
         }
 
@@ -447,13 +447,65 @@ class SocialPostingService
     async Task<PostingOutcome> PostToTelegramLive(
         SocialAccount account,
         string postText,
+        BookPostMedia? media,
+        BrandPostMedia? brandMedia,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(account.AccessToken) || string.IsNullOrWhiteSpace(account.ExternalAccountId))
             return new PostingOutcome { Result = PostingResult.Failure("Telegram is not connected. Reconnect your bot in My Account.") };
 
+        if (!PostLimits.IsWithinLimit(postText, account.Platform))
+        {
+            return new PostingOutcome
+            {
+                Result = PostingResult.Failure(
+                    $"Post exceeds Telegram's {PostLimits.TelegramMaxGraphemes}-character limit ({PostLimits.GraphemeLength(postText)} characters). Regenerate or shorten the post.")
+            };
+        }
+
+        byte[]? imageBytes = null;
+        string? imageMime = null;
+        string? fileName = null;
+        if (media is not null)
+        {
+            var baseUrl = ResolveBaseUrl(media.AppBaseUrl);
+            var image = await BookCoverLoader.TryLoadAsync(
+                _http,
+                _uploads.Path,
+                baseUrl,
+                media.BookTitle,
+                media.CoverImageUrl,
+                media.TrackingCode,
+                cancellationToken);
+            if (image is not null)
+            {
+                imageBytes = image.Data;
+                imageMime = image.MimeType;
+                fileName = BuildMessagingFileName(media.BookTitle, imageMime);
+            }
+        }
+        else if (brandMedia is not null)
+        {
+            var logo = await BrandLogoLoader.TryLoadAsync(
+                _http,
+                ResolveBaseUrl(brandMedia.AppBaseUrl),
+                cancellationToken);
+            if (logo is not null)
+            {
+                imageBytes = logo.Data;
+                imageMime = logo.MimeType;
+                fileName = BuildMessagingFileName("bookpromoter-ai-logo", imageMime);
+            }
+        }
+
         var result = await _messaging.PostTelegramAsync(
-            account.AccessToken, account.ExternalAccountId, postText, cancellationToken);
+            account.AccessToken,
+            account.ExternalAccountId,
+            postText,
+            imageBytes,
+            imageMime,
+            fileName,
+            cancellationToken);
         return new PostingOutcome { Result = result };
     }
 
@@ -717,7 +769,7 @@ class SocialPostingService
         return string.IsNullOrWhiteSpace(baseUrl) ? "https://bookpromoterai.us" : baseUrl;
     }
 
-    static string BuildDiscordFileName(string? seed, string? imageMime)
+    static string BuildMessagingFileName(string? seed, string? imageMime)
     {
         var baseName = string.IsNullOrWhiteSpace(seed)
             ? "image"

@@ -601,19 +601,28 @@ static class SocialConnectHelper
     public static string TelegramConnectPage(string returnUrl, string? notice, bool brandContext = false)
     {
         var brand = SocialPlatforms.Brand("Telegram");
-        var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<p class="notice">{H.Encode(notice)}</p>""";
+        var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<p class="notice error">{H.Encode(notice)}</p>""";
+        var contextNote = brandContext
+            ? """<p class="muted">Connect a <strong>BookPromoter AI</strong> Telegram channel or group for brand promos.</p>"""
+            : """<p class="muted">Connect your author Telegram channel or group for book promos.</p>""";
         return $"""
             <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>Connect Telegram</h1></div></section>
             <section class="panel oauth-panel">
                 <div class="oauth-platform-badge" style="background:{brand.Color}">{H.Encode(brand.Initial)}</div>
                 <h2>Bot + channel</h2>
+                {contextNote}
                 {noticeHtml}
-                <p class="muted">Create a bot via <strong>@BotFather</strong>, add it to your channel as admin, then paste the bot token and channel chat ID (often <code>-100…</code> for channels).</p>
+                <ol class="muted small-text">
+                    <li>In Telegram, open <strong>@BotFather</strong> and create a bot. Copy the <strong>bot token</strong>.</li>
+                    <li>Add the bot to your channel or group as an <strong>admin</strong> (channels need post permission).</li>
+                    <li>Paste the channel chat ID (often <code>-100…</code>) or public username like <code>@YourChannel</code>.</li>
+                </ol>
+                <p class="muted small-text">BookPromoter AI posts your caption plus the book cover or brand logo when available.</p>
                 <form method="post" action="/social-accounts/oauth-callback/Telegram" class="form">
                     <input type="hidden" name="return" value="{H.Encode(returnUrl)}">
-                    <label>Display name <input name="displayName" value="Telegram Channel"></label>
+                    <label>Display name <input name="displayName" placeholder="My Author Channel"></label>
                     <label>Bot token <input name="botToken" placeholder="123456:ABC..." required autocomplete="off"></label>
-                    <label>Chat ID <input name="chatId" placeholder="-1001234567890" required></label>
+                    <label>Chat ID <input name="chatId" placeholder="-1001234567890 or @YourChannel" required></label>
                     <div class="form-actions">
                         <button class="button" type="submit" style="background:{brand.Color}">Connect &amp; save</button>
                         <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
