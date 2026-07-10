@@ -77,7 +77,7 @@ class XService
         var first = await TryPostTweetAsync(tokens.AccessToken, postText, mediaId, cancellationToken);
         if (first.Success)
             return (PostingResult.LiveOk(imageBytes is { Length: > 0 }
-                ? "Posted to X with logo."
+                ? "Posted to X with cover."
                 : "Posted to X.", first.PostId), null);
 
         if (!first.NeedsRefresh || string.IsNullOrWhiteSpace(tokens.RefreshToken))
@@ -97,7 +97,7 @@ class XService
         var retry = await TryPostTweetAsync(refreshed.AccessToken, postText, mediaId, cancellationToken);
         if (retry.Success)
             return (PostingResult.LiveOk(imageBytes is { Length: > 0 }
-                ? "Posted to X with logo."
+                ? "Posted to X with cover."
                 : "Posted to X.", retry.PostId), refreshed);
 
         return (PostingResult.Failure(retry.Error), refreshed);

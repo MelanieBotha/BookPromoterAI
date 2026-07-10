@@ -64,7 +64,7 @@ class SocialPostingService
             return await PostToBlueskyLive(account, postText, media, brandMedia, cancellationToken);
 
         if (PostLimits.IsX(account.Platform) && account.IsLiveConnection)
-            return await PostToXLive(account, postText, brandMedia, cancellationToken);
+            return await PostToXLive(account, postText, media, brandMedia, cancellationToken);
 
         if (PostLimits.IsLinkedIn(account.Platform) && account.IsLiveConnection)
             return await PostToLinkedInLive(account, postText, brandMedia, cancellationToken);
@@ -168,6 +168,7 @@ class SocialPostingService
     async Task<PostingOutcome> PostToXLive(
         SocialAccount account,
         string postText,
+        BookPostMedia? media,
         BrandPostMedia? brandMedia,
         CancellationToken cancellationToken)
     {
@@ -185,7 +186,24 @@ class SocialPostingService
 
         byte[]? imageBytes = null;
         string? imageMime = null;
-        if (brandMedia is not null)
+        if (media is not null)
+        {
+            var baseUrl = ResolveBaseUrl(media.AppBaseUrl);
+            var cover = await BookCoverLoader.TryLoadAsync(
+                _http,
+                _uploads.Path,
+                baseUrl,
+                media.BookTitle,
+                media.CoverImageUrl,
+                media.TrackingCode,
+                cancellationToken);
+            if (cover is not null)
+            {
+                imageBytes = cover.Data;
+                imageMime = cover.MimeType;
+            }
+        }
+        else if (brandMedia is not null)
         {
             var logo = await BrandLogoLoader.TryLoadAsync(
                 _http, ResolveBaseUrl(brandMedia.AppBaseUrl), cancellationToken);
