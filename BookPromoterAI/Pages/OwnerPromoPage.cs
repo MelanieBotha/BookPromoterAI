@@ -121,10 +121,12 @@ static class OwnerPromoPage
             var statusText = entry.Success ? "Posted" : "Failed";
             var clicks = entry.ClickCount is int clickCount ? clickCount.ToString() : "—";
             var likes = entry.Success ? entry.LikeCount.ToString() : "—";
+            var delivery = PostDeliveryKinds.Label(entry.PostDelivery);
+            var deliveryText = string.IsNullOrEmpty(delivery) ? "" : $" &middot; {H.Encode(delivery)}";
             brandLogRows.Append($"""
                 <div class="promo-row">
                     <span>{H.Encode(entry.Platform)} &middot; {H.Encode(entry.BookTitle)}</span>
-                    <span>{AppTimeZone.FormatWithZone(entry.AttemptedAt, "MMM d, HH:mm")} &middot; {H.Encode(entry.Message)}</span>
+                    <span>{AppTimeZone.FormatWithZone(entry.AttemptedAt, "MMM d, HH:mm")}{deliveryText} &middot; {H.Encode(entry.Message)}</span>
                     <span class="muted">{clicks}</span>
                     <span class="muted">{likes}</span>
                     <span class="status {statusClass}">{statusText}</span>

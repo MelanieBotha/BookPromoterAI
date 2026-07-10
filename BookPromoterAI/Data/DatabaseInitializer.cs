@@ -247,6 +247,8 @@ static class DatabaseInitializer
         AddColumnIfMissing(db, "PostingLog", "LikeCount", """ALTER TABLE "PostingLog" ADD COLUMN "LikeCount" INTEGER NOT NULL DEFAULT 0""");
         AddColumnIfMissing(db, "PostingLog", "ClickCount", """ALTER TABLE "PostingLog" ADD COLUMN "ClickCount" INTEGER NULL""");
         AddColumnIfMissing(db, "PostingLog", "MetricsFetchedAt", """ALTER TABLE "PostingLog" ADD COLUMN "MetricsFetchedAt" TEXT NULL""");
+        AddColumnIfMissing(db, "GeneratedAds", "PostedVia", """ALTER TABLE "GeneratedAds" ADD COLUMN "PostedVia" TEXT NOT NULL DEFAULT ''""");
+        AddColumnIfMissing(db, "PostingLog", "PostDelivery", """ALTER TABLE "PostingLog" ADD COLUMN "PostDelivery" TEXT NOT NULL DEFAULT ''""");
         AddColumnIfMissing(db, "TikTokVideos", "NarrationText", """ALTER TABLE "TikTokVideos" ADD COLUMN "NarrationText" TEXT NOT NULL DEFAULT ''""");
         AddColumnIfMissing(db, "TikTokVideos", "WeekNumber", """ALTER TABLE "TikTokVideos" ADD COLUMN "WeekNumber" INTEGER NOT NULL DEFAULT 0""");
         AddColumnIfMissing(db, "TikTokVideos", "WeekYear", """ALTER TABLE "TikTokVideos" ADD COLUMN "WeekYear" INTEGER NOT NULL DEFAULT 0""");

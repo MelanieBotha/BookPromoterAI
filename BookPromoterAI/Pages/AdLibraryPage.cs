@@ -211,7 +211,7 @@ static class AdLibraryPage
             ? $"""<p class="muted small-text">{H.Encode(hint)}</p>"""
             : "";
 
-        var scheduledAt = PostSchedule.DisplayTime(ad);
+        var timeSubtitle = PostSchedule.FormatAdTimeSubtitle(ad);
         var charCount = PostLimits.CharacterCountLabel(ad.Platform, ad.PostText);
         var focusClass = focus == $"ad-{ad.Id}" ? " post-card-focused" : "";
 
@@ -221,7 +221,7 @@ static class AdLibraryPage
                 <div class="post-card-header">
                     <div>
                         <strong>{H.Encode(ad.BookTitle)}</strong>
-                        <small>Scheduled {AppTimeZone.FormatWithZone(scheduledAt, "ddd MMM d, HH:mm")}</small>
+                        <small>{H.Encode(timeSubtitle)}</small>
                     </div>
                     {statusBadge}
                 </div>

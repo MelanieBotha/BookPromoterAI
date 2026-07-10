@@ -216,6 +216,7 @@ class DbGeneratedAd
     public DateTime? PostedAt { get; set; }
     public string? PostError { get; set; }
     public bool ApprovedForPosting { get; set; }
+    public string PostedVia { get; set; } = "";
     public DbUser? User { get; set; }
 }
 
@@ -234,6 +235,7 @@ class DbPostingLogEntry
     public int LikeCount { get; set; }
     public int? ClickCount { get; set; }
     public DateTime? MetricsFetchedAt { get; set; }
+    public string PostDelivery { get; set; } = "";
     public DbUser? User { get; set; }
 }
 

@@ -4,6 +4,7 @@ static class PostSchedule
 {
     public const int DefaultPostHourLocal = 10;
     public const int DefaultPostMinuteLocal = 0;
+    const int StaggerHoursPerSlot = 4;
 
     /// <summary>Spread pending posts across separate days in the ISO week (e.g. 3/week → Mon, Wed, Fri).</summary>
     public static void AssignWeeklyPostSlots(
@@ -11,12 +12,14 @@ static class PostSchedule
         int postsPerWeek,
         DateTime nowUtc,
         int weekYear,
-        int weekNumber)
+        int weekNumber,
+        bool onlyAdsMissingFutureSlot = false)
     {
         if (postsPerWeek <= 0) return;
 
         var pending = ads
             .Where(a => a.PostStatus == "Pending")
+            .Where(a => !onlyAdsMissingFutureSlot || a.ScheduledPostAt is null || a.ScheduledPostAt <= nowUtc)
             .OrderBy(a => a.ScheduledPostAt ?? a.GeneratedAt)
             .ThenBy(a => a.Id)
             .ToList();
@@ -50,6 +53,7 @@ static class PostSchedule
         var dayOffsets = DayOffsetsForCount(postsPerWeek);
         var result = new List<DateTime>(slotCount);
         var weekOffset = 0;
+        var todayOffset = TodayOffsetInWeek(weekYear, weekNumber, nowUtc);
 
         while (result.Count < slotCount)
         {
@@ -58,14 +62,31 @@ static class PostSchedule
             var slotYear = System.Globalization.ISOWeek.GetYear(monday);
             var slotWeek = System.Globalization.ISOWeek.GetWeekOfYear(monday);
 
-            foreach (var dayOffset in dayOffsets)
+            var offsetsThisWeek = weekOffset == 0
+                ? dayOffsets.Where(o => o >= todayOffset).ToArray()
+                : dayOffsets;
+
+            if (offsetsThisWeek.Length == 0)
             {
-                var slot = SlotAtDayOffsetUtc(slotYear, slotWeek, dayOffset);
+                weekOffset++;
+                if (weekOffset > 52) break;
+                continue;
+            }
+
+            var dayStagger = new Dictionary<int, int>();
+            foreach (var dayOffset in offsetsThisWeek)
+            {
+                if (result.Count >= slotCount) break;
+
+                var stagger = dayStagger.GetValueOrDefault(dayOffset, 0);
+                dayStagger[dayOffset] = stagger + 1;
+                var hour = Math.Min(DefaultPostHourLocal + stagger * StaggerHoursPerSlot, 20);
+
+                var slot = SlotAtDayOffsetUtc(slotYear, slotWeek, dayOffset, hour, DefaultPostMinuteLocal);
                 if (weekOffset == 0 && slot <= nowUtc)
                     continue;
 
                 result.Add(slot);
-                if (result.Count >= slotCount) break;
             }
 
             weekOffset++;
@@ -75,8 +96,8 @@ static class PostSchedule
         if (result.Count < slotCount)
         {
             var fallback = nowUtc.AddHours(1);
-            while (result.Count < slotCount)
-                result.Add(fallback.AddDays(result.Count));
+            for (var i = result.Count; i < slotCount; i++)
+                result.Add(fallback.AddDays(i - result.Count));
         }
 
         return result;
@@ -98,31 +119,40 @@ static class PostSchedule
 
         var weekYear = System.Globalization.ISOWeek.GetYear(nowUtc);
         var weekNumber = System.Globalization.ISOWeek.GetWeekOfYear(nowUtc);
-        var dayOffsets = DayOffsetsForCount(schedule.PostsPerWeek);
-        var slotIndex = Math.Clamp(schedule.PostsSentThisWeek, 0, dayOffsets.Length - 1);
+        var slots = BuildSlotTimes(schedule.PostsPerWeek, schedule.PostsPerWeek, weekYear, weekNumber, nowUtc);
+        var slotIndex = Math.Clamp(schedule.PostsSentThisWeek, 0, slots.Count - 1);
+        if (slots.Count == 0)
+            return nowUtc;
 
-        for (var weekOffset = 0; weekOffset <= 1; weekOffset++)
+        for (var i = slotIndex; i < slots.Count; i++)
         {
-            var monday = System.Globalization.ISOWeek.ToDateTime(weekYear, weekNumber, DayOfWeek.Monday)
-                .AddDays(weekOffset * 7);
-            var slotYear = System.Globalization.ISOWeek.GetYear(monday);
-            var slotWeek = System.Globalization.ISOWeek.GetWeekOfYear(monday);
-
-            for (var i = slotIndex; i < dayOffsets.Length; i++)
-            {
-                var slot = SlotAtDayOffsetUtc(slotYear, slotWeek, dayOffsets[i]);
-                if (slot > nowUtc)
-                    return slot;
-            }
-
-            slotIndex = 0;
+            if (slots[i] > nowUtc)
+                return slots[i];
         }
 
         return nowUtc;
     }
 
     public static DateTime DisplayTime(GeneratedAd ad) =>
-        ad.ScheduledPostAt ?? ad.GeneratedAt;
+        ad.PostStatus == "Posted" && ad.PostedAt is not null
+            ? ad.PostedAt.Value
+            : ad.ScheduledPostAt ?? ad.GeneratedAt;
+
+    public static string FormatAdTimeSubtitle(GeneratedAd ad)
+    {
+        var when = DisplayTime(ad);
+        var formatted = AppTimeZone.FormatWithZone(when, "ddd MMM d, HH:mm");
+        var prefix = ad.PostStatus switch
+        {
+            "Posted" => "Posted",
+            "Failed" => "Failed",
+            _ => "Scheduled"
+        };
+        var delivery = PostDeliveryKinds.Label(ad.PostedVia);
+        return string.IsNullOrEmpty(delivery)
+            ? $"{prefix} {formatted}"
+            : $"{prefix} {formatted} · {delivery}";
+    }
 
     public static string? FormatAdAutoPostHint(GeneratedAd ad, SocialSchedule? schedule)
     {
@@ -141,5 +171,13 @@ static class PostSchedule
             return $"Auto-post scheduled: ~{AppTimeZone.FormatWithZone(when, "ddd MMM d, HH:mm")}";
 
         return "Auto-post checks every 5 minutes — due now.";
+    }
+
+    static int TodayOffsetInWeek(int weekYear, int weekNumber, DateTime nowUtc)
+    {
+        var monday = System.Globalization.ISOWeek.ToDateTime(weekYear, weekNumber, DayOfWeek.Monday);
+        var mondayLocal = AppTimeZone.ToLocal(monday).Date;
+        var todayLocal = AppTimeZone.ToLocal(nowUtc).Date;
+        return Math.Clamp((int)(todayLocal - mondayLocal).TotalDays, 0, 6);
     }
 }

@@ -267,6 +267,7 @@ class GeneratedAd
     public DateTime? PostedAt { get; set; }
     public string? PostError { get; set; }
     public bool ApprovedForPosting { get; set; }
+    public string PostedVia { get; set; } = "";
 }
 
 // One row per auto-posting attempt, shown in the Posting Activity Log
@@ -285,6 +286,7 @@ class PostingLogEntry
     public int LikeCount { get; set; }
     public int? ClickCount { get; set; }
     public DateTime? MetricsFetchedAt { get; set; }
+    public string PostDelivery { get; set; } = "";
 }
 
 record PromoRedeemResult(bool Success, string Message);

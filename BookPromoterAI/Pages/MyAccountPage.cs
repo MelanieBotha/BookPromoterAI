@@ -128,10 +128,12 @@ static class MyAccountPage
         {
             var statusClass = entry.Success ? "available" : "used";
             var statusText = entry.Success ? "Posted" : "Failed";
+            var delivery = PostDeliveryKinds.Label(entry.PostDelivery);
+            var deliveryText = string.IsNullOrEmpty(delivery) ? "" : $" &middot; {H.Encode(delivery)}";
             logRows.Append($"""
                 <div class="promo-row">
                     <span>{H.Encode(entry.Platform)} &middot; {H.Encode(entry.BookTitle)}</span>
-                    <span>{AppTimeZone.FormatWithZone(entry.AttemptedAt, "MMM d, HH:mm")} &middot; {H.Encode(entry.Message)}</span>
+                    <span>{AppTimeZone.FormatWithZone(entry.AttemptedAt, "MMM d, HH:mm")}{deliveryText} &middot; {H.Encode(entry.Message)}</span>
                     <span class="status {statusClass}">{statusText}</span>
                 </div>
                 """);
@@ -142,7 +144,7 @@ static class MyAccountPage
         var postingLogSection = $"""
             <section class="panel">
                 <h2>Posting Activity Log</h2>
-                <p class="muted small-text">Shows recent auto-posting attempts for your <strong>author book promotions</strong> only (not BookPromoter AI brand posts).</p>
+                <p class="muted small-text">Shows recent posting attempts for your <strong>author book promotions</strong> only (not BookPromoter AI brand posts). Each entry shows whether it was a <strong>Scheduled</strong> auto-post or a <strong>Manual</strong> Post now.</p>
                 <div class="promo-table">
                     {logRows}
                 </div>
