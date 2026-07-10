@@ -42,6 +42,10 @@ class AppSettings
     public string FlickrApiKey { get; init; } = "";
     public string FlickrApiSecret { get; init; } = "";
 
+    /// <summary>Optional env fallbacks for brand Discord/Telegram when not set in Owner → Community links.</summary>
+    public string CommunityDiscordUrl { get; init; } = "";
+    public string CommunityTelegramUrl { get; init; } = "";
+
     public bool IsSendGridConfigured =>
         !string.IsNullOrWhiteSpace(SendGridApiKey) &&
         SendGridApiKey != "YOUR_SENDGRID_API_KEY_HERE" &&
@@ -349,7 +353,9 @@ class AppSettings
             TumblrConsumerKey = CleanSecret(config["Tumblr:ConsumerKey"]),
             TumblrConsumerSecret = CleanSecret(config["Tumblr:ConsumerSecret"]),
             FlickrApiKey = CleanSecret(config["Flickr:ApiKey"]),
-            FlickrApiSecret = CleanSecret(config["Flickr:ApiSecret"])
+            FlickrApiSecret = CleanSecret(config["Flickr:ApiSecret"]),
+            CommunityDiscordUrl = (config["Community:DiscordUrl"] ?? "").Trim(),
+            CommunityTelegramUrl = (config["Community:TelegramUrl"] ?? "").Trim()
         };
     }
 

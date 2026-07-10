@@ -39,6 +39,7 @@ class AppDbContext : DbContext
     public DbSet<DbFeedbackEntry> FeedbackEntries => Set<DbFeedbackEntry>();
     public DbSet<DbSubscriptionPlan> SubscriptionPlans => Set<DbSubscriptionPlan>();
     public DbSet<DbOwnerPayoutSettings> OwnerPayoutSettings => Set<DbOwnerPayoutSettings>();
+    public DbSet<DbBrandCommunitySettings> BrandCommunitySettings => Set<DbBrandCommunitySettings>();
     public DbSet<DbMailingListSubscriber> MailingListSubscribers => Set<DbMailingListSubscriber>();
     public DbSet<DbMailingListCampaign> MailingListCampaigns => Set<DbMailingListCampaign>();
     public DbSet<DbMailingListSettings> MailingListSettings => Set<DbMailingListSettings>();
@@ -123,6 +124,12 @@ class DbUser
     // Terms & Conditions acceptance
     public DateTime? TermsAcceptedAt { get; set; }
     public string? TermsAcceptedVersion { get; set; }
+
+    public string CommunityDiscordUrl { get; set; } = "";
+    public string CommunityTelegramUrl { get; set; } = "";
+    public string CommunityBlogUrl { get; set; } = "";
+    public string CommunityTikTokUrl { get; set; } = "";
+    public string CommunityMastodonUrl { get; set; } = "";
 
     // Navigation
     public List<DbBook> Books { get; set; } = [];
@@ -322,6 +329,15 @@ class DbOwnerPayoutSettings
     public string Iban { get; set; } = "";
     public string Notes { get; set; } = "";
     public string StripeConnectAccountId { get; set; } = "";
+}
+
+class DbBrandCommunitySettings
+{
+    public int Id { get; set; } = 1;
+    public string DiscordUrl { get; set; } = "";
+    public string TelegramUrl { get; set; } = "";
+    public string MastodonUrl { get; set; } = "";
+    public string BlogUrl { get; set; } = "";
 }
 
 class DbMailingListSubscriber

@@ -107,6 +107,7 @@ static class OwnerPage
                 """;
 
         var payout = store.GetOwnerPayoutSettings();
+        var brandCommunity = store.BrandCommunitySettings;
         var payoutSummary = payout.IsConfigured
             ? $"""
                 <p><strong>Account holder:</strong> {H.Encode(payout.AccountHolderName)}</p>
@@ -283,6 +284,29 @@ static class OwnerPage
                             <textarea name="notes" placeholder="Any extra payout instructions">{H.Encode(payout.Notes)}</textarea>
                         </label>
                         <button class="button" type="submit">Save Payout Bank Account</button>
+                    </form>
+                </div>
+            </details>
+
+            <details class="owner-collapsible" id="owner-section-community-links"{open("community-links")}>
+                <summary class="owner-collapsible-heading">Brand community links (Discord, Telegram)</summary>
+                <div class="panel owner-settings">
+                    <p class="muted">BookPromoter AI Discord/Telegram invites for the public <a href="/community">/community</a> page and brand promo posts. Authors set their own links under My Account.</p>
+                    <p class="muted small-text">Optional env fallbacks: <code>Community__DiscordUrl</code>, <code>Community__TelegramUrl</code>.</p>
+                    <form method="post" action="/owner/community-links" class="form">
+                        <label>Discord invite URL
+                            <input name="discordUrl" value="{H.Encode(brandCommunity.DiscordUrl)}" placeholder="https://discord.gg/your-server">
+                        </label>
+                        <label>Telegram channel URL
+                            <input name="telegramUrl" value="{H.Encode(brandCommunity.TelegramUrl)}" placeholder="https://t.me/bookpromoterai">
+                        </label>
+                        <label>Mastodon profile URL
+                            <input name="mastodonUrl" value="{H.Encode(brandCommunity.MastodonUrl)}" placeholder="https://mastodon.social/@bookpromoterai">
+                        </label>
+                        <label>Blog URL
+                            <input name="blogUrl" value="{H.Encode(brandCommunity.BlogUrl)}" placeholder="https://bookpromoterai.us/blog">
+                        </label>
+                        <button class="button" type="submit">Save brand community links</button>
                     </form>
                 </div>
             </details>

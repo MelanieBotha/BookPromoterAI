@@ -136,7 +136,8 @@ static class DashboardPage
         var activeSchedules = store.Schedules.Where(s => s.PostsPerWeek > 0).ToList();
         var platform = activeSchedules.FirstOrDefault()?.Platform ?? "General";
         var purchaseUrl = PostBranding.PurchaseUrlForPost(book, baseUrl, platform);
-        var text = generator.Generate(book, platform, purchaseUrl, book.PostVariantSeed, baseUrl);
+        var community = store.BuildCurrentPostCommunityProfile(baseUrl);
+        var text = generator.Generate(book, platform, purchaseUrl, book.PostVariantSeed, baseUrl, community);
 
         var bookAds = store.GeneratedAds
             .Where(a => a.BookId == book.Id)

@@ -827,7 +827,8 @@ class AppStoreDb
             if (existingBookIds.Contains(book.Id)) continue;
             var model = ToModel(book);
             var purchaseUrl = PostBranding.PurchaseUrlForPost(model, baseUrl, "Videos");
-            var caption = generator.GenerateTikTokCaption(model, purchaseUrl, book.PostVariantSeed);
+            var community = BuildPostCommunityProfile(uid, baseUrl);
+            var caption = generator.GenerateTikTokCaption(model, purchaseUrl, book.PostVariantSeed, community);
             var narration = VideoCaptionGenerator.BuildSixtySecondNarration(model, generator, book.PostVariantSeed);
             db.TikTokVideos.Add(new DbTikTokVideo
             {
@@ -1734,7 +1735,8 @@ class AppStoreDb
                 dbBook.PostVariantSeed++;
                 var refreshedModel = ToModel(dbBook);
                 var purchaseUrl = PostBranding.PurchaseUrlForPost(refreshedModel, baseUrl, schedule.Platform);
-                var text = generator.Generate(refreshedModel, schedule.Platform, purchaseUrl, dbBook.PostVariantSeed, baseUrl);
+                var community = BuildPostCommunityProfile(uid, baseUrl);
+                var text = generator.Generate(refreshedModel, schedule.Platform, purchaseUrl, dbBook.PostVariantSeed, baseUrl, community);
                 var created = new DbGeneratedAd
                 {
                     UserId = uid,
@@ -1815,12 +1817,13 @@ class AppStoreDb
         return books[(bookIndex++) % books.Count];
     }
 
-    static void RefreshGeneratedAdEntity(DbGeneratedAd ad, DbBook book, PostGenerator generator, string baseUrl)
+    void RefreshGeneratedAdEntity(DbGeneratedAd ad, DbBook book, PostGenerator generator, string baseUrl)
     {
         book.PostVariantSeed++;
         var model = ToModel(book);
         var purchaseUrl = PostBranding.PurchaseUrlForPost(model, baseUrl, ad.Platform);
-        ad.PostText = generator.Generate(model, ad.Platform, purchaseUrl, book.PostVariantSeed, baseUrl);
+        var community = BuildPostCommunityProfile(ad.UserId, baseUrl);
+        ad.PostText = generator.Generate(model, ad.Platform, purchaseUrl, book.PostVariantSeed, baseUrl, community);
         ad.CoverImageUrl = book.CoverImageUrl;
         ad.BookTitle = book.Title;
         ad.GeneratedAt = DateTime.UtcNow;
@@ -3436,6 +3439,120 @@ class AppStoreDb
         return row is null ? new OwnerPayoutSettings() : ToModel(row);
     }
 
+    public BrandCommunitySettings BrandCommunitySettings
+    {
+        get
+        {
+            using var db = Db();
+            var row = db.BrandCommunitySettings.Find(1);
+            if (row is null)
+            {
+                return new BrandCommunitySettings
+                {
+                    DiscordUrl = _settings.CommunityDiscordUrl,
+                    TelegramUrl = _settings.CommunityTelegramUrl
+                };
+            }
+
+            return new BrandCommunitySettings
+            {
+                DiscordUrl = row.DiscordUrl,
+                TelegramUrl = row.TelegramUrl,
+                MastodonUrl = row.MastodonUrl,
+                BlogUrl = row.BlogUrl
+            };
+        }
+    }
+
+    public CommunityProfile GetBrandCommunityProfile(string baseUrl = "")
+    {
+        var settings = BrandCommunitySettings;
+        using var db = Db();
+        var owner = db.Users.AsNoTracking().FirstOrDefault(u => u.Email == OwnerAccount.NormalizedEmail);
+        var profile = settings.ToProfile(MailingListSignupUrl(owner?.UserCode, baseUrl));
+        return new CommunityProfile(
+            profile.DiscordUrl ?? CommunityLinks.NormalizeUrl(_settings.CommunityDiscordUrl),
+            profile.TelegramUrl ?? CommunityLinks.NormalizeUrl(_settings.CommunityTelegramUrl),
+            profile.MailingListUrl,
+            profile.BlogUrl,
+            profile.TikTokUrl,
+            profile.MastodonUrl);
+    }
+
+    public AuthorCommunitySettings GetAuthorCommunitySettings(int? userId = null)
+    {
+        var uid = userId ?? CurrentUserId();
+        if (uid == 0) return new AuthorCommunitySettings();
+        using var db = Db();
+        var user = db.Users.AsNoTracking().FirstOrDefault(u => u.Id == uid);
+        if (user is null) return new AuthorCommunitySettings();
+        return new AuthorCommunitySettings
+        {
+            DiscordUrl = user.CommunityDiscordUrl,
+            TelegramUrl = user.CommunityTelegramUrl,
+            BlogUrl = user.CommunityBlogUrl,
+            TikTokUrl = user.CommunityTikTokUrl,
+            MastodonUrl = user.CommunityMastodonUrl
+        };
+    }
+
+    public CommunityProfile BuildPostCommunityProfile(int userId, string baseUrl)
+    {
+        if (userId == 0) return new CommunityProfile(null, null, null, null, null, null);
+        using var db = Db();
+        var user = db.Users.AsNoTracking().FirstOrDefault(u => u.Id == userId);
+        return GetAuthorCommunitySettings(userId)
+            .ToProfile(MailingListSignupUrl(user?.UserCode, baseUrl));
+    }
+
+    public CommunityProfile BuildCurrentPostCommunityProfile(string baseUrl) =>
+        BuildPostCommunityProfile(CurrentUserId(), baseUrl);
+
+    public string SaveBrandCommunitySettings(BrandCommunitySettings settings)
+    {
+        if (!IsOwner) return "Owner only.";
+        using var db = Db();
+        var row = db.BrandCommunitySettings.Find(1);
+        if (row is null)
+        {
+            row = new DbBrandCommunitySettings { Id = 1 };
+            db.BrandCommunitySettings.Add(row);
+        }
+
+        row.DiscordUrl = CommunityLinks.NormalizeUrl(settings.DiscordUrl) ?? "";
+        row.TelegramUrl = CommunityLinks.NormalizeUrl(settings.TelegramUrl) ?? "";
+        row.MastodonUrl = CommunityLinks.NormalizeUrl(settings.MastodonUrl) ?? "";
+        row.BlogUrl = CommunityLinks.NormalizeUrl(settings.BlogUrl) ?? "";
+        db.SaveChanges();
+        return "Brand community links saved.";
+    }
+
+    public string SaveAuthorCommunitySettings(AuthorCommunitySettings settings)
+    {
+        var uid = CurrentUserId();
+        if (uid == 0) return "Not signed in.";
+        using var db = Db();
+        var user = db.Users.FirstOrDefault(u => u.Id == uid);
+        if (user is null) return "Account not found.";
+
+        user.CommunityDiscordUrl = CommunityLinks.NormalizeUrl(settings.DiscordUrl) ?? "";
+        user.CommunityTelegramUrl = CommunityLinks.NormalizeUrl(settings.TelegramUrl) ?? "";
+        user.CommunityBlogUrl = CommunityLinks.NormalizeUrl(settings.BlogUrl) ?? "";
+        user.CommunityTikTokUrl = CommunityLinks.NormalizeUrl(settings.TikTokUrl) ?? "";
+        user.CommunityMastodonUrl = CommunityLinks.NormalizeUrl(settings.MastodonUrl) ?? "";
+        db.SaveChanges();
+        _cachedUser = null;
+        return "Reader community links saved.";
+    }
+
+    static string? MailingListSignupUrl(string? userCode, string baseUrl)
+    {
+        if (string.IsNullOrWhiteSpace(userCode)) return null;
+        var root = baseUrl.TrimEnd('/');
+        if (string.IsNullOrEmpty(root)) return null;
+        return $"{root}/readers/signup/{Uri.EscapeDataString(userCode.Trim())}";
+    }
+
     public string SaveOwnerPayoutSettings(OwnerPayoutSettings settings)
     {
         if (string.IsNullOrWhiteSpace(settings.AccountHolderName)) return "Enter the account holder name.";
@@ -3588,7 +3705,11 @@ class AppStoreDb
             if (account is null) continue;
 
             var promoSeed = AppPromoGenerator.WeeklyPromoSeed(now, schedule.Platform, schedule.PostsSentThisWeek);
-            var postText = AppPromoGenerator.GeneratePromoPost(schedule.Platform, baseUrl, promoSeed);
+            var brandCommunity = GetBrandCommunityProfile(baseUrl);
+            var postText = CommunityLinks.AppendPromotion(
+                AppPromoGenerator.GeneratePromoPost(schedule.Platform, baseUrl, promoSeed),
+                schedule.Platform,
+                brandCommunity);
             if (string.IsNullOrWhiteSpace(postText)) continue;
 
             var accountModel = ToModel(account);
@@ -3888,7 +4009,11 @@ class AppStoreDb
             }
 
             var promoSeed = AppPromoGenerator.WeeklyPromoSeed(now, account.Platform, 0);
-            var postText = AppPromoGenerator.GeneratePromoPost(account.Platform, appBaseUrl, promoSeed);
+            var brandCommunity = GetBrandCommunityProfile(appBaseUrl);
+            var postText = CommunityLinks.AppendPromotion(
+                AppPromoGenerator.GeneratePromoPost(account.Platform, appBaseUrl, promoSeed),
+                account.Platform,
+                brandCommunity);
             if (string.IsNullOrWhiteSpace(postText)) continue;
 
             var outcome = await postingService.PostAsync(

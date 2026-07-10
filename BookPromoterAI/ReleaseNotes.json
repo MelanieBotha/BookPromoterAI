@@ -1,4 +1,14 @@
 {
+  "1.18.0": {
+    "title": "BookPromoter AI v1.18.0 — What's new",
+    "updated": [],
+    "new": [
+      "Reader community links: save Discord, Telegram, blog, TikTok, and Mastodon URLs in My Account; brand links on the Owner page",
+      "Generated posts append invite links for channels that do not grow followers on their own",
+      "Public /community page explaining Discord, Telegram, mailing list, WordPress, Medium, Flickr, TikTok, and Mastodon growth"
+    ],
+    "added": []
+  },
   "1.17.4": {
     "title": "BookPromoter AI v1.17.4 — What's new",
     "updated": [

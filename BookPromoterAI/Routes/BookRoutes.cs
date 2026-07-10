@@ -41,7 +41,8 @@ static class BookRoutes
             var schedule = store.Schedules.FirstOrDefault(s => s.PostsPerWeek > 0);
             var platform = schedule?.Platform ?? "General";
             var purchaseUrl = PostBranding.PurchaseUrlForPost(book, baseUrl, platform);
-            var text = generator.Generate(book, platform, purchaseUrl, book.PostVariantSeed, baseUrl);
+            var community = store.BuildCurrentPostCommunityProfile(baseUrl);
+            var text = generator.Generate(book, platform, purchaseUrl, book.PostVariantSeed, baseUrl, community);
             store.RecordGeneratedAd(book, platform, text);
             return Results.Redirect("/books");
         });
@@ -81,7 +82,8 @@ static class BookRoutes
                 var schedule = store.Schedules.FirstOrDefault(s => s.PostsPerWeek > 0);
                 var platform = schedule?.Platform ?? "General";
                 var purchaseUrl = PostBranding.PurchaseUrlForPost(book, baseUrl, platform);
-                var text = generator.Generate(book, platform, purchaseUrl, book.PostVariantSeed, baseUrl);
+                var community = store.BuildCurrentPostCommunityProfile(baseUrl);
+                var text = generator.Generate(book, platform, purchaseUrl, book.PostVariantSeed, baseUrl, community);
                 store.RecordGeneratedAd(book, platform, text);
             }
             return Results.Redirect("/dashboard");

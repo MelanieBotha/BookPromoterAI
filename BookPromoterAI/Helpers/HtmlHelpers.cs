@@ -88,6 +88,7 @@ static class H
                 <nav class="marketing-nav">
                     <a href="/#features">Features</a>
                     <a href="/#pricing">Pricing</a>
+                    <a href="/community">Community</a>
                     <a href="/trial">Access code</a>
                     <a href="/terms">Terms</a>
                     <a href="/privacy">Privacy</a>
@@ -105,7 +106,9 @@ static class H
                 <a href="/privacy">Privacy Policy</a>
                 <a href="/start">Sign in</a>
                 <a href="/trial">Free access code</a>
+                <a href="/community">Community</a>
                 <a href="{BrandConstants.OfficialBlueskyUrl}" target="_blank" rel="noopener">@{BrandConstants.OfficialBlueskyHandle}</a>
+                {CommunityFooterExtras(store)}
                 <span>&copy; {DateTime.UtcNow.Year} {LegalConstants.ContactName}</span>
             </footer>
             {csrfScript}
@@ -192,7 +195,9 @@ static class H
                 <span>v{AppVersion.Display}</span>
                 <a href="/terms">Terms &amp; Conditions</a>
                 <a href="/privacy">Privacy Policy</a>
+                <a href="/community">Community</a>
                 <a href="{BrandConstants.OfficialBlueskyUrl}" target="_blank" rel="noopener">@{BrandConstants.OfficialBlueskyHandle}</a>
+                {CommunityFooterExtras(store)}
                 <span>&copy; {DateTime.UtcNow.Year} {LegalConstants.ContactName}</span>
             </footer>
             {csrfScript}
@@ -296,6 +301,13 @@ static class H
             """;
 
         return menuHtml + script;
+    }
+
+    static string CommunityFooterExtras(AppStoreDb store)
+    {
+        var baseUrl = store.Settings.PublicBaseUrl.TrimEnd('/');
+        var links = CommunityLinks.RenderFooterLinks(store.GetBrandCommunityProfile(baseUrl));
+        return string.IsNullOrEmpty(links) ? "" : links;
     }
 
     static string SoftLaunchBanner(AppSettings? settings)

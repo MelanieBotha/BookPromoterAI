@@ -249,6 +249,12 @@ static class DatabaseInitializer
         AddColumnIfMissing(db, "PostingLog", "MetricsFetchedAt", """ALTER TABLE "PostingLog" ADD COLUMN "MetricsFetchedAt" TEXT NULL""");
         AddColumnIfMissing(db, "GeneratedAds", "PostedVia", """ALTER TABLE "GeneratedAds" ADD COLUMN "PostedVia" TEXT NOT NULL DEFAULT ''""");
         AddColumnIfMissing(db, "PostingLog", "PostDelivery", """ALTER TABLE "PostingLog" ADD COLUMN "PostDelivery" TEXT NOT NULL DEFAULT ''""");
+        AddColumnIfMissing(db, "Users", "CommunityDiscordUrl", """ALTER TABLE "Users" ADD COLUMN "CommunityDiscordUrl" TEXT NOT NULL DEFAULT ''""");
+        AddColumnIfMissing(db, "Users", "CommunityTelegramUrl", """ALTER TABLE "Users" ADD COLUMN "CommunityTelegramUrl" TEXT NOT NULL DEFAULT ''""");
+        AddColumnIfMissing(db, "Users", "CommunityBlogUrl", """ALTER TABLE "Users" ADD COLUMN "CommunityBlogUrl" TEXT NOT NULL DEFAULT ''""");
+        AddColumnIfMissing(db, "Users", "CommunityTikTokUrl", """ALTER TABLE "Users" ADD COLUMN "CommunityTikTokUrl" TEXT NOT NULL DEFAULT ''""");
+        AddColumnIfMissing(db, "Users", "CommunityMastodonUrl", """ALTER TABLE "Users" ADD COLUMN "CommunityMastodonUrl" TEXT NOT NULL DEFAULT ''""");
+        EnsureBrandCommunitySettingsTable(db);
         AddColumnIfMissing(db, "TikTokVideos", "NarrationText", """ALTER TABLE "TikTokVideos" ADD COLUMN "NarrationText" TEXT NOT NULL DEFAULT ''""");
         AddColumnIfMissing(db, "TikTokVideos", "WeekNumber", """ALTER TABLE "TikTokVideos" ADD COLUMN "WeekNumber" INTEGER NOT NULL DEFAULT 0""");
         AddColumnIfMissing(db, "TikTokVideos", "WeekYear", """ALTER TABLE "TikTokVideos" ADD COLUMN "WeekYear" INTEGER NOT NULL DEFAULT 0""");
@@ -376,5 +382,21 @@ static class DatabaseInitializer
         if (!TableExists(db, table)) return;
         if (ColumnExists(db, table, column)) return;
         db.Database.ExecuteSqlRaw(alterSql);
+    }
+
+    static void EnsureBrandCommunitySettingsTable(AppDbContext db)
+    {
+        if (TableExists(db, "BrandCommunitySettings")) return;
+
+        db.Database.ExecuteSqlRaw("""
+            CREATE TABLE IF NOT EXISTS "BrandCommunitySettings" (
+                "Id" INTEGER NOT NULL PRIMARY KEY,
+                "DiscordUrl" TEXT NOT NULL DEFAULT '',
+                "TelegramUrl" TEXT NOT NULL DEFAULT '',
+                "MastodonUrl" TEXT NOT NULL DEFAULT '',
+                "BlogUrl" TEXT NOT NULL DEFAULT ''
+            );
+            """);
+        db.Database.ExecuteSqlRaw("""INSERT OR IGNORE INTO "BrandCommunitySettings" ("Id") VALUES (1);""");
     }
 }

@@ -58,6 +58,17 @@ static class LandingPage
 
         {PlansPreview(store)}
 
+        <section class="landing-section panel" id="community">
+            <div class="landing-section-head">
+                <p class="eyebrow">Grow your community</p>
+                <h2>Discord &amp; Telegram need invite links</h2>
+                <p class="muted">Auto-posting reaches people already in your server or channel. To gain new members, share permanent invite links from X, Bluesky, email, and your site. BookPromoter AI can append those links to your other social posts.</p>
+            </div>
+            <div class="landing-cta-row">
+                <a class="button secondary" href="/community">See which platforms need outside help</a>
+            </div>
+        </section>
+
         <section class="landing-section landing-final-cta panel">
             <h2>Ready to promote your books?</h2>
             <p class="muted">Join authors using BookPromoter AI to save time and reach more readers.</p>

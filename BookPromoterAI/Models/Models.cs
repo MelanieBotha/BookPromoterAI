@@ -289,6 +289,39 @@ class PostingLogEntry
     public string PostDelivery { get; set; } = "";
 }
 
+class BrandCommunitySettings
+{
+    public string DiscordUrl { get; set; } = "";
+    public string TelegramUrl { get; set; } = "";
+    public string MastodonUrl { get; set; } = "";
+    public string BlogUrl { get; set; } = "";
+
+    public CommunityProfile ToProfile(string? mailingListUrl = null) => new(
+        CommunityLinks.NormalizeUrl(DiscordUrl),
+        CommunityLinks.NormalizeUrl(TelegramUrl),
+        CommunityLinks.NormalizeUrl(mailingListUrl),
+        CommunityLinks.NormalizeUrl(BlogUrl),
+        null,
+        CommunityLinks.NormalizeUrl(MastodonUrl));
+}
+
+class AuthorCommunitySettings
+{
+    public string DiscordUrl { get; set; } = "";
+    public string TelegramUrl { get; set; } = "";
+    public string BlogUrl { get; set; } = "";
+    public string TikTokUrl { get; set; } = "";
+    public string MastodonUrl { get; set; } = "";
+
+    public CommunityProfile ToProfile(string? mailingListUrl = null) => new(
+        CommunityLinks.NormalizeUrl(DiscordUrl),
+        CommunityLinks.NormalizeUrl(TelegramUrl),
+        CommunityLinks.NormalizeUrl(mailingListUrl),
+        CommunityLinks.NormalizeUrl(BlogUrl),
+        CommunityLinks.NormalizeUrl(TikTokUrl),
+        CommunityLinks.NormalizeUrl(MastodonUrl));
+}
+
 record PromoRedeemResult(bool Success, string Message);
 
 class FeedbackEntry

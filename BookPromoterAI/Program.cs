@@ -134,6 +134,7 @@ app.UseStaticFiles(new StaticFileOptions
 });
 
 LandingRoutes.Map(app);
+CommunityRoutes.Map(app);
 LegalRoutes.Map(app);
 DashboardRoutes.Map(app, generator);
 BookRoutes.Map(app, generator, uploadsDir);

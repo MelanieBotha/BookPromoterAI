@@ -84,6 +84,22 @@ static class OwnerRoutes
             return RenderOwner(http, store, settings, releaseNotes, notice);
         });
 
+        app.MapPost("/owner/community-links", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings, ReleaseNotesCatalog releaseNotes) =>
+        {
+            if (OwnerGuard(store) is { } guard) return guard;
+            var form = await request.ReadFormAsync();
+            var message = store.SaveBrandCommunitySettings(new BrandCommunitySettings
+            {
+                DiscordUrl = form["discordUrl"].ToString(),
+                TelegramUrl = form["telegramUrl"].ToString(),
+                MastodonUrl = form["mastodonUrl"].ToString(),
+                BlogUrl = form["blogUrl"].ToString()
+            });
+            var cls = message.EndsWith('.') && !message.Contains("only") ? "success" : "error";
+            var notice = $"""<div class="notice {cls}">{H.Encode(message)}</div>""";
+            return RenderOwner(http, store, settings, releaseNotes, notice, activeSection: "community-links");
+        });
+
         app.MapPost("/owner/app-promo/email", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings, ReleaseNotesCatalog releaseNotes) =>
         {
             if (OwnerGuard(store) is { } guard) return guard;

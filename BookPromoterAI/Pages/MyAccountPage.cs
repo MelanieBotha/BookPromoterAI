@@ -8,6 +8,10 @@ static class MyAccountPage
         var plan = store.CurrentPlan;
         var planName = plan?.Name ?? store.AccessType;
         var userCode = store.CurrentUserCode ?? "N/A";
+        var community = store.GetAuthorCommunitySettings();
+        var mailingSignup = !string.IsNullOrWhiteSpace(store.CurrentUserCode)
+            ? $"/readers/signup/{Uri.EscapeDataString(store.CurrentUserCode)}"
+            : "";
 
         // ── Account Details ──────────────────────────────────────────
         var accountSection = $"""
@@ -21,6 +25,34 @@ static class MyAccountPage
                     <a href="/billing">Change Plan</a> &middot;
                     <a href="/logout">Log Out</a>
                 </p>
+            </section>
+            """;
+
+        var externalPlatforms = string.Join(", ", CommunityLinks.ExternalAudiencePlatforms);
+        var communitySection = $"""
+            <section class="panel" id="community-links">
+                <h2>Reader community links</h2>
+                <p class="muted">Discord, Telegram, and similar channels <strong>post</strong> your promos but rarely grow on their own. Add invite links here — they are appended to generated posts on other platforms ({H.Encode(externalPlatforms)}).</p>
+                <p class="muted small-text">Your mailing list signup is included automatically: <a href="{H.Encode(mailingSignup)}">reader signup link</a> (manage subscribers on <a href="/mailing-list">Mailing List</a>).</p>
+                <p class="muted small-text"><a href="/community">Learn which platforms need outside promotion</a></p>
+                <form method="post" action="/my-account/community" class="form">
+                    <label>Discord invite URL
+                        <input name="discordUrl" value="{H.Encode(community.DiscordUrl)}" placeholder="https://discord.gg/your-server">
+                    </label>
+                    <label>Telegram channel URL
+                        <input name="telegramUrl" value="{H.Encode(community.TelegramUrl)}" placeholder="https://t.me/yourchannel">
+                    </label>
+                    <label>Blog / WordPress URL
+                        <input name="blogUrl" value="{H.Encode(community.BlogUrl)}" placeholder="https://yourblog.com">
+                    </label>
+                    <label>TikTok profile URL
+                        <input name="tiktokUrl" value="{H.Encode(community.TikTokUrl)}" placeholder="https://tiktok.com/@you">
+                    </label>
+                    <label>Mastodon profile URL
+                        <input name="mastodonUrl" value="{H.Encode(community.MastodonUrl)}" placeholder="https://mastodon.social/@you">
+                    </label>
+                    <button class="button" type="submit">Save community links</button>
+                </form>
             </section>
             """;
 
@@ -241,6 +273,7 @@ static class MyAccountPage
             {notice}
 
             {accountSection}
+            {communitySection}
             {socialSection}
             {postingLogSection}
             {manualForm}

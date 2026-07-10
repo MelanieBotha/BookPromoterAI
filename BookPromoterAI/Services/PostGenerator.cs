@@ -12,7 +12,7 @@ class PostGenerator
 
     private static readonly string[] GenericHooks = ["Looking for your next read?", "Your next favorite book is one click away.", "Readers can't stop talking about this one."];
 
-    public string Generate(Book book, string platform, string purchaseUrl, int variantSeed = 0, string appBaseUrl = "")
+    public string Generate(Book book, string platform, string purchaseUrl, int variantSeed = 0, string appBaseUrl = "", CommunityProfile? community = null)
     {
         var descriptionHook = ExtractDescriptionHook(book.Description, variantSeed);
         var genreHook = PickHook(book.Genre, variantSeed);
@@ -52,11 +52,11 @@ class PostGenerator
                 : $"{hook}\n\n{book.Description}\n\n{linkLine}"
         };
 
-        return PostLimits.Enforce(body, platform);
+        return CommunityLinks.AppendPromotion(body, platform, community);
     }
 
     /// <summary>Short hook + BookTok hashtags for vertical video captions.</summary>
-    public string GenerateTikTokCaption(Book book, string purchaseUrl, int variantSeed = 0)
+    public string GenerateTikTokCaption(Book book, string purchaseUrl, int variantSeed = 0, CommunityProfile? community = null)
     {
         var hook = BuildTikTokHook(book, variantSeed);
         var tags = $"#BookTok #{CleanTag(book.GenreOrDefault())} #Books #AuthorLife";
@@ -66,9 +66,9 @@ class PostGenerator
             if (!link.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
                 !link.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
                 link = "https://" + link.TrimStart('/');
-            return $"{hook}\n\n{tags}\n\n{link}";
+            return CommunityLinks.AppendPromotion($"{hook}\n\n{tags}\n\n{link}", "TikTok", community);
         }
-        return $"{hook}\n\n{tags}";
+        return CommunityLinks.AppendPromotion($"{hook}\n\n{tags}", "TikTok", community);
     }
 
     static string BuildTikTokHook(Book book, int variantSeed)
