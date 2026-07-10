@@ -8,7 +8,15 @@ namespace BookPromoterAI;
 static class TumblrPostFormatter
 {
     const int MaxTagLength = 40;
-    const int MaxTags = 12;
+    const int MaxTags = 30;
+
+    static readonly string[] DiscoveryTags =
+    [
+        "writeblr", "fanfic", "writing community", "fandom", "fanfiction",
+        "blorbo", "books", "archive of our own", "blorbos", "bookblr",
+        "writer", "fandoms", "ao3", "writers", "comfort character",
+        "writing", "book", "fictional characters"
+    ];
 
     static readonly Regex UrlRegex = new(@"https?://[^\s<>""']+", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
@@ -58,12 +66,17 @@ static class TumblrPostFormatter
         return sb.ToString();
     }
 
-    public static string BuildBrandTags() =>
-        string.Join(",", new[] { "bookpromoter ai", "authors", "indie author", "book marketing", "writing", "books", "self publishing" });
+    public static string BuildBrandTags()
+    {
+        var tags = new List<string>(DiscoveryTags);
+        foreach (var tag in new[] { "bookpromoter ai", "authors", "indie author", "book marketing", "self publishing" })
+            AddTag(tags, tag);
+        return string.Join(",", tags.Take(MaxTags));
+    }
 
     public static string BuildTags(string? bookTitle, string? authorName, string? genre)
     {
-        var tags = new List<string> { "books", "reading", "bookpromoter ai", "indie author" };
+        var tags = new List<string>(DiscoveryTags);
 
         AddTag(tags, genre);
         AddTag(tags, authorName);
