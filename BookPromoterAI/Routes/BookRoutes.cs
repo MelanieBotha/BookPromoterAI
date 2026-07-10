@@ -135,6 +135,27 @@ static class BookRoutes
             return Results.NotFound("Cover not found.");
         });
 
+        app.MapGet("/book/{trackingCode}/cover-card", (string trackingCode, HttpContext http, AppStoreDb store, AppSettings settings) =>
+        {
+            var book = store.FindBookByTrackingCode(trackingCode);
+            if (book is null || string.IsNullOrWhiteSpace(book.CoverImageUrl))
+                return Results.NotFound("Cover not found.");
+
+            if (!book.CoverImageUrl.StartsWith("/uploads/", StringComparison.OrdinalIgnoreCase))
+            {
+                var appBaseUrl = PublicUrl.Base(http.Request, settings);
+                return Results.Redirect(PostBranding.BookCoverShareUrl(appBaseUrl, trackingCode));
+            }
+
+            var path = Path.Combine(uploadsDir, Path.GetFileName(book.CoverImageUrl));
+            if (!File.Exists(path)) return Results.NotFound("Cover not found.");
+
+            var card = SocialCoverImage.TryBuildCard(path);
+            return card is null
+                ? Results.NotFound("Cover not found.")
+                : Results.File(card, "image/jpeg");
+        });
+
         app.MapGet("/go/{trackingCode}", (string trackingCode, AppStoreDb store) =>
         {
             var book = store.RecordClick(trackingCode);

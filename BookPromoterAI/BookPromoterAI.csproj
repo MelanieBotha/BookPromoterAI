@@ -4,10 +4,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>BookPromoterAI</RootNamespace>
-    <Version>1.17.5</Version>
-    <AssemblyVersion>1.17.5.0</AssemblyVersion>
-    <FileVersion>1.17.5.0</FileVersion>
-    <InformationalVersion>1.17.5</InformationalVersion>
+    <Version>1.17.6</Version>
+    <AssemblyVersion>1.17.6.0</AssemblyVersion>
+    <FileVersion>1.17.6.0</FileVersion>
+    <InformationalVersion>1.17.6</InformationalVersion>
   </PropertyGroup>
   <ItemGroup>
     <Content Update="ReleaseNotes.json" CopyToOutputDirectory="PreserveNewest" />
@@ -20,6 +20,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="SendGrid" Version="9.29.3" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" />
     <PackageReference Include="Stripe.net" Version="52.1.0" />
   </ItemGroup>
 </Project>

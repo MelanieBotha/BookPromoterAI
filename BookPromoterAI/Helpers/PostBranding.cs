@@ -19,7 +19,7 @@ static class PostBranding
     public static string BuildBookShareMeta(Book book, string pageUrl, string assetBaseUrl, (int Width, int Height)? imageSize = null)
     {
         var hasCover = !string.IsNullOrWhiteSpace(book.CoverImageUrl);
-        var coverUrl = hasCover ? EnsureHttps(BookCoverShareUrl(assetBaseUrl, book.TrackingCode)) : "";
+        var coverUrl = hasCover ? EnsureHttps(BookCoverSocialShareUrl(assetBaseUrl, book.TrackingCode)) : "";
         var description = string.IsNullOrWhiteSpace(book.Description)
             ? $"Discover {book.Title} by {book.AuthorName}"
             : book.Description;
@@ -27,13 +27,18 @@ static class PostBranding
             description = description[..197] + "...";
 
         var cardType = hasCover ? "summary_large_image" : "summary";
-        var imageType = GuessImageType(book.CoverImageUrl);
-        var sizeMeta = imageSize is { Width: > 0, Height: > 0 } size
+        var imageType = hasCover ? "image/jpeg" : GuessImageType(book.CoverImageUrl);
+        var sizeMeta = hasCover
             ? $"""
-                <meta property="og:image:width" content="{size.Width}">
-                <meta property="og:image:height" content="{size.Height}">
+                <meta property="og:image:width" content="{SocialCoverImage.CardWidth}">
+                <meta property="og:image:height" content="{SocialCoverImage.CardHeight}">
                 """
-            : "";
+            : imageSize is { Width: > 0, Height: > 0 } size
+                ? $"""
+                    <meta property="og:image:width" content="{size.Width}">
+                    <meta property="og:image:height" content="{size.Height}">
+                    """
+                : "";
 
         var imageMeta = string.IsNullOrWhiteSpace(coverUrl)
             ? ""
@@ -111,6 +116,10 @@ static class PostBranding
     /// <summary>Stable cover URL for social crawlers (Twitter, Facebook) on the book share path.</summary>
     public static string BookCoverShareUrl(string appBaseUrl, string trackingCode) =>
         $"{appBaseUrl.TrimEnd('/')}/book/{trackingCode}/cover";
+
+    /// <summary>Letterboxed 2:1 cover for link-preview cards so portrait covers are not cropped.</summary>
+    public static string BookCoverSocialShareUrl(string appBaseUrl, string trackingCode) =>
+        $"{appBaseUrl.TrimEnd('/')}/book/{trackingCode}/cover-card";
 
     public static string AbsoluteLogoUrl(string appBaseUrl) =>
         $"{appBaseUrl.TrimEnd('/')}{LogoPath}";
