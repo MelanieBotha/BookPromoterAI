@@ -110,8 +110,9 @@ static class BookRoutes
                 ? $"Discover {clicked.Title} by {clicked.AuthorName}"
                 : H.LimitWords(clicked.Description, 40);
             var ogMeta = PostBranding.BuildBookShareMeta(clicked, pageUrl, appBaseUrl, imageSize);
+            var followLinks = store.GetAuthorFollowLinksForTrackingCode(trackingCode, appBaseUrl);
             return Results.Content(
-                H.RenderMarketingPage(http, clicked.Title, PublicBookPage.Render(clicked, appBaseUrl, appBaseUrl), store, ogMeta, description),
+                H.RenderMarketingPage(http, clicked.Title, PublicBookPage.Render(clicked, appBaseUrl, appBaseUrl, followLinks), store, ogMeta, description),
                 "text/html");
         });
 

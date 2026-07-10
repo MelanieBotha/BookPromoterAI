@@ -337,6 +337,25 @@ class AppStoreDb
         return b is null ? null : ToModel(b);
     }
 
+    /// <summary>Public follow links for the author who owns the book (connected socials + community invites).</summary>
+    public IReadOnlyList<AuthorFollowLinks.Link> GetAuthorFollowLinksForTrackingCode(string trackingCode, string baseUrl)
+    {
+        using var db = Db();
+        var book = db.Books.AsNoTracking().FirstOrDefault(b => b.TrackingCode == trackingCode);
+        if (book is null) return [];
+
+        var accounts = db.SocialAccounts.AsNoTracking()
+            .Where(a => a.UserId == book.UserId
+                && a.IsConnected
+                && (a.AccountKind == SocialAccountKinds.Author || a.AccountKind == ""))
+            .ToList()
+            .Select(ToModel)
+            .ToList();
+
+        var community = BuildPostCommunityProfile(book.UserId, baseUrl);
+        return AuthorFollowLinks.Build(accounts, community);
+    }
+
     public Book? RecordClick(string trackingCode, string? platformSource = null)
     {
         using var db = Db();

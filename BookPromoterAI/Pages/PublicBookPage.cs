@@ -4,7 +4,11 @@ namespace BookPromoterAI;
 
 static class PublicBookPage
 {
-    public static string Render(Book book, string appBaseUrl, string assetBaseUrl)
+    public static string Render(
+        Book book,
+        string appBaseUrl,
+        string assetBaseUrl,
+        IReadOnlyList<AuthorFollowLinks.Link>? followLinks = null)
     {
         var appUrl = appBaseUrl.TrimEnd('/');
         var cover = string.IsNullOrWhiteSpace(book.CoverImageUrl)
@@ -22,6 +26,7 @@ static class PublicBookPage
             buyLinks.Append("""<p class="muted">Purchase links coming soon.</p>""");
 
         var genre = string.IsNullOrWhiteSpace(book.Genre) ? "" : $"""<p class="platform-tag">{H.Encode(book.Genre)}</p>""";
+        var followSection = RenderFollowSection(book.AuthorName, followLinks);
 
         return $"""
             <section class="public-book-page">
@@ -34,6 +39,7 @@ static class PublicBookPage
                         {genre}
                         <p class="public-book-description">{H.Encode(book.Description)}</p>
                         <div class="landing-cta-row public-book-buy">{buyLinks}</div>
+                        {followSection}
                     </div>
                 </div>
 
@@ -47,6 +53,28 @@ static class PublicBookPage
                     </div>
                 </section>
             </section>
+            """;
+    }
+
+    static string RenderFollowSection(string authorName, IReadOnlyList<AuthorFollowLinks.Link>? followLinks)
+    {
+        if (followLinks is null || followLinks.Count == 0) return "";
+
+        var buttons = new StringBuilder();
+        foreach (var link in followLinks)
+        {
+            buttons.Append($"""
+                <a class="button secondary" href="{H.Encode(link.Url)}" target="_blank" rel="noopener noreferrer">{H.Encode(link.Label)}</a>
+                """);
+        }
+
+        var who = string.IsNullOrWhiteSpace(authorName) ? "the author" : authorName.Trim();
+        return $"""
+            <div class="public-book-follow">
+                <p class="eyebrow">Follow me on</p>
+                <p class="muted small-text">Stay in touch with {H.Encode(who)} on social and community channels.</p>
+                <div class="landing-cta-row public-book-follow-links">{buttons}</div>
+            </div>
             """;
     }
 }

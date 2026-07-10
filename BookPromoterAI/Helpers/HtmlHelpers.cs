@@ -416,6 +416,9 @@ h2{font-size:22px}
 .public-book-cover{width:100%;max-height:320px;object-fit:cover;border-radius:8px}
 .public-book-description{line-height:1.6;margin:16px 0}
 .public-book-buy{margin-top:8px}
+.public-book-follow{margin-top:28px;padding-top:20px;border-top:1px solid var(--line)}
+.public-book-follow .eyebrow{margin-bottom:4px}
+.public-book-follow-links{margin-top:10px}
 .public-book-author-cta{text-align:center;margin-top:24px}
 .public-book-author-cta h2{margin:8px 0 12px;font-size:22px}
 @media(max-width:700px){.public-book-hero{grid-template-columns:1fr}}
