@@ -253,9 +253,19 @@ static class TikTokPage
             sessionStorage.setItem('videos-scroll', String(scrollY));
             btn.disabled = true;
             const fd = videoCsrfFormData();
-            const res = await fetch('/videos/retry/' + id + '?ajax=1', { method: 'POST', body: fd, credentials: 'same-origin' });
-            if (!res.ok) { btn.disabled = false; alert('Could not retry. Refresh and try again.'); return; }
-            location.href = '/videos?retried=1#videos-week';
+            try {
+                const res = await fetch('/videos/retry/' + id + '?ajax=1', { method: 'POST', body: fd, credentials: 'same-origin' });
+                const data = await res.json().catch(function () { return {}; });
+                if (!res.ok) {
+                    btn.disabled = false;
+                    alert(data.error || ('Could not retry (' + res.status + '). Refresh and try again.'));
+                    return;
+                }
+                location.href = '/videos?retried=1#videos-week';
+            } catch (e) {
+                btn.disabled = false;
+                alert('Could not reach the server. Refresh and try again.');
+            }
         }
         (function () {
             const y = sessionStorage.getItem('videos-scroll');

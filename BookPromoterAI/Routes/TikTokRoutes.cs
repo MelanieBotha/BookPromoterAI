@@ -7,13 +7,28 @@ static class TikTokRoutes
         app.MapGet("/tiktok", (HttpRequest request) =>
             Results.Redirect("/videos" + request.QueryString));
 
-        app.MapGet("/videos", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings, VideoRenderService renderer, LocalSpeechService speechService, UploadPaths uploads) =>
+        app.MapGet("/videos", (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings, VideoRenderService renderer, LocalSpeechService speechService, UploadPaths uploads, IServiceScopeFactory scopes) =>
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
             var baseUrl = PublicUrl.Base(request, settings);
             var queued = store.EnsureWeeklyVideos(generator, baseUrl);
-            store.ResetStuckRenderingVideos(TimeSpan.FromMinutes(10));
-            await store.RenderPendingVideosAsync(renderer, uploads.Path, baseUrl);
+            store.ResetStuckRenderingVideos(TimeSpan.FromMinutes(15));
+            // Do not await a full render on page load — that blocks the browser and times out proxies.
+            var uploadsPath = uploads.Path;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    using var scope = scopes.CreateScope();
+                    var bgStore = scope.ServiceProvider.GetRequiredService<AppStoreDb>();
+                    var bgRenderer = scope.ServiceProvider.GetRequiredService<VideoRenderService>();
+                    await bgStore.RenderPendingVideosAsync(bgRenderer, uploadsPath, baseUrl);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Videos] Background render failed: {ex.Message}");
+                }
+            });
             var notice = request.Query["created"] == "1"
                 ? """<div class="notice success">Video created! Download it below and post to social media when you are ready.</div>"""
                 : request.Query["uploaded"] == "1"
@@ -21,7 +36,7 @@ static class TikTokRoutes
                     : request.Query["deleted"] == "1"
                         ? """<div class="notice success">Video removed.</div>"""
                         : request.Query["retried"] == "1"
-                            ? """<div class="notice success">Video queued to generate again — refresh in a few minutes.</div>"""
+                            ? """<div class="notice success">Video queued again. Status will change from Rendering to Ready in a few minutes — refresh this page.</div>"""
                     : request.Query["error"] == "1"
                         ? $"""<div class="notice error">{H.Encode(request.Query["msg"].ToString())}</div>"""
                         : queued > 0
@@ -80,14 +95,32 @@ static class TikTokRoutes
             return Results.Redirect(ok ? "/videos?deleted=1#videos-week" : "/videos?error=1&msg=" + Uri.EscapeDataString("Could not remove that video."));
         });
 
-        app.MapPost("/videos/retry/{id:int}", async (int id, HttpRequest request, AppStoreDb store, AppSettings settings, VideoRenderService renderer, UploadPaths uploads) =>
+        app.MapPost("/videos/retry/{id:int}", (int id, HttpRequest request, AppStoreDb store, AppSettings settings, UploadPaths uploads, IServiceScopeFactory scopes) =>
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
             var retried = store.RetryFailedWeeklyVideo(id, generator);
             if (retried > 0)
-                await store.RenderPendingVideosAsync(renderer, uploads.Path, PublicUrl.Base(request, settings));
+            {
+                var baseUrl = PublicUrl.Base(request, settings);
+                var uploadsPath = uploads.Path;
+                // Queue only — render in background so the Retry click does not time out (502/“Could not retry”).
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        using var scope = scopes.CreateScope();
+                        var bgStore = scope.ServiceProvider.GetRequiredService<AppStoreDb>();
+                        var bgRenderer = scope.ServiceProvider.GetRequiredService<VideoRenderService>();
+                        await bgStore.RenderPendingVideosAsync(bgRenderer, uploadsPath, baseUrl);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[Videos] Retry background render failed: {ex.Message}");
+                    }
+                });
+            }
             if (request.Query.ContainsKey("ajax"))
-                return retried > 0 ? Results.Json(new { ok = true }) : Results.Json(new { ok = false }, statusCode: 404);
+                return retried > 0 ? Results.Json(new { ok = true }) : Results.Json(new { ok = false, error = "Video not found or not in Failed state. Refresh the page." }, statusCode: 404);
             return Results.Redirect(retried > 0 ? "/videos?retried=1#videos-week" : "/videos?error=1&msg=" + Uri.EscapeDataString("Could not retry that video."));
         });
 

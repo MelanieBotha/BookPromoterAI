@@ -886,8 +886,12 @@ class AppStoreDb
         if (book is not null)
             row.NarrationText = VideoCaptionGenerator.BuildSixtySecondNarration(ToModel(book), generator, book.PostVariantSeed);
 
+        // Reset the clock so ResetStuckRenderingVideos does not immediately fail this retry
+        // (CreatedAt was the original queue time, often days old).
+        row.CreatedAt = DateTime.UtcNow;
         row.Status = TikTokVideoStatuses.Rendering;
         row.ErrorMessage = null;
+        row.VideoUrl = "";
         db.SaveChanges();
         return 1;
     }
@@ -913,8 +917,10 @@ class AppStoreDb
             var book = db.Books.AsNoTracking().FirstOrDefault(b => b.Id == row.BookId && b.UserId == row.UserId);
             if (book is not null)
                 row.NarrationText = VideoCaptionGenerator.BuildSixtySecondNarration(ToModel(book), generator, book.PostVariantSeed);
+            row.CreatedAt = DateTime.UtcNow;
             row.Status = TikTokVideoStatuses.Rendering;
             row.ErrorMessage = null;
+            row.VideoUrl = "";
         }
 
         db.SaveChanges();
@@ -956,6 +962,10 @@ class AppStoreDb
         var rendered = 0;
         foreach (var row in pending)
         {
+            // Heartbeat so a long ElevenLabs+FFmpeg render is not marked "timed out" mid-run.
+            row.CreatedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync(cancellationToken);
+
             var book = await db.Books.AsNoTracking().FirstOrDefaultAsync(b => b.Id == row.BookId && b.UserId == row.UserId, cancellationToken);
             if (book is null)
             {
@@ -993,7 +1003,7 @@ class AppStoreDb
             EnsureWeeklyVideos(generator, appBaseUrl, userId);
 
         RequeueFailedWeeklyVideos(generator);
-        ResetStuckRenderingVideos(TimeSpan.FromMinutes(10));
+        ResetStuckRenderingVideos(TimeSpan.FromMinutes(15));
         await RenderPendingVideosAsync(renderer, uploadsDir, appBaseUrl, cancellationToken);
     }
 

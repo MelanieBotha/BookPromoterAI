@@ -1,4 +1,12 @@
 {
+  "1.19.4": {
+    "title": "BookPromoter AI v1.19.4 — What's new",
+    "updated": [
+      "Fix Retry: no longer falsely times out old CreatedAt timestamps, and Retry returns immediately while rendering runs in the background"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.19.3": {
     "title": "BookPromoter AI v1.19.3 — What's new",
     "updated": [
