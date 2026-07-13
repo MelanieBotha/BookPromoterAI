@@ -859,7 +859,7 @@ class SocialPostingService
     async Task<PostingResult> PostToTikTok(SocialAccount account, string postText)
     {
         await Task.CompletedTask;
-        return PostingResult.SimulatedOk("(Simulated) Posted to TikTok. Note: TikTok requires video content for real posts.");
+        return PostingResult.Failure("TikTok posts need video. Use the Videos tab to send book promo videos to your TikTok inbox (or download them).");
     }
 
     async Task<PostingResult> PostGeneric(SocialAccount account, string postText)

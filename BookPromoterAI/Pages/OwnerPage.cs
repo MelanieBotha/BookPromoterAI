@@ -636,7 +636,7 @@ static class OwnerPage
                                     <li><code>TikTok__ClientKey</code></li>
                                     <li><code>TikTok__ClientSecret</code></li>
                                 </ul>
-                                <p class="muted">Authors use the <strong>Videos</strong> tab to create book promo videos and download them for manual posting. Direct TikTok API posting is not enabled yet.</p>
+                                <p class="muted">Authors use the <strong>Videos</strong> tab to connect TikTok, send Ready videos to their inbox (or auto-send), and always keep Download for Reels/Shorts/manual posting.</p>
                             </div>
                         </details>
                     </div>

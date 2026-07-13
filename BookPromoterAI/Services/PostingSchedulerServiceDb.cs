@@ -44,7 +44,8 @@ class PostingSchedulerServiceDb : BackgroundService
                 var generator = new PostGenerator();
                 var uploads = scope.ServiceProvider.GetRequiredService<UploadPaths>();
                 var videoRenderer = scope.ServiceProvider.GetRequiredService<VideoRenderService>();
-                await store.RunWeeklyVideoPipelineAsync(generator, videoRenderer, uploads.Path, baseUrl, stoppingToken);
+                var tiktok = scope.ServiceProvider.GetRequiredService<TikTokService>();
+                await store.RunWeeklyVideoPipelineAsync(generator, videoRenderer, uploads.Path, baseUrl, tiktok, stoppingToken);
             }
             catch { /* log and continue */ }
 

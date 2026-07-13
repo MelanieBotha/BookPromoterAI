@@ -131,6 +131,9 @@ class DbUser
     public string CommunityTikTokUrl { get; set; } = "";
     public string CommunityMastodonUrl { get; set; } = "";
 
+    /// <summary>When true, Ready weekly videos are auto-sent to the connected TikTok inbox.</summary>
+    public bool TikTokAutoPostEnabled { get; set; }
+
     // Navigation
     public List<DbBook> Books { get; set; } = [];
     public List<DbSocialAccount> SocialAccounts { get; set; } = [];

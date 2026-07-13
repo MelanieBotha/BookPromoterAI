@@ -78,36 +78,48 @@ class TikTokService
         return new TikTokTokenSet(parsed.AccessToken, parsed.RefreshToken ?? refreshToken, parsed.ExpiresIn);
     }
 
-    public async Task<(PostingResult Result, TikTokTokenSet? UpdatedTokens)> SendVideoToInboxAsync(
+    public async Task<(PostingResult Result, TikTokTokenSet? UpdatedTokens, string? PublishId)> SendVideoToInboxAsync(
         TikTokTokenSet tokens,
         string absoluteVideoUrl,
         string title,
         CancellationToken cancellationToken = default)
     {
         var working = tokens;
+        TikTokTokenSet? updated = null;
+
+        if (!string.IsNullOrWhiteSpace(working.RefreshToken))
+        {
+            var refreshed = await RefreshTokensAsync(working.RefreshToken, cancellationToken);
+            if (refreshed is not null)
+            {
+                working = refreshed;
+                updated = refreshed;
+            }
+        }
+
         var publishId = await InitInboxUploadAsync(working.AccessToken, absoluteVideoUrl, title, cancellationToken);
         if (publishId is null)
-            return (PostingResult.Failure("TikTok could not start the video upload. Check that your video URL is public HTTPS and the domain is verified in TikTok Developer Portal."), null);
+            return (PostingResult.Failure("TikTok could not start the video upload. Check that your video URL is public HTTPS and the domain is verified in TikTok Developer Portal."), updated, null);
 
-        for (var i = 0; i < 30; i++)
+        for (var i = 0; i < 15; i++)
         {
             await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
             var status = await FetchPublishStatusAsync(working.AccessToken, publishId, cancellationToken);
             if (status is null) continue;
 
             if (status.Equals("FAILED", StringComparison.OrdinalIgnoreCase))
-                return (PostingResult.Failure("TikTok rejected the video upload. Check format (MP4/MOV, vertical 9:16 recommended) and try again."), null);
+                return (PostingResult.Failure("TikTok rejected the video upload. Check format (MP4/MOV, vertical 9:16 recommended) and try again."), updated, publishId);
 
             if (status.Equals("SEND_TO_USER_INBOX", StringComparison.OrdinalIgnoreCase) ||
                 status.Equals("PUBLISH_COMPLETE", StringComparison.OrdinalIgnoreCase))
             {
                 return (PostingResult.LiveOk(
-                    "Video sent to your TikTok inbox — open the TikTok app to review, add sounds, and publish."), working);
+                    "Video sent to your TikTok inbox — open the TikTok app to review, add sounds, and publish."), updated, publishId);
             }
         }
 
         return (PostingResult.LiveOk(
-            "Video upload started on TikTok. Open the TikTok app in a few minutes to check your inbox."), working);
+            "Video upload started on TikTok. Open the TikTok app in a few minutes to check your inbox."), updated, publishId);
     }
 
     async Task<TikTokTokenSet?> ExchangeCodeAsync(

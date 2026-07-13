@@ -25,6 +25,14 @@ static class TikTokRoutes
                             ? """<div class="notice success">Video queued again. Status will change from Rendering to Ready in a few minutes — refresh this page.</div>"""
                         : request.Query["regenerated"] == "1"
                             ? """<div class="notice success">This week's videos were queued. Status will change from Rendering to Ready in a few minutes — refresh this page.</div>"""
+                        : request.Query["posted"] == "1"
+                            ? """<div class="notice success">Sent to your TikTok inbox. Open the TikTok app to review and publish. Download stays available below.</div>"""
+                        : request.Query["connected"] == "1"
+                            ? """<div class="notice success">TikTok connected. You can now send Ready videos to your inbox, or turn on auto-post.</div>"""
+                        : request.Query["autopost"] == "1"
+                            ? """<div class="notice success">Auto-post to TikTok inbox is on. Ready videos will be sent automatically; Download stays available.</div>"""
+                        : request.Query["autopost"] == "0"
+                            ? """<div class="notice success">Auto-post to TikTok is off. You can still Post or Download each video manually.</div>"""
                     : request.Query["error"] == "1"
                         ? $"""<div class="notice error">{H.Encode(request.Query["msg"].ToString())}</div>"""
                         : queued > 0
@@ -119,6 +127,37 @@ static class TikTokRoutes
             return Results.Redirect(queued > 0
                 ? $"/videos?regenerated=1&n={queued}#videos-week"
                 : "/videos?error=1&msg=" + Uri.EscapeDataString("No books with covers to generate. Add a cover under Books first."));
+        });
+
+        app.MapPost("/videos/post/{id:int}", async (int id, HttpRequest request, AppStoreDb store, AppSettings settings, TikTokService tiktok) =>
+        {
+            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
+            var baseUrl = PublicUrl.Base(request, settings);
+            var (ok, message) = await store.PostTikTokVideoAsync(id, tiktok, baseUrl);
+            if (request.Query.ContainsKey("ajax"))
+                return ok
+                    ? Results.Json(new { ok = true, message })
+                    : Results.Json(new { ok = false, error = message }, statusCode: 400);
+            return Results.Redirect(ok
+                ? "/videos?posted=1#videos-week"
+                : "/videos?error=1&msg=" + Uri.EscapeDataString(message));
+        });
+
+        app.MapPost("/videos/auto-post", async (HttpRequest request, AppStoreDb store) =>
+        {
+            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
+            var enabled = request.Query["enabled"] == "1";
+            if (!request.Query.ContainsKey("enabled"))
+            {
+                var form = await request.ReadFormAsync();
+                var raw = form["enabled"].ToString();
+                enabled = raw is "1" or "on" or "true";
+            }
+
+            store.SetTikTokAutoPostEnabled(enabled);
+            if (request.Query.ContainsKey("ajax"))
+                return Results.Json(new { ok = true, enabled });
+            return Results.Redirect(enabled ? "/videos?autopost=1" : "/videos?autopost=0");
         });
 
         // Legacy paths (redirect GET only; POST handlers duplicated)

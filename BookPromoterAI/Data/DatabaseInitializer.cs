@@ -254,6 +254,7 @@ static class DatabaseInitializer
         AddColumnIfMissing(db, "Users", "CommunityBlogUrl", """ALTER TABLE "Users" ADD COLUMN "CommunityBlogUrl" TEXT NOT NULL DEFAULT ''""");
         AddColumnIfMissing(db, "Users", "CommunityTikTokUrl", """ALTER TABLE "Users" ADD COLUMN "CommunityTikTokUrl" TEXT NOT NULL DEFAULT ''""");
         AddColumnIfMissing(db, "Users", "CommunityMastodonUrl", """ALTER TABLE "Users" ADD COLUMN "CommunityMastodonUrl" TEXT NOT NULL DEFAULT ''""");
+        AddColumnIfMissing(db, "Users", "TikTokAutoPostEnabled", """ALTER TABLE "Users" ADD COLUMN "TikTokAutoPostEnabled" INTEGER NOT NULL DEFAULT 0""");
         EnsureBrandCommunitySettingsTable(db);
         AddColumnIfMissing(db, "TikTokVideos", "NarrationText", """ALTER TABLE "TikTokVideos" ADD COLUMN "NarrationText" TEXT NOT NULL DEFAULT ''""");
         AddColumnIfMissing(db, "TikTokVideos", "WeekNumber", """ALTER TABLE "TikTokVideos" ADD COLUMN "WeekNumber" INTEGER NOT NULL DEFAULT 0""");
