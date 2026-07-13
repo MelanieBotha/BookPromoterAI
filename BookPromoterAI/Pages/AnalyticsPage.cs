@@ -218,14 +218,15 @@ static class AnalyticsPage
                 </section>
                 """);
 
-            // Platform clicks per author
+            // Platform clicks per author — also show when any tracked platform clicks exist (e.g. TikTok from Videos).
             var totalScheduled = store.Schedules.Sum(s => s.PostsPerWeek);
-            if (totalScheduled > 0)
+            var hasPlatformClicks = authorBooks.Any(b => b.PlatformClickHistory.Count > 0);
+            if (totalScheduled > 0 || hasPlatformClicks || store.IsTikTokConfigured)
             {
                 result.Append($"""
                     <section class="panel">
                         <h2>Clicks Per Platform &mdash; {H.Encode(authorName)}</h2>
-                        <p class="muted small-text">Actual link clicks tracked when readers open your book link from each platform. Regenerate posts in the Ad Library so each platform link includes tracking.</p>
+                        <p class="muted small-text">Actual link clicks tracked when readers open your book link from each platform. Video captions use <code>?from=tiktok</code>; regenerate Videos or Ad Library posts so each link includes tracking.</p>
                         {BuildPlatformTable(store, authorBooks, months)}
                     </section>
                     """);
@@ -382,9 +383,15 @@ static class AnalyticsPage
             foreach (var month in book.PlatformClickHistory.Values)
             {
                 foreach (var platform in month.Keys)
-                    platforms.Add(platform);
+                {
+                    // Collapse legacy ?from=videos clicks into TikTok row.
+                    platforms.Add(platform.Equals("Videos", StringComparison.OrdinalIgnoreCase) ? "TikTok" : platform);
+                }
             }
         }
+
+        if (store.IsTikTokConfigured || store.TikTokAccount is not null || store.TikTokVideos.Count > 0)
+            platforms.Add("TikTok");
 
         return platforms
             .OrderBy(p => p.Equals("Direct", StringComparison.OrdinalIgnoreCase) ? 1 : 0)
@@ -400,7 +407,8 @@ static class AnalyticsPage
             if (!book.PlatformClickHistory.TryGetValue(monthKey, out var monthPlatforms)) continue;
             foreach (var (name, clicks) in monthPlatforms)
             {
-                if (name.Equals(platform, StringComparison.OrdinalIgnoreCase))
+                var normalized = name.Equals("Videos", StringComparison.OrdinalIgnoreCase) ? "TikTok" : name;
+                if (normalized.Equals(platform, StringComparison.OrdinalIgnoreCase))
                     total += clicks;
             }
         }

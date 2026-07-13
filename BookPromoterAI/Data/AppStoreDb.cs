@@ -847,7 +847,7 @@ class AppStoreDb
         {
             if (existingBookIds.Contains(book.Id)) continue;
             var model = ToModel(book);
-            var purchaseUrl = PostBranding.PurchaseUrlForPost(model, baseUrl, "Videos");
+            var purchaseUrl = PostBranding.PurchaseUrlForPost(model, baseUrl, "TikTok");
             var community = BuildPostCommunityProfile(uid, baseUrl);
             var caption = generator.GenerateTikTokCaption(model, purchaseUrl, book.PostVariantSeed, community);
             var narration = VideoCaptionGenerator.BuildSixtySecondNarration(model, generator, book.PostVariantSeed);
@@ -897,7 +897,7 @@ class AppStoreDb
         {
             book.PostVariantSeed++;
             var model = ToModel(book);
-            var purchaseUrl = PostBranding.PurchaseUrlForPost(model, baseUrl, "Videos");
+            var purchaseUrl = PostBranding.PurchaseUrlForPost(model, baseUrl, "TikTok");
             var community = BuildPostCommunityProfile(uid, baseUrl);
             row.NarrationText = VideoCaptionGenerator.BuildSixtySecondNarration(model, generator, book.PostVariantSeed);
             row.Caption = generator.GenerateTikTokCaption(model, purchaseUrl, book.PostVariantSeed, community);
@@ -1105,8 +1105,9 @@ class AppStoreDb
 
         var row = db.TikTokVideos.FirstOrDefault(v => v.Id == videoId && v.UserId == uid);
         if (row is null) return (false, "Video not found.");
-        if (row.Status == TikTokVideoStatuses.Sent)
-            return (true, "Already sent to your TikTok inbox.");
+        if (row.Status == TikTokVideoStatuses.Sent && string.IsNullOrWhiteSpace(row.VideoUrl))
+            return (false, "No video file to push.");
+        // Allow Ready and Sent (manual push again) when a file exists.
         if (string.IsNullOrWhiteSpace(row.VideoUrl))
             return (false, "No video file attached. Wait for rendering to finish, or regenerate.");
         if (row.Status is TikTokVideoStatuses.Rendering or TikTokVideoStatuses.Removed)
