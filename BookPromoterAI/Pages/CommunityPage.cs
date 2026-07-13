@@ -28,7 +28,7 @@ static class CommunityPage
                 <li><strong>Telegram</strong> — bot posts to your channel; share <code>t.me/yourchannel</code> on X, Bluesky, email, etc.</li>
                 <li><strong>Mailing list</strong> — each author has a signup link in Mailing List; promote it like any other channel.</li>
                 <li><strong>WordPress / Medium / Flickr</strong> — readers must discover your blog; link it from social posts.</li>
-                <li><strong>TikTok</strong> — videos are downloaded and uploaded manually; grow your TikTok profile separately.</li>
+                <li><strong>TikTok</strong> — connect on Videos so Follow links open your TikTok profile; send promos to your inbox or download them.</li>
                 <li><strong>Mastodon</strong> — federated network; cross-link from X, Bluesky, and your site.</li>
             </ul>
             <p class="muted small-text">Facebook, X, Bluesky, Tumblr, and LinkedIn still benefit from community links, but their feeds help more people see each post.</p>

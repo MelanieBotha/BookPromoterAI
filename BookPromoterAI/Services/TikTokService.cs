@@ -154,7 +154,11 @@ class TikTokService
         var parsed = JsonSerializer.Deserialize<TikTokUserInfoResponse>(body);
         var user = parsed?.Data?.User;
         if (user?.OpenId is null) return null;
-        return new TikTokUser(user.OpenId, user.Username ?? user.OpenId, user.DisplayName ?? "TikTok");
+        // Never fall back to open_id for Username — readers need @handle for profile links.
+        var username = (user.Username ?? "").Trim().TrimStart('@');
+        if (string.Equals(username, user.OpenId, StringComparison.OrdinalIgnoreCase))
+            username = "";
+        return new TikTokUser(user.OpenId, username, user.DisplayName ?? "TikTok");
     }
 
     async Task<string?> InitInboxUploadAsync(
@@ -267,4 +271,12 @@ class TikTokService
 
 record TikTokTokenSet(string AccessToken, string RefreshToken, int ExpiresIn);
 
-record TikTokUser(string OpenId, string Username, string DisplayName);
+record TikTokUser(string OpenId, string Username, string DisplayName)
+{
+    public bool HasPublicUsername =>
+        !string.IsNullOrWhiteSpace(Username)
+        && !string.Equals(Username, OpenId, StringComparison.OrdinalIgnoreCase);
+
+    public string? ProfileUrl =>
+        HasPublicUsername ? $"https://www.tiktok.com/@{Username.Trim().TrimStart('@')}" : null;
+}

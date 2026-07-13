@@ -69,8 +69,16 @@ static class AuthorFollowLinks
             return string.IsNullOrWhiteSpace(handle) ? null : $"https://www.tumblr.com/{Uri.EscapeDataString(handle)}";
 
         if (PostLimits.IsTikTok(account.Platform))
-            return string.IsNullOrWhiteSpace(handle) ? null : $"https://www.tiktok.com/@{Uri.EscapeDataString(handle)}";
-
+        {
+            // Prefer a real @username. open_id is not a public TikTok profile path.
+            if (string.IsNullOrWhiteSpace(handle)
+                || string.Equals(handle, account.ExternalAccountId, StringComparison.OrdinalIgnoreCase))
+                return null;
+            if (handle.Contains("tiktok.com", StringComparison.OrdinalIgnoreCase))
+                return CommunityLinks.NormalizeUrl(
+                    handle.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? handle : "https://" + handle.TrimStart('/'));
+            return CommunityLinks.NormalizeUrl($"https://www.tiktok.com/@{handle.TrimStart('@')}");
+        }
         if (PostLimits.IsMastodon(account.Platform))
         {
             var acct = (account.Handle ?? "").Trim().TrimStart('@');

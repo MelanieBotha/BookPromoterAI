@@ -3719,6 +3719,21 @@ class AppStoreDb
         return "Reader community links saved.";
     }
 
+    /// <summary>Store public TikTok profile URL (https://www.tiktok.com/@user) for follow links and post appends.</summary>
+    public void SetCommunityTikTokProfileUrl(int userId, string profileUrl)
+    {
+        if (userId <= 0) return;
+        var normalized = CommunityLinks.NormalizeUrl(profileUrl);
+        if (normalized is null) return;
+        using var db = Db();
+        var user = db.Users.FirstOrDefault(u => u.Id == userId);
+        if (user is null) return;
+        user.CommunityTikTokUrl = normalized;
+        db.SaveChanges();
+        if (_cachedUser?.Id == userId)
+            _cachedUser = null;
+    }
+
     static string? MailingListSignupUrl(string? userCode, string baseUrl)
     {
         if (string.IsNullOrWhiteSpace(userCode)) return null;

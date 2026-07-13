@@ -82,6 +82,10 @@ static class CommunityLinks
             links.Add($"""<a href="{H.Encode(profile.TelegramUrl!)}" target="_blank" rel="noopener">Telegram</a>""");
         if (profile.HasMastodon)
             links.Add($"""<a href="{H.Encode(profile.MastodonUrl!)}" target="_blank" rel="noopener">Mastodon</a>""");
+        if (profile.HasTikTok)
+            links.Add($"""<a href="{H.Encode(profile.TikTokUrl!)}" target="_blank" rel="noopener">TikTok</a>""");
+        if (profile.HasBlog)
+            links.Add($"""<a href="{H.Encode(profile.BlogUrl!)}" target="_blank" rel="noopener">Blog</a>""");
         if (profile.HasMailingList)
             links.Add($"""<a href="{H.Encode(profile.MailingListUrl!)}" target="_blank" rel="noopener">Reader emails</a>""");
 

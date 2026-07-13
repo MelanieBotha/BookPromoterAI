@@ -1084,11 +1084,11 @@ static class SocialAccountRoutes
                 return Results.Redirect($"/social-accounts/connect/TikTok?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString(connectError)}");
             }
 
-            store.AddSocialAccountForUser(pending.UserId, new SocialAccount
+            store.UpsertOAuthSocialAccountForUser(pending.UserId, new SocialAccount
             {
                 Platform = "TikTok",
                 DisplayName = user.DisplayName,
-                Handle = user.Username,
+                Handle = user.HasPublicUsername ? user.Username : "",
                 IsConnected = true,
                 ConnectedViaOAuth = true,
                 AccountKind = SocialAccountKinds.Author,
@@ -1096,6 +1096,10 @@ static class SocialAccountRoutes
                 RefreshToken = tokens.RefreshToken,
                 ExternalAccountId = user.OpenId
             }, SocialAccountKinds.Author);
+
+            // Same as other platforms: store a public profile URL readers can open.
+            if (user.ProfileUrl is string profileUrl)
+                store.SetCommunityTikTokProfileUrl(pending.UserId, profileUrl);
 
             var successUrl = returnUrl.Contains('?') ? $"{returnUrl}&connected=1" : $"{returnUrl}?connected=1";
             return Results.Redirect(successUrl);

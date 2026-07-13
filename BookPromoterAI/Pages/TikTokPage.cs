@@ -82,7 +82,10 @@ static class TikTokPage
             : tiktokLive
                 ? $"""
                     <div class="notice success">
-                        Connected to TikTok as <strong>{H.Encode(string.IsNullOrWhiteSpace(tiktokAccount!.DisplayName) ? tiktokAccount.Handle : tiktokAccount.DisplayName)}</strong>.
+                        Connected to TikTok as <strong>{H.Encode(string.IsNullOrWhiteSpace(tiktokAccount!.DisplayName) ? tiktokAccount.Handle : tiktokAccount.DisplayName)}</strong>
+                        {(AuthorFollowLinks.ProfileUrl(tiktokAccount) is string profileUrl
+                            ? $""" — <a href="{H.Encode(profileUrl)}" target="_blank" rel="noopener">Open profile</a>"""
+                            : "")}.
                         Ready videos can be sent to your TikTok inbox — Download stays available either way.
                     </div>
                     <form method="post" action="/videos/auto-post" class="form" style="margin-bottom:1rem">
