@@ -1,4 +1,14 @@
 {
+  "1.20.0": {
+    "title": "BookPromoter AI v1.20.0 — What's new",
+    "updated": [
+      "Deleted weekly videos can be recreated — Generate / Regenerate this week's videos button, plus Regenerate on ready videos"
+    ],
+    "new": [
+      "Generate or regenerate this week's video batch after removals"
+    ],
+    "added": []
+  },
   "1.19.4": {
     "title": "BookPromoter AI v1.19.4 — What's new",
     "updated": [
