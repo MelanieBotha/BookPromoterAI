@@ -110,7 +110,9 @@ static class SocialAccountRoutes
             var saveUserId = SocialAccountKinds.IsBrand(kind) ? store.PrimaryOwnerUserId() : userId;
             if (saveUserId == 0) return Results.Redirect("/start");
             var platformName = Uri.UnescapeDataString(platform);
-            if (SocialConnectHelper.IsPlatformDisabled(platformName, settings, SocialAccountKinds.IsBrand(kind)))
+            // TikTok is Videos-only (off the My Account bar) but must still reach its connect/setup flow.
+            if (SocialConnectHelper.IsPlatformDisabled(platformName, settings, SocialAccountKinds.IsBrand(kind))
+                && !PostLimits.IsTikTok(platformName))
                 return Results.Redirect(returnUrl);
 
             if (PostLimits.IsX(platformName))

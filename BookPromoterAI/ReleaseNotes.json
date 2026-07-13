@@ -1,4 +1,12 @@
 {
+  "1.21.1": {
+    "title": "BookPromoter AI v1.21.1 — What's new",
+    "updated": [
+      "Fix Connect TikTok from Videos — no longer redirects straight back to the Videos page"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.21.0": {
     "title": "BookPromoter AI v1.21.0 — What's new",
     "updated": [

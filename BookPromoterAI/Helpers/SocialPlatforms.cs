@@ -37,6 +37,9 @@ static class SocialPlatforms
         D("LinkedIn", "Major Platforms", Integration.Live, "#0A66C2", "in", s => s.IsLinkedInConfigured),
         D("Bluesky", "Major Platforms", Integration.AppPassword, "#0085FF", "B"),
         D("Tumblr", "Major Platforms", Integration.Live, "#36465D", "Tu", s => s.IsTumblrConfigured, disabledReason: "add Tumblr API keys in Owner"),
+        // Videos-tab only — not on My Account connect bar (video inbox, not text Ad Library posts).
+        D("TikTok", "Major Platforms", Integration.Live, "#000000", "T", s => s.IsTikTokConfigured,
+            showOnBar: false, disabledReason: "add TikTok API keys in Owner", allowBrandConnect: false),
         D("Discord", "Messaging & Community", Integration.WebhookOrToken, "#5865F2", "D"),
         D("Telegram", "Messaging & Community", Integration.WebhookOrToken, "#26A5E4", "TG"),
     ];
@@ -128,6 +131,8 @@ static class SocialPlatforms
             return settings.IsLinkedInConfigured;
         if (PostLimits.IsTumblr(name))
             return settings.IsTumblrConfigured;
+        if (PostLimits.IsTikTok(name))
+            return settings.IsTikTokConfigured;
         return TryGet(name, out var def) && def.IsConfigured?.Invoke(settings) == true;
     }
 
