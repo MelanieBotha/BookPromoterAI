@@ -118,7 +118,7 @@ class LocalSpeechService
             var payload = JsonSerializer.Serialize(new
             {
                 text,
-                model_id = "eleven_multilingual_v2",
+                model_id = "eleven_flash_v2_5",
                 voice_settings = new { stability = 0.4, similarity_boost = 0.75 }
             });
 
@@ -171,7 +171,7 @@ class LocalSpeechService
             var payload = JsonSerializer.Serialize(new
             {
                 text,
-                model_id = "eleven_multilingual_v2",
+                model_id = "eleven_flash_v2_5",
                 voice_settings = new { stability = 0.4, similarity_boost = 0.75 }
             });
 
@@ -218,14 +218,51 @@ class LocalSpeechService
 
     static string FormatElevenLabsError(System.Net.HttpStatusCode status, string body)
     {
-        var tip = string.IsNullOrWhiteSpace(body) ? status.ToString() : body.Trim();
+        var detail = ExtractElevenLabsDetail(body);
+        var tip = string.IsNullOrWhiteSpace(detail) ? status.ToString() : detail;
         if (tip.Length > 220) tip = tip[..220] + "…";
+
         if ((int)status == 401 || (int)status == 403)
-            return $"ElevenLabs auth failed ({(int)status}). Check ElevenLabs__ApiKey and that Text to Speech = Access.";
-        if ((int)status == 402 || tip.Contains("quota", StringComparison.OrdinalIgnoreCase) ||
-            tip.Contains("credit", StringComparison.OrdinalIgnoreCase))
-            return $"ElevenLabs out of credits ({(int)status}). Add credits or upgrade the plan.";
+            return $"ElevenLabs auth failed ({(int)status}). Check ElevenLabs__ApiKey was created in the same workspace, with Text to Speech = Access.";
+
+        if ((int)status == 402 ||
+            tip.Contains("quota", StringComparison.OrdinalIgnoreCase) ||
+            tip.Contains("credit", StringComparison.OrdinalIgnoreCase) ||
+            tip.Contains("payment", StringComparison.OrdinalIgnoreCase) ||
+            tip.Contains("insufficient", StringComparison.OrdinalIgnoreCase))
+        {
+            return "ElevenLabs API blocked (402). Free-plan UI credits often do not unlock API use. Upgrade to Starter ($5–6/mo) in ElevenLabs → Subscription, then Retry.";
+        }
+
         return $"ElevenLabs error {(int)status}: {tip}";
+    }
+
+    static string ExtractElevenLabsDetail(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body)) return "";
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("detail", out var detail))
+            {
+                if (detail.ValueKind == JsonValueKind.Object)
+                {
+                    if (detail.TryGetProperty("message", out var msg))
+                        return msg.GetString() ?? "";
+                    if (detail.TryGetProperty("status", out var st))
+                        return st.GetString() ?? detail.ToString();
+                }
+                if (detail.ValueKind == JsonValueKind.String)
+                    return detail.GetString() ?? "";
+                return detail.ToString();
+            }
+        }
+        catch
+        {
+            /* use raw body */
+        }
+        return body.Trim();
     }
 
     static IReadOnlyList<SpeechWordTiming> GroupCharactersIntoWords(JsonElement alignment)

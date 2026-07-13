@@ -225,10 +225,12 @@ static class OwnerPage
                 <summary class="owner-collapsible-heading">Natural video voice (ElevenLabs)</summary>
                 <div class="panel owner-settings">
                     <p class="notice {(store.Settings.IsElevenLabsConfigured ? "success" : "error")}">{H.Encode(store.Settings.DescribeElevenLabsApiKey())}</p>
-                    <p class="muted">Narrated TikTok videos use espeak (robotic) unless ElevenLabs is configured. Add:</p>
+                    <p class="muted">Narrated TikTok videos need <strong>API</strong> access. Free-plan credits shown in the ElevenLabs website often do <strong>not</strong> unlock API calls (you get HTTP 402). For BookPromoter AI:</p>
                     <ul class="plan-features">
-                        <li><code>ElevenLabs__ApiKey</code> from <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank" rel="noopener">elevenlabs.io</a></li>
-                        <li><code>ElevenLabs__VoiceId</code> (optional — default is Rachel, <code>{LocalSpeechService.DefaultElevenLabsVoiceId}</code>)</li>
+                        <li>Upgrade to <strong>Starter (~$5–6/mo)</strong> (minimum for reliable API + commercial use)</li>
+                        <li>Create the API key in the <strong>same workspace</strong> you upgraded</li>
+                        <li>Set Railway <code>ElevenLabs__ApiKey</code>, Deploy, then Retry videos</li>
+                        <li>Optional: <code>ElevenLabs__VoiceId</code> (default Rachel, <code>{LocalSpeechService.DefaultElevenLabsVoiceId}</code>)</li>
                     </ul>
                     <p class="muted">After adding the key, Redeploy, then click <strong>Retry</strong> on failed/ready videos to regenerate with the natural voice.</p>
                 </div>
