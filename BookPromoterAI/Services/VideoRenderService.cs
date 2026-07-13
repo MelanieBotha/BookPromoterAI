@@ -61,15 +61,26 @@ class VideoRenderService
 
             var speech = await _speech.SynthesizeAsync(script, cancellationToken);
             if (!speech.Ok || speech.Data is null)
+            {
+                // Do not render a silent "caption promo" when natural voice is expected —
+                // that looks like "audio disappeared." Surface the real TTS error instead.
+                if (_speech.IsNaturalVoiceConfigured)
+                    return (false, null, speech.Error ?? "ElevenLabs voice failed. Check ElevenLabs__ApiKey and credits, then Retry.");
+
                 return await RenderCaptionPromoVideoAsync(
                     coverPath, script, uploadsDir, speech.Error, cancellationToken);
+            }
 
             var audioPath = Path.Combine(workDir, "speech" + speech.Extension);
             await File.WriteAllBytesAsync(audioPath, speech.Data, cancellationToken);
+            Console.WriteLine($"[Video] Narration ready via {speech.Provider} ({speech.Data.Length} bytes, {speech.Extension}).");
 
             var measuredSec = GetMediaDurationSeconds(audioPath);
             if (measuredSec <= 0)
                 measuredSec = speech.DurationMs / 1000.0;
+            if (measuredSec <= 0.5)
+                return (false, null, "Narration audio was empty or too short. Retry, or check ElevenLabs credits.");
+
             var speechMs = TikTokVideoLimits.ClampSpeechMs(measuredSec * 1000.0);
             var totalSec = Math.Min(
                 TikTokVideoLimits.MaxDurationMs / 1000.0,
@@ -168,10 +179,13 @@ class VideoRenderService
         var frames = Math.Max(1, (int)Math.Ceiling(totalSec * Fps));
         var vf = BuildKenBurnsFilter(frames, srtPath);
         var duration = totalSec.ToString("0.###", CultureInfo.InvariantCulture);
+        // Explicit maps: cover has no audio — without -map 1:a:0 FFmpeg can emit a silent video.
         var args =
             $"-y -loop 1 -i {ProcessTools.QuoteArg(coverPath)} -i {ProcessTools.QuoteArg(audioPath)} " +
-            $"-vf \"{vf}\" -c:v libx264 -preset ultrafast -crf 28 -pix_fmt yuv420p " +
-            $"-c:a aac -b:a 96k -shortest -t {duration} -movflags +faststart {ProcessTools.QuoteArg(outPath)}";
+            $"-vf \"{vf}\" -map 0:v:0 -map 1:a:0 " +
+            $"-c:v libx264 -preset ultrafast -crf 28 -pix_fmt yuv420p " +
+            $"-c:a aac -b:a 128k -ac 2 -ar 44100 -shortest -t {duration} " +
+            $"-movflags +faststart {ProcessTools.QuoteArg(outPath)}";
 
         return await RunFfmpegAsync(ffmpeg, args, cancellationToken);
     }
