@@ -64,7 +64,7 @@ static class MyAccountPage
         var accountRows = new StringBuilder();
         var removeAccountForms = new StringBuilder();
 
-        foreach (var account in store.AuthorSocialAccounts)
+        foreach (var account in store.AuthorSocialAccounts.Where(a => !PostLimits.IsTikTok(a.Platform)))
         {
             var connectionStatus = account.IsLiveConnection
                 ? """<small class="status available">Live posting enabled</small>"""
@@ -113,8 +113,9 @@ static class MyAccountPage
                 """);
         }
 
-        if (store.AuthorSocialAccounts.Count == 0)
-            accountRows.Append("""<p class="muted">No author social accounts connected yet. Connect platforms you use to promote <strong>your books</strong>.</p>""");
+        var textAccounts = store.AuthorSocialAccounts.Where(a => !PostLimits.IsTikTok(a.Platform)).ToList();
+        if (textAccounts.Count == 0)
+            accountRows.Append("""<p class="muted">No author social accounts connected yet. Connect platforms you use to promote <strong>your books</strong>. TikTok video posting is on the <a href="/videos">Videos</a> page.</p>""");
 
         var limitNotice = "";
         var limitMessage = store.CheckSocialAccountLimit();
@@ -144,7 +145,7 @@ static class MyAccountPage
                 {limitNotice}
                 <form method="post" action="/schedule" class="schedule-list">
                     {accountRows}
-                    {(store.AuthorSocialAccounts.Count > 0 ? """<button class="button" type="submit">Save Posting Schedule</button>""" : "")}
+                    {(textAccounts.Count > 0 ? """<button class="button" type="submit">Save Posting Schedule</button>""" : "")}
                 </form>
                 <p class="muted small-text">For <strong>Facebook</strong>: use your personal account and your author Page — not a Meta Business portfolio login. Owner brand Pages are connected on the <a href="/owner-promos?section=owner-social">Owner</a> page only.</p>
                 <div class="connect-buttons">

@@ -158,6 +158,18 @@ class SubscriptionPlan
         : null;
 
     public string MaxWeeklyPostsText => MaxWeeklyPosts?.ToString() ?? "Unlimited";
+
+    /// <summary>Weekly TikTok video inbox sends (Videos tab). Null = unlimited.</summary>
+    public int? MaxTikTokVideosPerWeek => Id switch
+    {
+        "starter" => 2,
+        "professional" => 4,
+        "publisher" => 10,
+        "agency" => null,
+        _ => 2
+    };
+
+    public string MaxTikTokVideosPerWeekText => MaxTikTokVideosPerWeek?.ToString() ?? "Unlimited";
 }
 
 class PaymentMethod

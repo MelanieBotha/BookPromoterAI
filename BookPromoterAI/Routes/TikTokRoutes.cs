@@ -33,6 +33,8 @@ static class TikTokRoutes
                             ? """<div class="notice success">Auto-post to TikTok inbox is on. Ready videos will be sent automatically; Download stays available.</div>"""
                         : request.Query["autopost"] == "0"
                             ? """<div class="notice success">Auto-post to TikTok is off. You can still Post or Download each video manually.</div>"""
+                        : request.Query["schedule"] == "1"
+                            ? """<div class="notice success">TikTok weekly schedule saved.</div>"""
                         : request.Query["disconnected"] == "1"
                             ? """<div class="notice success">TikTok account removed. Connect again anytime to push videos to your inbox.</div>"""
                     : request.Query["error"] == "1"
@@ -160,6 +162,18 @@ static class TikTokRoutes
             if (request.Query.ContainsKey("ajax"))
                 return Results.Json(new { ok = true, enabled });
             return Results.Redirect(enabled ? "/videos?autopost=1" : "/videos?autopost=0");
+        });
+
+        app.MapPost("/videos/schedule", async (HttpRequest request, AppStoreDb store) =>
+        {
+            if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
+            var form = await request.ReadFormAsync();
+            var parsed = int.TryParse(form["videosPerWeek"].ToString(), out var n) ? n : 0;
+            var autoPost = form["autoPost"].ToString() is "1" or "on" or "true";
+            var err = store.SaveTikTokVideoSchedule(parsed, autoPost);
+            if (err is not null)
+                return Results.Redirect("/videos?error=1&msg=" + Uri.EscapeDataString(err));
+            return Results.Redirect("/videos?schedule=1");
         });
 
         // Legacy paths (redirect GET only; POST handlers duplicated)

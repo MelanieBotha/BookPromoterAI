@@ -1105,6 +1105,8 @@ static class SocialAccountRoutes
             if (user.ProfileUrl is string profileUrl)
                 store.SetCommunityTikTokProfileUrl(pending.UserId, profileUrl);
 
+            store.EnsureTikTokScheduleForUser(pending.UserId);
+
             var successUrl = returnUrl.Contains('?') ? $"{returnUrl}&connected=1" : $"{returnUrl}?connected=1";
             return Results.Redirect(successUrl);
         });
