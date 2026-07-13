@@ -1,4 +1,12 @@
 {
+  "1.18.3": {
+    "title": "BookPromoter AI v1.18.3 — What's new",
+    "updated": [
+      "TikTok video fix: find FFmpeg via PATH, lighter 720×1280 ultrafast encode (avoids Railway timeouts), one-at-a-time rendering, startup FFmpeg check"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.18.2": {
     "title": "BookPromoter AI v1.18.2 — What's new",
     "updated": [

@@ -74,7 +74,7 @@ static class TikTokPage
             ? $"""
                 <section class="panel tiktok-studio">
                     <h2>Create a book promo video</h2>
-                    <p class="muted small-text">TikTok-length videos (60 seconds, 1080×1920 MP4). Promo: animated captions. Narrated: read-aloud voice with synced subtitles — no ElevenLabs.</p>
+                    <p class="muted small-text">TikTok-length videos (60 seconds, 720×1280 MP4). Promo: animated captions. Narrated: read-aloud voice with synced subtitles — no ElevenLabs.</p>
                     <div class="tiktok-studio-layout">
                         <div class="tiktok-studio-controls form">
                             <label>Book

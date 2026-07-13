@@ -5,14 +5,16 @@ using System.Text;
 namespace BookPromoterAI;
 
 /// <summary>
-/// Renders 60-second vertical book promo videos (FFmpeg Ken Burns + local TTS + burned captions).
-/// Combines BookPromoterAI's LocalSpeechService with TikTok-friendly MP4/1080x1920 output.
+/// Renders ~60s vertical book promo videos (FFmpeg Ken Burns + local TTS + burned captions).
+/// Tuned for Railway: 720×1280 H.264, ultrafast preset, process timeout.
 /// </summary>
 class VideoRenderService
 {
-    public const int TargetWidth = 1080;
-    public const int TargetHeight = 1920;
-    const int Fps = 30;
+    // 720×1280 is TikTok-safe and much faster on small Railway CPUs than 1080×1920.
+    public const int TargetWidth = 720;
+    public const int TargetHeight = 1280;
+    const int Fps = 24;
+    static readonly TimeSpan FfmpegTimeout = TimeSpan.FromMinutes(8);
 
     readonly LocalSpeechService _speech;
     readonly IHttpClientFactory _httpFactory;
@@ -26,6 +28,14 @@ class VideoRenderService
         _ = settings;
     }
 
+    public bool IsFfmpegAvailable => FfmpegPath() is not null;
+
+    public string FfmpegDiagnosticStatus()
+    {
+        var path = FfmpegPath();
+        return path is null ? "missing — install ffmpeg in Docker/Nixpacks" : path;
+    }
+
     public async Task<(bool Ok, string? VideoUrl, string? Error)> RenderNarratedVideoAsync(
         Book book,
         string narrationText,
@@ -37,7 +47,8 @@ class VideoRenderService
             return (false, null, "No narration text for this video.");
 
         if (FfmpegPath() is null)
-            return (false, null, "FFmpeg is not installed on this server.");
+            return (false, null,
+                "FFmpeg is not installed on this server. Redeploy with the root Dockerfile (includes ffmpeg) or Nixpacks aptPkgs.");
 
         var script = TrimToTargetDuration(narrationText, TikTokVideoLimits.MaxExcerptWords);
         var workDir = Path.Combine(Path.GetTempPath(), $"bpa-video-{Guid.NewGuid():N}");
@@ -157,8 +168,8 @@ class VideoRenderService
         var duration = totalSec.ToString("0.###", CultureInfo.InvariantCulture);
         var args =
             $"-y -loop 1 -i {ProcessTools.QuoteArg(coverPath)} -i {ProcessTools.QuoteArg(wavPath)} " +
-            $"-vf \"{vf}\" -c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p " +
-            $"-c:a aac -b:a 128k -shortest -t {duration} -movflags +faststart {ProcessTools.QuoteArg(outPath)}";
+            $"-vf \"{vf}\" -c:v libx264 -preset ultrafast -crf 28 -pix_fmt yuv420p " +
+            $"-c:a aac -b:a 96k -shortest -t {duration} -movflags +faststart {ProcessTools.QuoteArg(outPath)}";
 
         return await RunFfmpegAsync(ffmpeg, args, cancellationToken);
     }
@@ -176,25 +187,24 @@ class VideoRenderService
         var args =
             $"-y -loop 1 -i {ProcessTools.QuoteArg(coverPath)} " +
             $"-f lavfi -i anullsrc=channel_layout=mono:sample_rate=44100 " +
-            $"-vf \"{vf}\" -c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p " +
-            $"-c:a aac -b:a 96k -t {duration} -movflags +faststart {ProcessTools.QuoteArg(outPath)}";
+            $"-vf \"{vf}\" -c:v libx264 -preset ultrafast -crf 28 -pix_fmt yuv420p " +
+            $"-c:a aac -b:a 64k -t {duration} -movflags +faststart {ProcessTools.QuoteArg(outPath)}";
 
         return await RunFfmpegAsync(ffmpeg, args, cancellationToken);
     }
 
-    /// <summary>Ken Burns zoom on a padded/cropped vertical frame, with burned SRT captions.</summary>
+    /// <summary>Crop to vertical, light Ken Burns zoom, burn SRT — no 2× upscale (too slow on Railway).</summary>
     static string BuildKenBurnsFilter(int frames, string srtPath)
     {
         var srtFilter = EscapeForFfmpegFilter(srtPath);
         var style =
-            "FontName=DejaVu Sans,FontSize=28,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000," +
-            "BorderStyle=3,Outline=2,Shadow=0,Alignment=2,MarginV=140";
+            "FontName=DejaVu Sans,FontSize=22,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000," +
+            "BorderStyle=3,Outline=2,Shadow=0,Alignment=2,MarginV=100";
 
-        // Scale up, then slow zoom-in for motion (same idea as the sample BookVideoService).
         return
-            $"scale={TargetWidth * 2}:{TargetHeight * 2}:force_original_aspect_ratio=increase," +
-            $"crop={TargetWidth * 2}:{TargetHeight * 2}," +
-            $"zoompan=z='min(zoom+0.0012,1.35)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={frames}:s={TargetWidth}x{TargetHeight}:fps={Fps}," +
+            $"scale={TargetWidth}:{TargetHeight}:force_original_aspect_ratio=increase," +
+            $"crop={TargetWidth}:{TargetHeight}," +
+            $"zoompan=z='min(zoom+0.0010,1.22)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={frames}:s={TargetWidth}x{TargetHeight}:fps={Fps}," +
             $"format=yuv420p," +
             $"subtitles='{srtFilter}':force_style='{style}'";
     }
@@ -214,7 +224,21 @@ class VideoRenderService
         if (process is null) return (false, "Could not start FFmpeg.");
 
         var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken);
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(FfmpegTimeout);
+
+        try
+        {
+            await process.WaitForExitAsync(timeoutCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            try { process.Kill(entireProcessTree: true); } catch { /* ignore */ }
+            if (cancellationToken.IsCancellationRequested)
+                return (false, "Video rendering was cancelled.");
+            return (false, $"FFmpeg timed out after {(int)FfmpegTimeout.TotalMinutes} minutes. Click Retry.");
+        }
+
         var stderr = await stderrTask;
 
         if (process.ExitCode == 0) return (true, null);
@@ -255,7 +279,6 @@ class VideoRenderService
         }
     }
 
-    /// <summary>Word-budget trim that prefers ending on a sentence (from sample BookVideoService).</summary>
     public static string TrimToTargetDuration(string text, int maxWords)
     {
         if (string.IsNullOrWhiteSpace(text)) return "";

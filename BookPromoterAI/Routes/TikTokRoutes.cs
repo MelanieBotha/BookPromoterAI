@@ -12,7 +12,7 @@ static class TikTokRoutes
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
             var baseUrl = PublicUrl.Base(request, settings);
             var queued = store.EnsureWeeklyVideos(generator, baseUrl);
-            store.ResetStuckRenderingVideos(TimeSpan.FromMinutes(12));
+            store.ResetStuckRenderingVideos(TimeSpan.FromMinutes(10));
             await store.RenderPendingVideosAsync(renderer, uploads.Path, baseUrl);
             var notice = request.Query["created"] == "1"
                 ? """<div class="notice success">Video created! Download it below and post to social media when you are ready.</div>"""
@@ -27,6 +27,10 @@ static class TikTokRoutes
                         : queued > 0
                             ? $"""<div class="notice success">Queued {queued} new video(s) for this week — they will appear below when rendering finishes (usually within a few minutes).</div>"""
                             : "";
+            if (!renderer.IsFfmpegAvailable && string.IsNullOrEmpty(notice))
+                notice = """<div class="notice error">FFmpeg is missing on this server — weekly videos cannot render. Redeploy using the root Dockerfile (builder = DOCKERFILE in railway.toml).</div>""";
+            else if (!renderer.IsFfmpegAvailable)
+                notice += """<div class="notice error">FFmpeg is missing on this server — weekly videos cannot render. Redeploy using the root Dockerfile.</div>""";
             return Results.Content(
                 H.RenderPage(http, "Videos", TikTokPage.Render(store, generator, notice), store),
                 "text/html");

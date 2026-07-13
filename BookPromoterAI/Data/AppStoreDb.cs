@@ -949,7 +949,7 @@ class AppStoreDb
         var pending = await db.TikTokVideos
             .Where(v => v.Status == TikTokVideoStatuses.Rendering)
             .OrderBy(v => v.CreatedAt)
-            .Take(4)
+            .Take(1)
             .ToListAsync(cancellationToken);
         if (pending.Count == 0) return 0;
 
@@ -993,7 +993,7 @@ class AppStoreDb
             EnsureWeeklyVideos(generator, appBaseUrl, userId);
 
         RequeueFailedWeeklyVideos(generator);
-        ResetStuckRenderingVideos(TimeSpan.FromMinutes(12));
+        ResetStuckRenderingVideos(TimeSpan.FromMinutes(10));
         await RenderPendingVideosAsync(renderer, uploadsDir, appBaseUrl, cancellationToken);
     }
 

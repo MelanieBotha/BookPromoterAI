@@ -96,6 +96,10 @@ var speechService = app.Services.GetRequiredService<LocalSpeechService>();
 Console.WriteLine(speechService.IsAvailable
     ? $"[Startup] Read-aloud TTS ready ({speechService.DiagnosticStatus()})."
     : "[Startup] Read-aloud TTS NOT found — narrated videos will fail until espeak-ng is in the container.");
+var videoRenderer = app.Services.GetRequiredService<VideoRenderService>();
+Console.WriteLine(videoRenderer.IsFfmpegAvailable
+    ? $"[Startup] FFmpeg ready ({videoRenderer.FfmpegDiagnosticStatus()})."
+    : "[Startup] FFmpeg NOT found — TikTok videos will fail until ffmpeg is in the container (root Dockerfile / nixpacks.toml).");
 var onRailway = !string.IsNullOrWhiteSpace(port);
 
 // Liveness probe — always 200 so Railway deploy healthcheck passes while DB migrates.
