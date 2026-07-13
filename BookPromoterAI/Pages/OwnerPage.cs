@@ -221,6 +221,19 @@ static class OwnerPage
                 </div>
             </details>
 
+            <details class="owner-collapsible" id="owner-section-elevenlabs"{open("elevenlabs")}>
+                <summary class="owner-collapsible-heading">Natural video voice (ElevenLabs)</summary>
+                <div class="panel owner-settings">
+                    <p class="notice {(store.Settings.IsElevenLabsConfigured ? "success" : "error")}">{H.Encode(store.Settings.DescribeElevenLabsApiKey())}</p>
+                    <p class="muted">Narrated TikTok videos use espeak (robotic) unless ElevenLabs is configured. Add:</p>
+                    <ul class="plan-features">
+                        <li><code>ElevenLabs__ApiKey</code> from <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank" rel="noopener">elevenlabs.io</a></li>
+                        <li><code>ElevenLabs__VoiceId</code> (optional — default is Rachel, <code>{LocalSpeechService.DefaultElevenLabsVoiceId}</code>)</li>
+                    </ul>
+                    <p class="muted">After adding the key, Redeploy, then click <strong>Retry</strong> on failed/ready videos to regenerate with the natural voice.</p>
+                </div>
+            </details>
+
             {ApiIntegrationsSection(store, appBaseUrl, facebookDiagnosticsHtml, activeSection)}
 
             <details class="owner-collapsible" id="owner-section-railway-cleanup"{open("railway-cleanup")}>

@@ -1,4 +1,13 @@
 {
+  "1.19.0": {
+    "title": "BookPromoter AI v1.19.0 — What's new",
+    "updated": [],
+    "new": [
+      "Natural narrated TikTok voice via ElevenLabs when ElevenLabs__ApiKey is set (falls back to local speech otherwise)",
+      "Word-timed captions from ElevenLabs alignment for better subtitle sync"
+    ],
+    "added": []
+  },
   "1.18.3": {
     "title": "BookPromoter AI v1.18.3 — What's new",
     "updated": [

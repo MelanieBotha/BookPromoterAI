@@ -74,7 +74,9 @@ static class TikTokPage
             ? $"""
                 <section class="panel tiktok-studio">
                     <h2>Create a book promo video</h2>
-                    <p class="muted small-text">TikTok-length videos (60 seconds, 720×1280 MP4). Promo: animated captions. Narrated: read-aloud voice with synced subtitles — no ElevenLabs.</p>
+                    <p class="muted small-text">TikTok-length videos (60 seconds, 720×1280 MP4). Promo: animated captions. Narrated: {(store.Settings.IsElevenLabsConfigured
+                        ? "natural ElevenLabs voice with synced subtitles."
+                        : "server read-aloud — add ElevenLabs__ApiKey in Railway (Owner → Natural video voice) for a natural voice.")}</p>
                     <div class="tiktok-studio-layout">
                         <div class="tiktok-studio-controls form">
                             <label>Book
@@ -88,7 +90,9 @@ static class TikTokPage
                             </label>
                             <label id="tiktok-excerpt-wrap" style="display:none">Read-aloud excerpt
                                 <textarea id="tiktok-excerpt" rows="5" placeholder="Paste a chapter sample (up to ~155 words for a 60s TikTok)."></textarea>
-                                <span class="muted small-text">Built-in speech on our server — no ElevenLabs or paid voice API.</span>
+                                <span class="muted small-text">{(store.Settings.IsElevenLabsConfigured
+                                    ? "Natural ElevenLabs voice is enabled."
+                                    : "Local speech is robotic. Set ElevenLabs__ApiKey on Railway for a natural voice.")}</span>
                             </label>
                             <label>Video title
                                 <input id="tiktok-title" maxlength="150" placeholder="Shown on the video">

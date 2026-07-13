@@ -46,6 +46,22 @@ class AppSettings
     public string CommunityDiscordUrl { get; init; } = "";
     public string CommunityTelegramUrl { get; init; } = "";
 
+    /// <summary>ElevenLabs API key for natural narrated TikTok voices. Without this, espeak (robotic) is used.</summary>
+    public string ElevenLabsApiKey { get; init; } = "";
+    /// <summary>ElevenLabs voice id (default Rachel).</summary>
+    public string ElevenLabsVoiceId { get; init; } = LocalSpeechService.DefaultElevenLabsVoiceId;
+
+    public bool IsElevenLabsConfigured =>
+        !string.IsNullOrWhiteSpace(ElevenLabsApiKey) &&
+        ElevenLabsApiKey != "YOUR_ELEVENLABS_API_KEY";
+
+    public string DescribeElevenLabsApiKey()
+    {
+        if (!IsElevenLabsConfigured)
+            return "Missing — add ElevenLabs__ApiKey in Railway for natural narrated video voice.";
+        return "OK — natural voice enabled for TikTok videos.";
+    }
+
     public bool IsSendGridConfigured =>
         !string.IsNullOrWhiteSpace(SendGridApiKey) &&
         SendGridApiKey != "YOUR_SENDGRID_API_KEY_HERE" &&
@@ -355,7 +371,11 @@ class AppSettings
             FlickrApiKey = CleanSecret(config["Flickr:ApiKey"]),
             FlickrApiSecret = CleanSecret(config["Flickr:ApiSecret"]),
             CommunityDiscordUrl = (config["Community:DiscordUrl"] ?? "").Trim(),
-            CommunityTelegramUrl = (config["Community:TelegramUrl"] ?? "").Trim()
+            CommunityTelegramUrl = (config["Community:TelegramUrl"] ?? "").Trim(),
+            ElevenLabsApiKey = CleanSecret(config["ElevenLabs:ApiKey"] ?? config["Tts:ApiKey"]),
+            ElevenLabsVoiceId = string.IsNullOrWhiteSpace(config["ElevenLabs:VoiceId"])
+                ? LocalSpeechService.DefaultElevenLabsVoiceId
+                : CleanSecret(config["ElevenLabs:VoiceId"])
         };
     }
 

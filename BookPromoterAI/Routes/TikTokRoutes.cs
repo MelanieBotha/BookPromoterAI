@@ -41,16 +41,19 @@ static class TikTokRoutes
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Unauthorized();
             var form = await request.ReadFormAsync();
             var text = form["text"].ToString();
-            var (wav, durationMs, error) = await speechService.SynthesizeAsync(text);
-            if (wav is null)
-                return Results.Json(new { error = error ?? "Could not generate speech." });
+            var speech = await speechService.SynthesizeAsync(text);
+            if (!speech.Ok || speech.Data is null)
+                return Results.Json(new { error = speech.Error ?? "Could not generate speech." });
 
-            var plan = ReadAloudScript.Build(text, TikTokVideoLimits.ClampSpeechMs(durationMs));
+            var plan = speech.WordTimings is { Count: > 0 }
+                ? ReadAloudScript.BuildFromWordTimings(speech.WordTimings)
+                : ReadAloudScript.Build(text, TikTokVideoLimits.ClampSpeechMs(speech.DurationMs));
             return Results.Json(new
             {
-                wavBase64 = Convert.ToBase64String(wav),
-                durationMs = TikTokVideoLimits.ClampSpeechMs(durationMs),
+                wavBase64 = Convert.ToBase64String(speech.Data),
+                durationMs = TikTokVideoLimits.ClampSpeechMs(speech.DurationMs),
                 maxDurationMs = TikTokVideoLimits.MaxDurationMs,
+                provider = speech.Provider,
                 beats = plan.Beats.Select(b => new { text = b.Text, startMs = b.StartMs, endMs = b.EndMs })
             });
         });

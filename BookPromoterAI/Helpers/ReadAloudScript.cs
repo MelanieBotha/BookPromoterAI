@@ -84,6 +84,31 @@ static class ReadAloudScript
         };
     }
 
+    public static ReadAloudPlan BuildFromWordTimings(IReadOnlyList<SpeechWordTiming> words, int wordsPerCaption = WordsPerCaption)
+    {
+        if (words.Count == 0)
+            return new ReadAloudPlan { Excerpt = "", DurationMs = 0, Beats = [] };
+
+        var beats = new List<ReadAloudBeat>();
+        for (var i = 0; i < words.Count; i += Math.Max(1, wordsPerCaption))
+        {
+            var chunk = words.Skip(i).Take(wordsPerCaption).ToList();
+            beats.Add(new ReadAloudBeat
+            {
+                Text = string.Join(' ', chunk.Select(w => w.Word)),
+                StartMs = chunk[0].StartMs,
+                EndMs = Math.Max(chunk[0].StartMs + 400, chunk[^1].EndMs)
+            });
+        }
+
+        return new ReadAloudPlan
+        {
+            Excerpt = string.Join(' ', words.Select(w => w.Word)),
+            DurationMs = beats.Count > 0 ? beats[^1].EndMs : 0,
+            Beats = beats
+        };
+    }
+
     public static string LimitWords(string text, int maxWords = MaxWords) =>
         H.LimitWords(text, maxWords);
 

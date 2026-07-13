@@ -59,23 +59,25 @@ class VideoRenderService
             if (coverPath is null)
                 return (false, null, "Add a book cover in Books before generating videos.");
 
-            var (wav, durationMs, speechError) = await _speech.SynthesizeAsync(script, cancellationToken);
-            if (wav is null)
+            var speech = await _speech.SynthesizeAsync(script, cancellationToken);
+            if (!speech.Ok || speech.Data is null)
                 return await RenderCaptionPromoVideoAsync(
-                    coverPath, script, uploadsDir, speechError, cancellationToken);
+                    coverPath, script, uploadsDir, speech.Error, cancellationToken);
 
-            var wavPath = Path.Combine(workDir, "speech.wav");
-            await File.WriteAllBytesAsync(wavPath, wav, cancellationToken);
+            var audioPath = Path.Combine(workDir, "speech" + speech.Extension);
+            await File.WriteAllBytesAsync(audioPath, speech.Data, cancellationToken);
 
-            var measuredSec = GetMediaDurationSeconds(wavPath);
+            var measuredSec = GetMediaDurationSeconds(audioPath);
             if (measuredSec <= 0)
-                measuredSec = durationMs / 1000.0;
+                measuredSec = speech.DurationMs / 1000.0;
             var speechMs = TikTokVideoLimits.ClampSpeechMs(measuredSec * 1000.0);
             var totalSec = Math.Min(
                 TikTokVideoLimits.MaxDurationMs / 1000.0,
                 Math.Max(3.0, speechMs / 1000.0 + 1.5));
 
-            var plan = ReadAloudScript.BuildWordChunks(script, speechMs);
+            var plan = speech.WordTimings is { Count: > 0 }
+                ? ReadAloudScript.BuildFromWordTimings(speech.WordTimings)
+                : ReadAloudScript.BuildWordChunks(script, speechMs);
             var srtPath = Path.Combine(workDir, "subs.srt");
             await File.WriteAllTextAsync(srtPath, BuildSrt(plan), Encoding.UTF8, cancellationToken);
 
@@ -84,7 +86,7 @@ class VideoRenderService
             Directory.CreateDirectory(uploadsDir);
 
             var (ok, ffmpegError) = await RunNarratedFfmpegAsync(
-                coverPath, wavPath, srtPath, outPath, totalSec, cancellationToken);
+                coverPath, audioPath, srtPath, outPath, totalSec, cancellationToken);
             if (!ok || !File.Exists(outPath))
                 return (false, null, ffmpegError ?? "Video rendering failed. Check FFmpeg on the server.");
 
@@ -157,7 +159,7 @@ class VideoRenderService
     }
 
     async Task<(bool Ok, string? Error)> RunNarratedFfmpegAsync(
-        string coverPath, string wavPath, string srtPath, string outPath, double totalSec,
+        string coverPath, string audioPath, string srtPath, string outPath, double totalSec,
         CancellationToken cancellationToken)
     {
         var ffmpeg = FfmpegPath();
@@ -167,7 +169,7 @@ class VideoRenderService
         var vf = BuildKenBurnsFilter(frames, srtPath);
         var duration = totalSec.ToString("0.###", CultureInfo.InvariantCulture);
         var args =
-            $"-y -loop 1 -i {ProcessTools.QuoteArg(coverPath)} -i {ProcessTools.QuoteArg(wavPath)} " +
+            $"-y -loop 1 -i {ProcessTools.QuoteArg(coverPath)} -i {ProcessTools.QuoteArg(audioPath)} " +
             $"-vf \"{vf}\" -c:v libx264 -preset ultrafast -crf 28 -pix_fmt yuv420p " +
             $"-c:a aac -b:a 96k -shortest -t {duration} -movflags +faststart {ProcessTools.QuoteArg(outPath)}";
 
