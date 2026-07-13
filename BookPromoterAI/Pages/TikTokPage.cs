@@ -79,22 +79,30 @@ static class TikTokPage
 
         var connectBanner = !store.IsTikTokConfigured
             ? """<div class="notice error">TikTok posting is not configured on this server yet (Owner needs TikTok__ClientKey / TikTok__ClientSecret). You can still download videos and post manually.</div>"""
-            : tiktokLive
+            : tiktokAccount is not null
                 ? $"""
                     <div class="notice success">
-                        Connected to TikTok as <strong>{H.Encode(string.IsNullOrWhiteSpace(tiktokAccount!.DisplayName) ? tiktokAccount.Handle : tiktokAccount.DisplayName)}</strong>
+                        Connected to TikTok as <strong>{H.Encode(string.IsNullOrWhiteSpace(tiktokAccount.DisplayName) ? tiktokAccount.Handle : tiktokAccount.DisplayName)}</strong>
                         {(AuthorFollowLinks.ProfileUrl(tiktokAccount) is string profileUrl
                             ? $""" — <a href="{H.Encode(profileUrl)}" target="_blank" rel="noopener">Open profile</a>"""
                             : "")}.
-                        Ready videos can be sent to your TikTok inbox — Download stays available either way.
+                        {(tiktokLive
+                            ? "Ready videos can be sent to your TikTok inbox — Download stays available either way."
+                            : "Account saved, but posting may need reconnect if tokens expired.")}
                     </div>
-                    <form method="post" action="/videos/auto-post" class="form" style="margin-bottom:1rem">
-                        <label class="checkbox-row">
-                            <input type="checkbox" name="enabled" value="1" {(autoPostOn ? "checked" : "")} onchange="this.form.submit()">
-                            Auto-send Ready videos to my TikTok inbox
-                        </label>
-                        <p class="muted small-text">When on, newly Ready videos are uploaded to your TikTok inbox automatically (open the TikTok app to publish). Turn off anytime.</p>
-                    </form>
+                    <div class="row-actions" style="margin-bottom:1rem;gap:0.75rem;align-items:center;flex-wrap:wrap">
+                        <form method="post" action="/videos/auto-post" class="form" style="margin:0">
+                            <label class="checkbox-row">
+                                <input type="checkbox" name="enabled" value="1" {(autoPostOn ? "checked" : "")} onchange="this.form.submit()">
+                                Auto-send Ready videos to my TikTok inbox
+                            </label>
+                        </form>
+                        <form method="post" action="/social-accounts/delete/{tiktokAccount.Id}" onsubmit="return confirm('Disconnect TikTok from BookPromoter AI? You can connect again later.');" style="margin:0">
+                            <input type="hidden" name="return" value="{H.Encode(SocialConnectHelper.VideosReturnPath)}">
+                            <button type="submit" class="danger-button small">Remove TikTok account</button>
+                        </form>
+                    </div>
+                    <p class="muted small-text">When auto-send is on, newly Ready videos are uploaded to your TikTok inbox automatically (open the TikTok app to publish). Turn off or remove the account anytime.</p>
                     """
                 : $"""
                     <div class="notice">

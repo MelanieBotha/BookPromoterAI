@@ -33,6 +33,8 @@ static class TikTokRoutes
                             ? """<div class="notice success">Auto-post to TikTok inbox is on. Ready videos will be sent automatically; Download stays available.</div>"""
                         : request.Query["autopost"] == "0"
                             ? """<div class="notice success">Auto-post to TikTok is off. You can still Post or Download each video manually.</div>"""
+                        : request.Query["disconnected"] == "1"
+                            ? """<div class="notice success">TikTok account removed. Connect again anytime to push videos to your inbox.</div>"""
                     : request.Query["error"] == "1"
                         ? $"""<div class="notice error">{H.Encode(request.Query["msg"].ToString())}</div>"""
                         : queued > 0

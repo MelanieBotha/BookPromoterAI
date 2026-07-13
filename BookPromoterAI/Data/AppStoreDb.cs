@@ -564,7 +564,14 @@ class AppStoreDb
             && (x.ScheduleKind == SocialScheduleKinds.Author || x.ScheduleKind == ""));
         if (schedule is not null)
             db.SocialSchedules.Remove(schedule);
+        if (PostLimits.IsTikTok(platform))
+        {
+            var user = db.Users.FirstOrDefault(u => u.Id == uid);
+            if (user is not null)
+                user.TikTokAutoPostEnabled = false;
+        }
         db.SaveChanges();
+        ClearUserCache();
     }
 
     public string? CheckSocialAccountLimit(string accountKind = SocialAccountKinds.Author)

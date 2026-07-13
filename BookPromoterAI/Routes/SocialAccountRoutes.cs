@@ -83,7 +83,11 @@ static class SocialAccountRoutes
             var returnUrl = SocialConnectHelper.ResolveReturnUrl(request, form["return"].ToString());
             var kind = SocialConnectHelper.ResolveAccountKind(returnUrl);
             if (SocialAccountKinds.IsBrand(kind) && !store.IsOwner) return Results.Redirect("/my-account");
+            var account = store.FindSocialAccount(id, kind);
+            var wasTikTok = account is not null && PostLimits.IsTikTok(account.Platform);
             store.RemoveSocialAccount(id, kind);
+            if (wasTikTok && returnUrl == SocialConnectHelper.VideosReturnPath)
+                return Results.Redirect("/videos?disconnected=1");
             return Results.Redirect(returnUrl);
         });
 
