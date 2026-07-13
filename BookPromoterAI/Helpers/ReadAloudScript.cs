@@ -1,9 +1,10 @@
 namespace BookPromoterAI;
 
-/// <summary>Splits book excerpts into timed sentences for narrated video subtitles.</summary>
+/// <summary>Splits book excerpts into timed sentences/word chunks for narrated video subtitles.</summary>
 static class ReadAloudScript
 {
     public const int MaxWords = TikTokVideoLimits.MaxExcerptWords;
+    public const int WordsPerCaption = 5;
 
     public static ReadAloudPlan Build(string excerpt, double totalDurationMs)
     {
@@ -30,6 +31,50 @@ static class ReadAloudScript
 
         if (beats.Count > 0)
             beats[^1].EndMs = totalDurationMs;
+
+        return new ReadAloudPlan
+        {
+            Excerpt = text,
+            DurationMs = totalDurationMs,
+            Beats = beats
+        };
+    }
+
+    /// <summary>TikTok-style short captions: ~5 words per beat, timed across the speech duration.</summary>
+    public static ReadAloudPlan BuildWordChunks(string excerpt, double totalDurationMs, int wordsPerCaption = WordsPerCaption)
+    {
+        var text = excerpt.Trim();
+        var words = text.Split([' ', '\n', '\r', '\t'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (words.Length == 0)
+            return Build(text, totalDurationMs);
+
+        var chunks = new List<string>();
+        for (var i = 0; i < words.Length; i += Math.Max(1, wordsPerCaption))
+            chunks.Add(string.Join(' ', words.Skip(i).Take(wordsPerCaption)));
+
+        var totalChars = Math.Max(1, chunks.Sum(c => c.Length));
+        var cursor = 0.0;
+        var beats = new List<ReadAloudBeat>();
+        foreach (var chunk in chunks)
+        {
+            var share = chunk.Length / (double)totalChars;
+            var duration = Math.Max(400, totalDurationMs * share);
+            beats.Add(new ReadAloudBeat
+            {
+                Text = chunk,
+                StartMs = cursor,
+                EndMs = cursor + duration
+            });
+            cursor += duration;
+        }
+
+        if (beats.Count > 0)
+        {
+            if (cursor < totalDurationMs)
+                beats[^1].EndMs = totalDurationMs;
+            else if (beats[^1].EndMs > totalDurationMs)
+                beats[^1].EndMs = totalDurationMs;
+        }
 
         return new ReadAloudPlan
         {

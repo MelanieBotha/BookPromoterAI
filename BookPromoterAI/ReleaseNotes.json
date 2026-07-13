@@ -1,4 +1,12 @@
 {
+  "1.18.2": {
+    "title": "BookPromoter AI v1.18.2 — What's new",
+    "updated": [
+      "TikTok videos: 1080×1920 MP4 with Ken Burns zoom, word-chunk captions, clearer FFmpeg errors — still uses free local speech (no ElevenLabs)"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.18.1": {
     "title": "BookPromoter AI v1.18.1 — What's new",
     "updated": [
