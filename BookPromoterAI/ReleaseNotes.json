@@ -1,4 +1,12 @@
 {
+  "1.19.1": {
+    "title": "BookPromoter AI v1.19.1 — What's new",
+    "updated": [
+      "When ElevenLabs is configured, videos no longer silently fall back to robotic espeak — failures show the real API error, with a standard TTS retry path"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.19.0": {
     "title": "BookPromoter AI v1.19.0 — What's new",
     "updated": [],

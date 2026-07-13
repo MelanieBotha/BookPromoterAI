@@ -7,7 +7,7 @@ static class TikTokRoutes
         app.MapGet("/tiktok", (HttpRequest request) =>
             Results.Redirect("/videos" + request.QueryString));
 
-        app.MapGet("/videos", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings, VideoRenderService renderer, UploadPaths uploads) =>
+        app.MapGet("/videos", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings, VideoRenderService renderer, LocalSpeechService speechService, UploadPaths uploads) =>
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
             var baseUrl = PublicUrl.Base(request, settings);
@@ -27,10 +27,11 @@ static class TikTokRoutes
                         : queued > 0
                             ? $"""<div class="notice success">Queued {queued} new video(s) for this week — they will appear below when rendering finishes (usually within a few minutes).</div>"""
                             : "";
-            if (!renderer.IsFfmpegAvailable && string.IsNullOrEmpty(notice))
-                notice = """<div class="notice error">FFmpeg is missing on this server — weekly videos cannot render. Redeploy using the root Dockerfile (builder = DOCKERFILE in railway.toml).</div>""";
-            else if (!renderer.IsFfmpegAvailable)
+            if (!renderer.IsFfmpegAvailable)
                 notice += """<div class="notice error">FFmpeg is missing on this server — weekly videos cannot render. Redeploy using the root Dockerfile.</div>""";
+            notice += speechService.IsNaturalVoiceConfigured
+                ? $"""<div class="notice success">Voice: natural ElevenLabs ({H.Encode(speechService.DiagnosticStatus())}). Retry a video to regenerate with this voice.</div>"""
+                : """<div class="notice error">Voice: robotic local TTS. Add ElevenLabs__ApiKey in Railway Variables, Deploy, then Retry videos.</div>""";
             return Results.Content(
                 H.RenderPage(http, "Videos", TikTokPage.Render(store, generator, notice), store),
                 "text/html");

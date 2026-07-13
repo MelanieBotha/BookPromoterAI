@@ -68,6 +68,10 @@ builder.Services.AddDbContextFactory<AppDbContext>(options =>
 builder.Services.AddSingleton<ReleaseNotesCatalog>();
 builder.Services.AddScoped<AppStoreDb>();
 builder.Services.AddHttpClient();
+builder.Services.AddHttpClient(nameof(LocalSpeechService), client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(2);
+});
 builder.Services.AddSingleton<StripeBillingService>();
 
 builder.Services.AddBluesky();

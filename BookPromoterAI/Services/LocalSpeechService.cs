@@ -63,11 +63,17 @@ class LocalSpeechService
         if (string.IsNullOrWhiteSpace(cleaned))
             return new SpeechAudioResult(null, ".wav", 0, "Enter some text to read aloud.");
 
+        // When ElevenLabs is configured, never fall back to robotic espeak — that hides API failures.
         if (IsNaturalVoiceConfigured)
         {
             var natural = await TryElevenLabsAsync(cleaned, cancellationToken);
             if (natural.Ok) return natural;
-            // Fall through to local TTS if ElevenLabs fails so weekly videos still render.
+            Console.WriteLine($"[TTS] ElevenLabs failed: {natural.Error}");
+            return new SpeechAudioResult(
+                null,
+                ".mp3",
+                0,
+                natural.Error ?? "ElevenLabs voice failed. Check the API key and credits, then Retry.");
         }
 
         if (OperatingSystem.IsWindows())
@@ -82,41 +88,49 @@ class LocalSpeechService
         var pico = await SynthesizePicoAsync(cleaned, cancellationToken);
         if (pico.Ok) return pico;
 
-        var hint = IsNaturalVoiceConfigured
-            ? "ElevenLabs failed and local TTS is unavailable."
-            : "Read-aloud voice is robotic espeak, or unavailable. Add ElevenLabs__ApiKey in Railway for a natural voice.";
-        return new SpeechAudioResult(null, ".wav", 0, espeak.Error ?? pico.Error ?? hint);
+        return new SpeechAudioResult(null, ".wav", 0,
+            espeak.Error ?? pico.Error ??
+            "Read-aloud unavailable. Add ElevenLabs__ApiKey in Railway for a natural voice.");
     }
 
     async Task<SpeechAudioResult> TryElevenLabsAsync(string text, CancellationToken cancellationToken)
     {
+        var withTimestamps = await TryElevenLabsWithTimestampsAsync(text, cancellationToken);
+        if (withTimestamps.Ok) return withTimestamps;
+
+        Console.WriteLine($"[TTS] with-timestamps failed ({withTimestamps.Error}); trying standard TTS…");
+        var standard = await TryElevenLabsStandardAsync(text, cancellationToken);
+        if (standard.Ok) return standard;
+
+        return new SpeechAudioResult(
+            null,
+            ".mp3",
+            0,
+            standard.Error ?? withTimestamps.Error ?? "ElevenLabs request failed.");
+    }
+
+    async Task<SpeechAudioResult> TryElevenLabsWithTimestampsAsync(string text, CancellationToken cancellationToken)
+    {
         try
         {
-            var voiceId = string.IsNullOrWhiteSpace(_settings.ElevenLabsVoiceId)
-                ? DefaultElevenLabsVoiceId
-                : _settings.ElevenLabsVoiceId.Trim();
+            var voiceId = ResolveVoiceId();
             var url = $"https://api.elevenlabs.io/v1/text-to-speech/{Uri.EscapeDataString(voiceId)}/with-timestamps";
             var payload = JsonSerializer.Serialize(new
             {
                 text,
                 model_id = "eleven_multilingual_v2",
-                voice_settings = new { stability = 0.35, similarity_boost = 0.8, style = 0.35, use_speaker_boost = true }
+                voice_settings = new { stability = 0.4, similarity_boost = 0.75 }
             });
 
             using var request = new HttpRequestMessage(HttpMethod.Post, url);
-            request.Headers.Add("xi-api-key", _settings.ElevenLabsApiKey);
+            request.Headers.TryAddWithoutValidation("xi-api-key", _settings.ElevenLabsApiKey);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
 
-            var http = _httpFactory.CreateClient(nameof(LocalSpeechService));
-            http.Timeout = TimeSpan.FromMinutes(2);
-            using var response = await http.SendAsync(request, cancellationToken);
+            using var response = await SendElevenLabsAsync(request, cancellationToken);
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
-            {
-                var tip = body.Length > 180 ? body[..180] + "…" : body;
-                return new SpeechAudioResult(null, ".mp3", 0, $"ElevenLabs error {(int)response.StatusCode}: {tip}");
-            }
+                return new SpeechAudioResult(null, ".mp3", 0, FormatElevenLabsError(response.StatusCode, body));
 
             using var doc = JsonDocument.Parse(body);
             var root = doc.RootElement;
@@ -139,12 +153,79 @@ class LocalSpeechService
             if (durationMs <= 0)
                 durationMs = EstimateMp3DurationMs(audioBytes);
 
+            Console.WriteLine($"[TTS] ElevenLabs with-timestamps OK ({audioBytes.Length} bytes, {durationMs:0}ms).");
             return new SpeechAudioResult(audioBytes, ".mp3", durationMs, null, timings, "elevenlabs");
         }
         catch (Exception ex)
         {
             return new SpeechAudioResult(null, ".mp3", 0, $"ElevenLabs: {ex.Message}");
         }
+    }
+
+    async Task<SpeechAudioResult> TryElevenLabsStandardAsync(string text, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var voiceId = ResolveVoiceId();
+            var url = $"https://api.elevenlabs.io/v1/text-to-speech/{Uri.EscapeDataString(voiceId)}?output_format=mp3_44100_128";
+            var payload = JsonSerializer.Serialize(new
+            {
+                text,
+                model_id = "eleven_multilingual_v2",
+                voice_settings = new { stability = 0.4, similarity_boost = 0.75 }
+            });
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, url);
+            request.Headers.TryAddWithoutValidation("xi-api-key", _settings.ElevenLabsApiKey);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("audio/mpeg"));
+            request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
+
+            using var response = await SendElevenLabsAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                return new SpeechAudioResult(null, ".mp3", 0, FormatElevenLabsError(response.StatusCode, body));
+            }
+
+            var audioBytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+            if (audioBytes.Length == 0)
+                return new SpeechAudioResult(null, ".mp3", 0, "ElevenLabs returned empty audio.");
+
+            var durationMs = EstimateMp3DurationMs(audioBytes);
+            Console.WriteLine($"[TTS] ElevenLabs standard TTS OK ({audioBytes.Length} bytes).");
+            return new SpeechAudioResult(audioBytes, ".mp3", durationMs, null, null, "elevenlabs");
+        }
+        catch (Exception ex)
+        {
+            return new SpeechAudioResult(null, ".mp3", 0, $"ElevenLabs: {ex.Message}");
+        }
+    }
+
+    string ResolveVoiceId()
+    {
+        var voiceId = (_settings.ElevenLabsVoiceId ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(voiceId) ||
+            voiceId.Equals("YOUR_ELEVENLABS_VOICE_ID", StringComparison.OrdinalIgnoreCase))
+            return DefaultElevenLabsVoiceId;
+        return voiceId;
+    }
+
+    async Task<HttpResponseMessage> SendElevenLabsAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        var http = _httpFactory.CreateClient(nameof(LocalSpeechService));
+        return await http.SendAsync(request, cancellationToken);
+    }
+
+    static string FormatElevenLabsError(System.Net.HttpStatusCode status, string body)
+    {
+        var tip = string.IsNullOrWhiteSpace(body) ? status.ToString() : body.Trim();
+        if (tip.Length > 220) tip = tip[..220] + "…";
+        if ((int)status == 401 || (int)status == 403)
+            return $"ElevenLabs auth failed ({(int)status}). Check ElevenLabs__ApiKey and that Text to Speech = Access.";
+        if ((int)status == 402 || tip.Contains("quota", StringComparison.OrdinalIgnoreCase) ||
+            tip.Contains("credit", StringComparison.OrdinalIgnoreCase))
+            return $"ElevenLabs out of credits ({(int)status}). Add credits or upgrade the plan.";
+        return $"ElevenLabs error {(int)status}: {tip}";
     }
 
     static IReadOnlyList<SpeechWordTiming> GroupCharactersIntoWords(JsonElement alignment)
