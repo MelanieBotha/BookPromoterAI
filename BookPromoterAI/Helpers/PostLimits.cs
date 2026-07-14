@@ -169,6 +169,12 @@ static class PostLimits
     public static bool IsFlickr(string platform) =>
         platform.Equals("Flickr", StringComparison.OrdinalIgnoreCase);
 
+    public static bool IsInkitt(string platform) =>
+        platform.Equals(InkittUrls.PlatformName, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Platforms where posts are generated but must be copied manually (no live API).</summary>
+    public static bool IsManualCopyPlatform(string platform) => IsInkitt(platform);
+
     public static bool RequiresLiveConnection(string platform) =>
         IsBluesky(platform) || IsX(platform) || IsLinkedIn(platform) || IsFacebook(platform) ||
         IsReddit(platform) || IsMastodon(platform) || IsDiscord(platform) || IsTelegram(platform) ||
@@ -246,6 +252,7 @@ static class PostLimits
         if (IsWordPress(a) && IsWordPress(b)) return true;
         if (IsMedium(a) && IsMedium(b)) return true;
         if (IsFlickr(a) && IsFlickr(b)) return true;
+        if (IsInkitt(a) && IsInkitt(b)) return true;
         return IsReddit(a) && IsReddit(b);
     }
 }

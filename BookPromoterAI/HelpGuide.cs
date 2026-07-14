@@ -52,11 +52,12 @@ static class HelpGuide
             Instructions =
             [
                 "Connect or manually add each social platform once.",
+                "For Inkitt: click Connect Inkitt and enter your profile username (inkitt.com/yourname). Inkitt has no auto-post API — posts are copy-and-paste only.",
                 "Set Posts/week for each account (e.g. 1–3 to start).",
-                "Check Auto-post to publish on schedule, or leave Approval required and approve in Ad Library.",
-                "Click Save Posting Schedule — posts generate and auto-post runs (simulated until OAuth is live)."
+                "Check Auto-post for live platforms (X, Bluesky, Facebook, etc.). Inkitt and TikTok videos are manual.",
+                "Click Save Posting Schedule — weekly posts auto-generate; live platforms auto-post when due."
             ],
-            UpNext = "Generate this week's posts and copy them to social media."
+            UpNext = "Copy Inkitt wall posts or approve live auto-posts in the Ad Library."
         },
         new()
         {
@@ -66,10 +67,11 @@ static class HelpGuide
             Summary = "AI-generated posts for the current month — copy, regenerate, or approve for auto-posting.",
             Instructions =
             [
-                "Click Generate This Week's Posts if the library is empty.",
+                "Posts for the current week appear automatically if you have a schedule — use Generate This Week's Posts if needed.",
                 "Use Copy post to paste the caption — your book link is on the last line.",
+                "Inkitt: click Open my Inkitt wall, paste the copied text on your author wall (no Post now button — Inkitt has no API).",
                 "Click Regenerate for a new caption while keeping the same book.",
-                "If approval is required, click Approve for Auto-Post before the scheduler sends it."
+                "For live platforms with approval on, click Approve for Auto-Post before the scheduler sends it."
             ],
             UpNext = "Track clicks and see which books perform best."
         },
@@ -143,6 +145,26 @@ static class HelpGuide
 
     public static IReadOnlyList<HelpGuideStep> AllSteps => Steps;
 
+    /// <summary>Dedicated Inkitt wall workflow section for the full Help page.</summary>
+    public static string InkittSectionHtml() => """
+        <section class="panel help-inkitt-card">
+            <p class="eyebrow">Reading platforms</p>
+            <h2>Inkitt author wall</h2>
+            <p class="muted">Inkitt does not offer a public API for wall posts. BookPromoter AI generates weekly promo copy — you copy and paste it on your Inkitt author wall.</p>
+            <ol class="plan-features help-guide-list">
+                <li>On <strong>My Account</strong>, click <strong>Connect Inkitt</strong> and enter your Inkitt username (e.g. <code>yourname</code> for <code>inkitt.com/yourname</code>). If you already added an Inkitt store link on a book, your username may be prefilled.</li>
+                <li>Set <strong>Posts/week</strong> and save your posting schedule. Weekly Inkitt posts appear in the <strong>Ad Library</strong> like other platforms.</li>
+                <li>For each Inkitt post: click <strong>Copy post</strong>, then <strong>Open my Inkitt wall</strong>. Paste the text on your wall in the Inkitt website or app (<strong>My Profile</strong> → wall).</li>
+                <li><strong>Auto-post</strong> is not available for Inkitt — ignore the Post now button; use copy and paste instead.</li>
+            </ol>
+            <p class="help-guide-next"><strong>Tip:</strong> Add your Inkitt story or profile URL as a store link on the book so generated posts include the right read link.</p>
+            <div class="help-guide-actions">
+                <a class="button small" href="/my-account">Connect Inkitt</a>
+                <a class="button secondary small" href="/ad-library">Open Ad Library</a>
+            </div>
+        </section>
+        """;
+
     public static string RenderPanel(AppStoreDb store, string? requestPath)
     {
         if (!store.HasCustomerAccess) return "";
@@ -167,6 +189,10 @@ static class HelpGuide
             ? """<a class="button small" href="/feedback">Send feedback &rarr;</a>"""
             : $"""<a class="button small" href="{H.Encode(BillingPath(store, next.Path))}">Next: {H.Encode(next.NavLabel)} &rarr;</a>""";
 
+        var inkittNote = normalized is "/my-account" or "/ad-library"
+            ? """<p class="muted small-text help-inkitt-inline">Inkitt wall posts: connect on My Account, then <strong>Copy post</strong> + <strong>Open my Inkitt wall</strong> in the Ad Library. <a href="/help#inkitt">Full Inkitt guide</a></p>"""
+            : "";
+
         return $"""
             <aside class="help-guide panel">
                 <div class="help-guide-top">
@@ -178,6 +204,7 @@ static class HelpGuide
                 </div>
                 <p class="muted">{H.Encode(step.Summary)}</p>
                 <ul class="plan-features help-guide-list">{instructions}</ul>
+                {inkittNote}
                 <p class="help-guide-next"><strong>What to do next:</strong> {H.Encode(step.UpNext)}</p>
                 <div class="help-guide-actions">
                     {prevBtn}

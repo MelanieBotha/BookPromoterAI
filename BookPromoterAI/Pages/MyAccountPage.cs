@@ -66,7 +66,9 @@ static class MyAccountPage
 
         foreach (var account in store.AuthorSocialAccounts.Where(a => !PostLimits.IsTikTok(a.Platform)))
         {
-            var connectionStatus = account.IsLiveConnection
+            var connectionStatus = PostLimits.IsInkitt(account.Platform)
+                ? """<small class="status used">Copy &amp; paste to Inkitt wall — no auto-post API</small>"""
+                : account.IsLiveConnection
                 ? """<small class="status available">Live posting enabled</small>"""
                 : account.ConnectedViaOAuth
                     ? """<small class="status used">Connected (simulated — not posting to network yet)</small>"""
@@ -76,8 +78,16 @@ static class MyAccountPage
             var postsPerWeek = schedule?.PostsPerWeek ?? 0;
             var requiresApproval = schedule?.RequiresApproval ?? true;
             var checkedText = requiresApproval ? "checked" : "";
-            var autoPostChecked = (schedule?.AutoPostEnabled ?? false) ? "checked" : "";
+            var autoPostChecked = (schedule?.AutoPostEnabled ?? false) && !PostLimits.IsInkitt(account.Platform) ? "checked" : "";
             var autoPostHint = BuildAutoPostHint(store, account.Platform, schedule, postsPerWeek, requiresApproval);
+            var autoPostField = PostLimits.IsInkitt(account.Platform)
+                ? """<p class="muted small-text">Inkitt posts are ready in the Ad Library — use <strong>Copy post</strong> and <strong>Open my Inkitt wall</strong>.</p>"""
+                : $"""
+                    <label class="checkbox">
+                        <input name="autoPostEnabled" value="{H.Encode(account.Platform)}" type="checkbox" {autoPostChecked}>
+                        Auto-post
+                    </label>
+                    """;
 
             var removeFormId = $"remove-account-{account.Id}";
 
@@ -97,10 +107,7 @@ static class MyAccountPage
                         <input name="requiresApproval" value="{H.Encode(account.Platform)}" type="checkbox" {checkedText}>
                         Approval required
                     </label>
-                    <label class="checkbox">
-                        <input name="autoPostEnabled" value="{H.Encode(account.Platform)}" type="checkbox" {autoPostChecked}>
-                        Auto-post
-                    </label>
+                    {autoPostField}
                     <div class="row-actions">
                         <a class="button small" href="/social-accounts/edit/{account.Id}">Edit</a>
                         <button class="danger-button small" type="submit" form="{removeFormId}">Remove</button>
@@ -286,6 +293,9 @@ static class MyAccountPage
     static string BuildAutoPostHint(AppStoreDb store, string platform, SocialSchedule? schedule, int postsPerWeek, bool requiresApproval)
     {
         if (schedule?.AutoPostEnabled != true) return "";
+
+        if (PostLimits.IsInkitt(platform))
+            return """<p class="muted small-text">Weekly Inkitt posts appear in the Ad Library — copy and paste them on your author wall.</p>""";
 
         if (postsPerWeek <= 0)
             return """<p class="muted small-text">Auto-post is on — set posts/week above 0, then save.</p>""";

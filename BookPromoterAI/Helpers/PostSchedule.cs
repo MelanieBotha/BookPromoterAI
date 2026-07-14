@@ -156,6 +156,12 @@ static class PostSchedule
 
     public static string? FormatAdAutoPostHint(GeneratedAd ad, SocialSchedule? schedule)
     {
+        if (PostLimits.IsInkitt(ad.Platform))
+        {
+            if (ad.PostStatus != "Pending") return null;
+            return "Copy this post and paste it on your Inkitt author wall (Open my Inkitt wall below).";
+        }
+
         if (schedule is null || !schedule.AutoPostEnabled || schedule.PostsPerWeek <= 0)
             return null;
         if (ad.PostStatus != "Pending")

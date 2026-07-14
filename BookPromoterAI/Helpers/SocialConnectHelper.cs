@@ -137,6 +137,9 @@ static class SocialConnectHelper
         if (PostLimits.IsMedium(platformName))
             return MediumConnectPage(returnUrl, notice, brandContext);
 
+        if (PostLimits.IsInkitt(platformName))
+            return InkittConnectPage(returnUrl, notice);
+
         if (IsPlatformDisabled(platformName, settings, brandContext))
         {
             var reason = DisabledPlatformReason(platformName, settings);
@@ -776,6 +779,34 @@ static class SocialConnectHelper
                     <label>Display name <input name="displayName" placeholder="{(brandContext ? "BookPromoter AI" : "My Medium")}"></label>
                     <div class="form-actions">
                         <button class="button" type="submit" style="background:#000000">Connect &amp; enable live posting</button>
+                        <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
+                    </div>
+                </form>
+            </section>
+            """;
+    }
+
+    public static string InkittConnectPage(string returnUrl, string notice, string? suggestedUsername = null)
+    {
+        var brand = SocialPlatforms.Brand(InkittUrls.PlatformName);
+        var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<div class="notice error">{H.Encode(notice)}</div>""";
+        var prefill = H.Encode(suggestedUsername ?? "");
+        return $"""
+            <section class="hero"><div><p class="eyebrow">Connect Account</p><h1>Connect your Inkitt author wall</h1></div></section>
+            <section class="panel oauth-panel">
+                <div class="oauth-platform-badge" style="background:{brand.Color}">{H.Encode(brand.Initial)}</div>
+                <h2>Weekly wall posts (copy &amp; paste)</h2>
+                <p class="muted">Inkitt does not offer a public API for author wall posts. BookPromoter AI will <strong>generate</strong> promo copy each week — you copy it from the Ad Library and paste it on your Inkitt wall.</p>
+                {noticeHtml}
+                <form method="post" action="/social-accounts/oauth-callback/{Uri.EscapeDataString(InkittUrls.PlatformName)}" class="form">
+                    <input type="hidden" name="return" value="{H.Encode(returnUrl)}">
+                    <label>Inkitt profile username
+                        <input name="handle" value="{prefill}" placeholder="yourname" required autocomplete="username">
+                    </label>
+                    <p class="muted small-text">Your author wall lives at <code>inkitt.com/yourname</code>. In Inkitt, open <strong>My Profile</strong> from your profile picture to post on your wall.</p>
+                    <label>Display name <input name="displayName" placeholder="Inkitt Author"></label>
+                    <div class="form-actions">
+                        <button class="button" type="submit" style="background:{brand.Color}">Connect Inkitt</button>
                         <a class="button secondary" href="{H.Encode(returnUrl)}">Cancel</a>
                     </div>
                 </form>

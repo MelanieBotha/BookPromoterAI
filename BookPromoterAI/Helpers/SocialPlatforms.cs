@@ -13,6 +13,7 @@ static class SocialPlatforms
         AppPassword,
         WebhookOrToken,
         VideoRequired,
+        ManualCopy,
         InProgress,
         Researching
     }
@@ -37,6 +38,9 @@ static class SocialPlatforms
         D("LinkedIn", "Major Platforms", Integration.Live, "#0A66C2", "in", s => s.IsLinkedInConfigured),
         D("Bluesky", "Major Platforms", Integration.AppPassword, "#0085FF", "B"),
         D("Tumblr", "Major Platforms", Integration.Live, "#36465D", "Tu", s => s.IsTumblrConfigured, disabledReason: "add Tumblr API keys in Owner"),
+        // Copy-to-wall workflow — Inkitt has no public posting API.
+        D("Inkitt", "Reading & Community", Integration.ManualCopy, "#10B981", "Ik",
+            allowBrandConnect: false, disabledReason: "copy posts to your Inkitt wall manually"),
         // Videos-tab / Owner Videos only — not on My Account connect bar (video inbox, not text Ad Library posts).
         D("TikTok", "Major Platforms", Integration.Live, "#000000", "T", s => s.IsTikTokConfigured,
             showOnBar: false, disabledReason: "add TikTok API keys in Owner", allowBrandConnect: true),
@@ -115,6 +119,7 @@ static class SocialPlatforms
         {
             Integration.AppPassword => true,
             Integration.WebhookOrToken => true,
+            Integration.ManualCopy => true,
             Integration.Live => IsLiveOAuthReady(def.Name, settings, brandContext),
             Integration.PendingCredentials => def.IsConfigured?.Invoke(settings) == true,
             _ => false
@@ -144,6 +149,9 @@ static class SocialPlatforms
 
     public static Integration GetIntegration(string? platform) =>
         TryGet(platform, out var def) ? def.Integration : Integration.Researching;
+
+    public static bool IsManualCopy(string? platform) =>
+        TryGet(platform, out var def) && def.Integration == Integration.ManualCopy;
 
     public static string DisabledReason(string? platform)
     {

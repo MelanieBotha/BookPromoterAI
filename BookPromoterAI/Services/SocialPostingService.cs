@@ -60,6 +60,16 @@ class SocialPostingService
         BrandPostMedia? brandMedia = null,
         CancellationToken cancellationToken = default)
     {
+        if (PostLimits.IsInkitt(account.Platform))
+        {
+            await Task.CompletedTask;
+            return new PostingOutcome
+            {
+                Result = PostingResult.Failure(
+                    "Inkitt has no posting API. Copy the post in the Ad Library and paste it on your author wall.")
+            };
+        }
+
         if (PostLimits.IsBluesky(account.Platform) && account.IsLiveConnection)
             return await PostToBlueskyLive(account, postText, media, brandMedia, cancellationToken);
 

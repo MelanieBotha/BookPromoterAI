@@ -4638,6 +4638,8 @@ class AppStoreDb
         if (schedule is null || !schedule.AutoPostEnabled) return [];
 
         var blockers = new List<string>();
+        if (PostLimits.IsManualCopyPlatform(platform))
+            blockers.Add($"{platform} has no auto-post API — copy posts from the Ad Library and paste on your wall.");
         if (schedule.PostsPerWeek <= 0)
             blockers.Add("Set posts/week above 0.");
         if (Books.Count == 0)
@@ -4670,6 +4672,7 @@ class AppStoreDb
         foreach (var schedule in schedules)
         {
             if (PostLimits.IsTikTok(schedule.Platform)) continue;
+            if (PostLimits.IsInkitt(schedule.Platform)) continue;
             if (schedule.WeekTrackerStart != currentWeek) { schedule.WeekTrackerStart = currentWeek; schedule.PostsSentThisWeek = 0; }
             if (schedule.PostsSentThisWeek >= schedule.PostsPerWeek) continue;
             var account = (await db.SocialAccounts.Where(a =>

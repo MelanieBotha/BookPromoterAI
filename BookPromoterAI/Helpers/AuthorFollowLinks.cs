@@ -100,6 +100,9 @@ static class AuthorFollowLinks
         if (PostLimits.IsWordPress(account.Platform))
             return CommunityLinks.NormalizeUrl(account.ExternalAccountId) ?? CommunityLinks.NormalizeUrl(account.Handle);
 
+        if (PostLimits.IsInkitt(account.Platform))
+            return InkittUrls.ProfileWallUrl(account.ExternalAccountId) ?? InkittUrls.ProfileWallUrl(account.Handle);
+
         return null;
     }
 
@@ -116,6 +119,7 @@ static class AuthorFollowLinks
         if (PostLimits.IsFlickr(platform)) return "Flickr";
         if (PostLimits.IsMedium(platform)) return "Medium";
         if (PostLimits.IsWordPress(platform)) return "Blog";
+        if (PostLimits.IsInkitt(platform)) return "Inkitt";
         return string.IsNullOrWhiteSpace(platform) ? "Social" : platform.Trim();
     }
 }

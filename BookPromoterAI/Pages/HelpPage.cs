@@ -51,11 +51,14 @@ static class HelpPage
                     <p class="eyebrow">Help</p>
                     <h1>How to use BookPromoter AI</h1>
                     <p class="muted">Follow these steps in order — Dashboard, Books, Social schedule, Ad Library, Analytics, and Billing. Each app page shows the same guide with Previous and Next buttons.</p>
+                    <p class="muted small-text">Promoting on <strong>Inkitt</strong>? See the <a href="#inkitt">Inkitt author wall</a> section below.</p>
                 </div>
                 <a class="button" href="{H.Encode(startPath)}">{startLabel}</a>
             </section>
 
             {rows}
+
+            <div id="inkitt">{HelpGuide.InkittSectionHtml()}</div>
             """;
     }
 }

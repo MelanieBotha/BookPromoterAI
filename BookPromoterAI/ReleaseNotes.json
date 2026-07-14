@@ -1,4 +1,20 @@
 {
+  "1.24.1": {
+    "title": "BookPromoter AI v1.24.1 — What's new",
+    "updated": [
+      "Help guide: Inkitt author wall section plus inline tips on My Account and Ad Library"
+    ],
+    "new": [],
+    "added": []
+  },
+  "1.24.0": {
+    "title": "BookPromoter AI v1.24.0 — What's new",
+    "updated": [],
+    "new": [
+      "Inkitt author wall workflow — connect your Inkitt username, get weekly promo posts in the Ad Library, then Copy post and Open my Inkitt wall (Inkitt has no auto-post API)"
+    ],
+    "added": []
+  },
   "1.23.1": {
     "title": "BookPromoter AI v1.23.1 — What's new",
     "updated": [

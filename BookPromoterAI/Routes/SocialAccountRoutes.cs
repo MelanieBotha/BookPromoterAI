@@ -40,13 +40,24 @@ static class SocialAccountRoutes
             var finalPlatform = platform == "__custom__" && !string.IsNullOrWhiteSpace(customPlatform) ? customPlatform : platform;
             if (SocialConnectHelper.IsPlatformDisabled(finalPlatform, store.Settings, SocialAccountKinds.IsBrand(kind)))
                 return Results.Redirect(returnUrl);
+            var handle = form["handle"].ToString();
+            if (PostLimits.IsInkitt(finalPlatform))
+            {
+                var username = InkittUrls.ExtractUsername(handle);
+                if (username is null)
+                    return Results.Redirect($"{returnUrl}?notice=error:Enter a valid Inkitt username or profile URL.");
+                handle = username;
+            }
             store.AddSocialAccount(new SocialAccount
             {
                 Platform = finalPlatform,
                 DisplayName = form["displayName"].ToString(),
-                Handle = form["handle"].ToString(),
+                Handle = handle,
                 IsConnected = true,
-                AccountKind = kind
+                AccountKind = kind,
+                AccessToken = PostLimits.IsInkitt(finalPlatform) ? "MANUAL-INKITT" : null,
+                ExternalAccountId = PostLimits.IsInkitt(finalPlatform) ? InkittUrls.ProfileWallUrl(handle) : null,
+                ConnectedViaOAuth = PostLimits.IsInkitt(finalPlatform)
             }, kind);
             if (SocialAccountKinds.IsAuthor(kind))
             store.AddSchedule(new SocialSchedule { Platform = finalPlatform, PostsPerWeek = 1, RequiresApproval = true });
@@ -278,6 +289,17 @@ static class SocialAccountRoutes
                     CodeVerifier = verifier
                 });
                 return Results.Redirect(authorizeUrl);
+            }
+
+            if (PostLimits.IsInkitt(platformName))
+            {
+                if (SocialAccountKinds.IsBrand(kind))
+                    return Results.Redirect(returnUrl);
+                var notice = request.Query["notice"].ToString();
+                var suggested = InkittUrls.SuggestUsernameFromBooks(store.Books);
+                return Results.Content(
+                    H.RenderPage(http, "Connect Inkitt", SocialConnectHelper.InkittConnectPage(returnUrl, notice, suggested), store),
+                    "text/html");
             }
 
             var connectNotice = request.Query["notice"].ToString();
@@ -1456,6 +1478,39 @@ static class SocialAccountRoutes
                 }, kind);
                 if (SocialAccountKinds.IsAuthor(kind))
                     store.AddSchedule(new SocialSchedule { Platform = "Telegram", PostsPerWeek = 1, RequiresApproval = true });
+                return Results.Redirect(returnUrl);
+            }
+
+            if (PostLimits.IsInkitt(platformName))
+            {
+                if (SocialAccountKinds.IsBrand(kind))
+                    return Results.Redirect(returnUrl);
+
+                var username = InkittUrls.ExtractUsername(form["handle"].ToString());
+                if (username is null)
+                {
+                    var connectUrl = $"/social-accounts/connect/{Uri.EscapeDataString(InkittUrls.PlatformName)}?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Enter a valid Inkitt username (e.g. yourname or inkitt.com/yourname).")}";
+                    return Results.Redirect(connectUrl);
+                }
+
+                var profileUrl = InkittUrls.ProfileWallUrl(username)!;
+                var displayName = string.IsNullOrWhiteSpace(form["displayName"].ToString())
+                    ? username
+                    : form["displayName"].ToString().Trim();
+
+                store.AddSocialAccount(new SocialAccount
+                {
+                    Platform = InkittUrls.PlatformName,
+                    DisplayName = displayName,
+                    Handle = username,
+                    IsConnected = true,
+                    ConnectedViaOAuth = true,
+                    AccountKind = kind,
+                    AccessToken = "MANUAL-INKITT",
+                    ExternalAccountId = profileUrl
+                }, kind);
+                if (SocialAccountKinds.IsAuthor(kind))
+                    store.AddSchedule(new SocialSchedule { Platform = InkittUrls.PlatformName, PostsPerWeek = 1, RequiresApproval = true });
                 return Results.Redirect(returnUrl);
             }
 

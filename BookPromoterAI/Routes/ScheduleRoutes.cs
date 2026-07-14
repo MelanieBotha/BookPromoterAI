@@ -27,7 +27,7 @@ static class ScheduleRoutes
                     Platform = platform,
                     PostsPerWeek = Math.Clamp(parsed, 0, 14),
                     RequiresApproval = approvals.Contains(platform),
-                    AutoPostEnabled = autoPostPlatforms.Contains(platform)
+                    AutoPostEnabled = autoPostPlatforms.Contains(platform) && !PostLimits.IsInkitt(platform)
                 });
             }
 

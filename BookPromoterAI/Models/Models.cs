@@ -81,7 +81,8 @@ class SocialAccount
         && (!PostLimits.IsTumblr(Platform) || (!string.IsNullOrWhiteSpace(ExternalAccountId) && !string.IsNullOrWhiteSpace(AccessToken) && !string.IsNullOrWhiteSpace(RefreshToken)))
         && (!PostLimits.IsWordPress(Platform) || (!string.IsNullOrWhiteSpace(ExternalAccountId) && !string.IsNullOrWhiteSpace(AccessToken) && !string.IsNullOrWhiteSpace(Handle)))
         && (!PostLimits.IsMedium(Platform) || (!string.IsNullOrWhiteSpace(ExternalAccountId) && !string.IsNullOrWhiteSpace(AccessToken)))
-        && (!PostLimits.IsFlickr(Platform) || (!string.IsNullOrWhiteSpace(ExternalAccountId) && !string.IsNullOrWhiteSpace(AccessToken) && !string.IsNullOrWhiteSpace(RefreshToken)));
+        && (!PostLimits.IsFlickr(Platform) || (!string.IsNullOrWhiteSpace(ExternalAccountId) && !string.IsNullOrWhiteSpace(AccessToken) && !string.IsNullOrWhiteSpace(RefreshToken)))
+        && !PostLimits.IsManualCopyPlatform(Platform);
 }
 
 class TikTokVideo

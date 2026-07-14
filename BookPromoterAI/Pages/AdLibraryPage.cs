@@ -194,6 +194,7 @@ static class AdLibraryPage
             && !authorAccount.IsLiveConnection;
         var canPostNow = hasAccount
             && !platformNotLive
+            && !PostLimits.IsInkitt(ad.Platform)
             && ad.PostStatus is "Pending" or "Failed"
             && (!needsApproval || ad.ApprovedForPosting);
         var reconnectHint = PostLimits.LivePostNowHint(ad.Platform);
@@ -201,6 +202,15 @@ static class AdLibraryPage
             ? $"""<form method="post" action="/ad-library/post-now/{ad.Id}">{searchField}<button class="button small" type="submit">Post now</button></form>"""
             : platformNotLive && ad.PostStatus is "Pending" or "Failed"
                 ? $"""<p class="muted small-text">{H.Encode(reconnectHint)}</p>"""
+                : "";
+
+        var inkittWallUrl = PostLimits.IsInkitt(ad.Platform) && authorAccount is not null
+            ? InkittUrls.ProfileWallUrl(authorAccount.ExternalAccountId) ?? InkittUrls.ProfileWallUrl(authorAccount.Handle)
+            : null;
+        var inkittWallButton = inkittWallUrl is not null
+            ? $"""<a class="button small" href="{H.Encode(inkittWallUrl)}" target="_blank" rel="noopener noreferrer">Open my Inkitt wall</a>"""
+            : PostLimits.IsInkitt(ad.Platform)
+                ? """<p class="muted small-text">Connect Inkitt on <a href="/my-account">My Account</a> to open your wall from here.</p>"""
                 : "";
 
         var postErrorNote = ad.PostStatus == "Failed" && !string.IsNullOrWhiteSpace(ad.PostError)
@@ -232,6 +242,7 @@ static class AdLibraryPage
                 <textarea id="{copyId}" class="copy-source" readonly>{H.Encode(ad.PostText)}</textarea>
                 <div class="post-card-actions">
                     <button class="button secondary small copy-button" type="button" onclick="copyPostText('{copyId}', this)">Copy post</button>
+                    {inkittWallButton}
                     {regenButton}
                     {postNowButton}
                     {approveButton}
