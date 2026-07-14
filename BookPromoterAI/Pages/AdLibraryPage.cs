@@ -32,7 +32,7 @@ static class AdLibraryPage
                 <section class="panel">
                     <p class="muted">
                         {(string.IsNullOrWhiteSpace(search)
-                            ? "No posts yet. Click \"Generate This Week's Posts\" to create your first batch."
+                            ? "No posts yet. Set posts/week on My Account — this week's batch generates automatically in the background."
                             : $"No posts matched \"{H.Encode(search)}\".")}
                     </p>
                 </section>
@@ -131,7 +131,7 @@ static class AdLibraryPage
                     <p class="eyebrow">Ad Library</p>
                     <h1>AI-generated posts by week.</h1>
                     <p class="muted">{totalAds} post(s) total &middot; {thisWeekCount} this week ({H.Encode(currentWeekLabel)}) &middot; Schedule: {scheduledPerWeek} posts/week across {store.ConnectedAuthorSchedules().Count(s => s.PostsPerWeek > 0)} connected platform(s)</p>
-                    <p class="muted small-text"><strong>Copy post</strong> copies the caption only. Your book link is on the <strong>last line</strong> — Facebook and X use that URL for the preview image (portrait covers are letterboxed so the full cover shows). On X without auto-post, paste the caption and publish; you can also right-click the cover above and attach it for a larger image. <strong>Generate This Week's Posts</strong> replaces every unapproved post this week with a new book, platform, and caption; approved and already-posted ads are left unchanged. Auto-post runs every <strong>5 minutes</strong> and spaces posts evenly across the week — use <strong>Post now</strong> to publish immediately.</p>
+                    <p class="muted small-text"><strong>Copy post</strong> copies the caption only. Your book link is on the <strong>last line</strong> — Facebook and X use that URL for the preview image (portrait covers are letterboxed so the full cover shows). On X without auto-post, paste the caption and publish; you can also right-click the cover above and attach it for a larger image. This week's posts <strong>auto-generate</strong> from your schedule (you do not need to click Generate). Use <strong>Generate This Week's Posts</strong> only to replace unapproved drafts with fresh captions; approved and already-posted ads are left unchanged. Auto-post runs every <strong>5 minutes</strong> and spaces posts evenly across the week — use <strong>Post now</strong> to publish immediately.</p>
                 </div>
                 <form method="post" action="/ad-library/generate-week">
                     <button class="button" type="submit">Generate This Week's Posts</button>

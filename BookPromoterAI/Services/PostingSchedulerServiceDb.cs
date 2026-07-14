@@ -28,6 +28,13 @@ class PostingSchedulerServiceDb : BackgroundService
                 var baseUrl = settings.PublicBaseUrl.TrimEnd('/');
                 if (string.IsNullOrWhiteSpace(baseUrl))
                     baseUrl = "https://bookpromoterai.us";
+                var generator = new PostGenerator();
+                var uploads = scope.ServiceProvider.GetRequiredService<UploadPaths>();
+                var videoRenderer = scope.ServiceProvider.GetRequiredService<VideoRenderService>();
+                var tiktok = scope.ServiceProvider.GetRequiredService<TikTokService>();
+                // Create this week's Ad Library posts for every author with a schedule —
+                // authors should not need to open My Account / save to generate.
+                store.EnsureWeeklyPostsForAllAuthors(generator, baseUrl);
                 await store.RunDuePostsAsync(postingService);
                 await store.RunDueOwnerPromosAsync(postingService, baseUrl);
                 await store.RunDueMailingListEmailsAsync(
@@ -41,10 +48,6 @@ class PostingSchedulerServiceDb : BackgroundService
                     settings.SendGridApiKey,
                     settings.SendGridSenderEmail,
                     settings.SendGridSenderName);
-                var generator = new PostGenerator();
-                var uploads = scope.ServiceProvider.GetRequiredService<UploadPaths>();
-                var videoRenderer = scope.ServiceProvider.GetRequiredService<VideoRenderService>();
-                var tiktok = scope.ServiceProvider.GetRequiredService<TikTokService>();
                 await store.RunWeeklyVideoPipelineAsync(generator, videoRenderer, uploads.Path, baseUrl, tiktok, stoppingToken);
             }
             catch { /* log and continue */ }

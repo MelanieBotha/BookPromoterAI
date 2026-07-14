@@ -2642,23 +2642,45 @@ class AppStoreDb
         return "Weekly auto-send is on — readers get one featured book per week (checked every 5 minutes).";
     }
 
-    public List<GeneratedAd> GenerateWeeklyPosts(PostGenerator generator, string baseUrl, bool replaceUnapproved = false)
+    public List<GeneratedAd> GenerateWeeklyPosts(PostGenerator generator, string baseUrl, bool replaceUnapproved = false) =>
+        GenerateWeeklyPostsForUser(CurrentUserId(), generator, baseUrl, replaceUnapproved);
+
+    /// <summary>
+    /// Fill this ISO week's Ad Library slots for one author from their connected schedules.
+    /// Used from My Account save and the background scheduler (no login session required).
+    /// </summary>
+    public List<GeneratedAd> GenerateWeeklyPostsForUser(
+        int userId, PostGenerator generator, string baseUrl, bool replaceUnapproved = false)
     {
         var touched = new List<GeneratedAd>();
-        var books = Books;
-        var connectedAccounts = AuthorSocialAccounts.Where(a => a.IsConnected).ToList();
-        var activeSchedules = ConnectedAuthorSchedules().Where(s => s.PostsPerWeek > 0).ToList();
-        if (books.Count == 0 || activeSchedules.Count == 0) return touched;
+        if (userId <= 0) return touched;
+
+        using var db = Db();
+        var connectedAccounts = db.SocialAccounts
+            .Where(a => a.UserId == userId && a.IsConnected
+                && (a.AccountKind == SocialAccountKinds.Author || a.AccountKind == ""))
+            .AsNoTracking()
+            .ToList()
+            .Select(ToModel)
+            .Where(a => !PostLimits.IsTikTok(a.Platform))
+            .ToList();
+        var activeSchedules = db.SocialSchedules
+            .Where(s => s.UserId == userId && s.PostsPerWeek > 0
+                && (s.ScheduleKind == SocialScheduleKinds.Author || s.ScheduleKind == ""))
+            .AsNoTracking()
+            .ToList()
+            .Select(ToModel)
+            .Where(s => !PostLimits.IsTikTok(s.Platform)
+                && connectedAccounts.Any(a => PostLimits.PlatformsMatch(a.Platform, s.Platform)))
+            .ToList();
+        var booksById = db.Books.Include(b => b.Links).Where(b => b.UserId == userId).ToDictionary(b => b.Id);
+        var bookList = booksById.Values.ToList();
+        if (bookList.Count == 0 || activeSchedules.Count == 0) return touched;
 
         var now = DateTime.UtcNow;
         var (currentWeek, currentYear, weekLabel) = AdWeek.For(now);
-        var uid = CurrentUserId();
-
-        using var db = Db();
-        var booksById = db.Books.Include(b => b.Links).Where(b => b.UserId == uid).ToDictionary(b => b.Id);
-        var bookList = booksById.Values.ToList();
         var weekAds = db.GeneratedAds
-            .Where(a => a.UserId == uid && a.WeekNumber == currentWeek && a.WeekYear == currentYear)
+            .Where(a => a.UserId == userId && a.WeekNumber == currentWeek && a.WeekYear == currentYear)
             .ToList();
 
         foreach (var ad in weekAds.ToList())
@@ -2718,11 +2740,11 @@ class AppStoreDb
                 dbBook.PostVariantSeed++;
                 var refreshedModel = ToModel(dbBook);
                 var purchaseUrl = PostBranding.PurchaseUrlForPost(refreshedModel, baseUrl, schedule.Platform);
-                var community = BuildPostCommunityProfile(uid, baseUrl);
+                var community = BuildPostCommunityProfile(userId, baseUrl);
                 var text = generator.Generate(refreshedModel, schedule.Platform, purchaseUrl, dbBook.PostVariantSeed, baseUrl, community);
                 var created = new DbGeneratedAd
                 {
-                    UserId = uid,
+                    UserId = userId,
                     BookId = dbBook.Id,
                     BookTitle = dbBook.Title,
                     CoverImageUrl = dbBook.CoverImageUrl,
@@ -2750,6 +2772,32 @@ class AppStoreDb
 
         db.SaveChanges();
         return touched;
+    }
+
+    /// <summary>Ensure every author with an active schedule has this week's Ad Library posts (scheduler).</summary>
+    public int EnsureWeeklyPostsForAllAuthors(PostGenerator generator, string baseUrl)
+    {
+        using var db = Db();
+        var userIds = db.SocialSchedules
+            .Where(s => s.PostsPerWeek > 0
+                && (s.ScheduleKind == SocialScheduleKinds.Author || s.ScheduleKind == ""))
+            .Select(s => s.UserId)
+            .Distinct()
+            .ToList();
+        var created = 0;
+        foreach (var uid in userIds)
+        {
+            try
+            {
+                created += GenerateWeeklyPostsForUser(uid, generator, baseUrl).Count;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Scheduler] Weekly posts for user {uid} failed: {ex.Message}");
+            }
+        }
+
+        return created;
     }
 
     /// <summary>Assign staggered auto-post times to pending ads missing a slot (e.g. before this feature shipped).</summary>

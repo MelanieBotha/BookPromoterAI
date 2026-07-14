@@ -140,7 +140,7 @@ static class MyAccountPage
                 <h2>Author Social Accounts &amp; Posting Schedule</h2>
                 <p class="muted">Connect platforms where you promote <strong>your books</strong>. Set posts/week, approval, and auto-post for each author account.</p>
                 {ownerBrandNote}
-                <p class="muted small-text">Check "Auto-post", set <strong>posts/week</strong> above 0, then click <strong>Save Posting Schedule</strong>. If "Approval required" is checked, approve posts in the Ad Library first. Auto-posting runs immediately on save and every few minutes after that. Connect buttons below appear only for platforms that are configured and ready.</p>
+                <p class="muted small-text">Set <strong>posts/week</strong> and optionally <strong>Auto-post</strong>, then click <strong>Save Posting Schedule</strong> once. Each week the app <strong>auto-generates</strong> your Ad Library posts and auto-posts when due (every few minutes) — you do not need to return here to generate. If "Approval required" is checked, approve posts in the Ad Library first. Connect buttons below appear only for platforms that are configured and ready.</p>
                 {limitText}
                 {limitNotice}
                 <form method="post" action="/schedule" class="schedule-list">
