@@ -16,8 +16,8 @@ static class H
         return words.Length <= maxWords ? text.Trim() : string.Join(' ', words.Take(maxWords));
     }
 
-    public static string RenderPage(HttpContext http, string title, string body, AppStoreDb store) =>
-        Page(title, body, store, http);
+    public static string RenderPage(HttpContext http, string title, string body, AppStoreDb store, string? mainClass = null) =>
+        Page(title, body, store, http, mainClass);
 
     public static string RenderMarketingPage(HttpContext http, string title, string body, AppStoreDb store, string extraHead = "", string? metaDescription = null) =>
         MarketingPage(title, body, store, http, extraHead, metaDescription);
@@ -118,7 +118,7 @@ static class H
     }
 
     // Generates the shared page shell with nav, banner, CSS.
-    public static string Page(string title, string body, AppStoreDb store, HttpContext? http = null)
+    public static string Page(string title, string body, AppStoreDb store, HttpContext? http = null, string? mainClass = null)
     {
         var csrfMeta = "";
         var csrfScript = "";
@@ -160,6 +160,8 @@ static class H
 
         var accountBanner = IsReaderFacingPage(http) ? "" : AccountBanner(store);
 
+        var pageClass = string.IsNullOrWhiteSpace(mainClass) ? "page" : $"page {Encode(mainClass)}";
+
         return $"""
         <!DOCTYPE html>
         <html lang="en">
@@ -184,7 +186,7 @@ static class H
                     {(store.IsOwner ? """<a href="/owner-promos">Owner</a>""" : "")}
                 </nav>
             </header>
-            <main class="page">
+            <main class="{pageClass}">
                 {softLaunchBanner}
                 {accountBanner}
                 {helpPanel}
@@ -424,7 +426,7 @@ h2{font-size:22px}
 @media(max-width:700px){.public-book-hero{grid-template-columns:1fr}}
 .post-card-cover{margin-bottom:10px}
 .post-card-cover .book-cover.large,.post-card-cover .cover-placeholder.large{width:100%;height:180px}
-.ad-week-collapsible{margin-bottom:12px;border-radius:8px;overflow:hidden;border:1px solid var(--line);background:var(--panel)}
+.ad-week-collapsible{margin-bottom:12px;border-radius:8px;border:1px solid var(--line);background:var(--paper)}
 .ad-week-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;background:var(--soft);font-size:15px;font-weight:700;cursor:pointer;list-style:none;user-select:none}
 .ad-week-heading::-webkit-details-marker{display:none}
 .ad-week-heading::after{content:"▼";font-size:11px;color:var(--muted);transition:transform 0.2s;flex:0 0 auto}
@@ -447,7 +449,16 @@ details[open].ad-week-collapsible .ad-week-heading::after{transform:rotate(180de
 .tiktok-caption-preview{white-space:pre-wrap;margin:8px 0}
 .post-card-header div{display:flex;flex-direction:column;gap:2px}
 .copy-source{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;left:-9999px}
-.post-card-actions{display:flex;gap:8px;margin-top:8px}
+.post-card-actions{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.page-ad-library{max-width:none;width:100%;padding:24px clamp(20px,3vw,48px) 40px}
+.page-ad-library .post-grid{display:grid;grid-template-columns:1fr;gap:20px}
+.page-ad-library .post-card{display:grid;grid-template-columns:minmax(140px,220px) minmax(0,1fr);column-gap:24px;row-gap:10px;align-items:start;padding:20px 24px}
+.page-ad-library .post-card-cover{margin-bottom:0;grid-column:1;grid-row:1/-1}
+.page-ad-library .post-card-cover .book-cover.large,.page-ad-library .post-card-cover .cover-placeholder.large{width:100%;height:auto;max-height:300px;object-fit:cover}
+.page-ad-library .post-card>:not(.post-card-cover){grid-column:2}
+.page-ad-library .post-card p{line-height:1.55;word-break:break-word;overflow-wrap:anywhere}
+.page-ad-library .post-card-actions{align-items:center}
+@media(max-width:720px){.page-ad-library .post-card{grid-template-columns:1fr}.page-ad-library .post-card-cover{grid-row:auto}.page-ad-library .post-card>:not(.post-card-cover){grid-column:1}}
 .copy-button.copied{background:var(--accent);color:white;border-color:var(--accent)}
 .password-field{display:flex;gap:8px;align-items:center}
 .password-field input{flex:1}

@@ -21,7 +21,7 @@ static class AdLibraryRoutes
                             : request.Query["postError"] == "1"
                                 ? $"""<div class="notice error">{H.Encode(request.Query["msg"].ToString())}</div>"""
                                 : "";
-            return Results.Content(H.RenderPage(http, "Ad Library", AdLibraryPage.Render(store, search, notice, focus, request, settings), store), "text/html");
+            return Results.Content(H.RenderPage(http, "Ad Library", AdLibraryPage.Render(store, search, notice, focus, request, settings), store, "page-ad-library"), "text/html");
         });
 
         app.MapPost("/ad-library/generate-week", (HttpRequest request, AppStoreDb store, AppSettings settings) =>
