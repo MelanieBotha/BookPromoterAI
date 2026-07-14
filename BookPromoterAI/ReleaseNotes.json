@@ -1,4 +1,12 @@
 {
+  "1.22.1": {
+    "title": "BookPromoter AI v1.22.1 — What's new",
+    "updated": [
+      "TikTok OAuth requests only user.info.basic + video.upload (inbox drafts) — drops video.publish so Connect matches Content Posting API scopes"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.22.0": {
     "title": "BookPromoter AI v1.22.0 — What's new",
     "updated": [

@@ -11,7 +11,8 @@ namespace BookPromoterAI;
 class TikTokService
 {
     public const string CallbackPath = "/social-accounts/oauth-callback/TikTok";
-    public const string Scopes = "user.info.basic,video.upload,video.publish";
+    /// <summary>Inbox (draft) upload only — matches Content Posting <c>video.upload</c>. Do not request <c>video.publish</c> unless Direct Post is enabled.</summary>
+    public const string Scopes = "user.info.basic,video.upload";
 
     readonly HttpClient _http;
     readonly AppSettings _settings;
