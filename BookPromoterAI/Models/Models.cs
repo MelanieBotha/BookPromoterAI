@@ -96,6 +96,7 @@ class TikTokVideo
     public string? ErrorMessage { get; set; }
     public string? TikTokPublishId { get; set; }
     public string NarrationText { get; set; } = "";
+    public string VideoKind { get; set; } = TikTokVideoKinds.Author;
     public int WeekNumber { get; set; }
     public int WeekYear { get; set; }
     public string WeekLabel { get; set; } = "";

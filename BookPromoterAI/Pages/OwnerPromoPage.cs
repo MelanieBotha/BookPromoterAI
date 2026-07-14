@@ -25,7 +25,7 @@ static class OwnerPromoPage
         var now = DateTime.UtcNow;
         var socialAccounts = store.OwnerSocialAccounts;
         var promoAccounts = socialAccounts
-            .Where(a => SocialPlatforms.AllowsBrandConnect(a.Platform))
+            .Where(a => SocialPlatforms.AllowsBrandConnect(a.Platform) && !PostLimits.IsTikTok(a.Platform))
             .OrderBy(a => a.Platform, StringComparer.OrdinalIgnoreCase)
             .ToList();
         var authorOnlyBrandAccounts = socialAccounts
@@ -73,7 +73,7 @@ static class OwnerPromoPage
             connectedRows.Append("""<p class="muted">Connect a platform below to enable Post buttons in the promotion section.</p>""");
 
         var brandScheduleRows = new StringBuilder();
-        foreach (var account in socialAccounts)
+        foreach (var account in socialAccounts.Where(a => !PostLimits.IsTikTok(a.Platform)))
         {
             var schedule = store.OwnerBrandSchedules.FirstOrDefault(s =>
                 s.Platform.Equals(account.Platform, StringComparison.OrdinalIgnoreCase));
@@ -103,10 +103,10 @@ static class OwnerPromoPage
                 """);
         }
 
-        var brandScheduleSection = socialAccounts.Count > 0
+        var brandScheduleSection = socialAccounts.Any(a => !PostLimits.IsTikTok(a.Platform))
             ? $"""
                 <h3 style="margin-top:24px">Brand auto-post schedule</h3>
-                <p class="muted small-text">Promotes BookPromoter AI on a schedule (checks every 5 minutes). Set <strong>posts/week</strong> above 0 and check <strong>Auto-post</strong>. Posts include the BookPromoter AI logo on all live platforms.</p>
+                <p class="muted small-text">Promotes BookPromoter AI on a schedule (checks every 5 minutes). Set <strong>posts/week</strong> above 0 and check <strong>Auto-post</strong>. Posts include the BookPromoter AI logo on all live platforms. TikTok video promos are under <strong>App Videos</strong>.</p>
                 <form method="post" action="/owner/brand-schedule" class="schedule-list">
                     {brandScheduleRows}
                     <button class="button" type="submit">Save brand schedule</button>
@@ -376,6 +376,8 @@ static class OwnerPromoPage
                     {brandPostingLogSection}
                 </div>
             </details>
+
+            {OwnerTikTokVideosSection.Render(store, appBaseUrl, activeSection)}
 
             <details class="owner-collapsible" id="owner-section-promote-app"{open("promote-app")}>
                 <summary class="owner-collapsible-heading">Promote BookPromoter AI (Social &amp; Email)</summary>

@@ -4,15 +4,31 @@ static class OwnerRoutes
 {
     public static void Map(WebApplication app)
     {
-        app.MapGet("/owner-promos", async (HttpContext http, AppStoreDb store, AppSettings settings, ReleaseNotesCatalog releaseNotes, SocialPostMetricsService metrics) =>
+        app.MapGet("/owner-promos", async (HttpContext http, AppStoreDb store, AppSettings settings, ReleaseNotesCatalog releaseNotes, SocialPostMetricsService metrics, UploadPaths uploads, IServiceScopeFactory scopes) =>
         {
             if (OwnerGuard(store) is { } guard) return guard;
             var baseUrl = PublicUrl.Base(http.Request, settings);
             store.EnsureWeeklyOwnerBrandMailingDraft(baseUrl);
+            store.EnsureBrandWeeklyVideos(baseUrl);
+            store.ResetStuckRenderingVideos(TimeSpan.FromMinutes(15));
+            KickOwnerVideoRender(scopes, uploads.Path, baseUrl);
             await store.RefreshOwnerBrandPostMetricsAsync(metrics);
             var section = http.Request.Query["section"].ToString();
             var shuffle = http.Request.Query.ContainsKey("shuffle");
-            return RenderOwner(http, store, settings, releaseNotes, activeSection: section, shufflePromoPreviews: shuffle);
+            var notice = http.Request.Query["connected"] == "1"
+                ? """<div class="notice success">Brand TikTok connected. You can push app promo videos to its inbox.</div>"""
+                : http.Request.Query["posted"] == "1"
+                    ? """<div class="notice success">Sent to brand TikTok inbox.</div>"""
+                    : http.Request.Query["schedule"] == "1"
+                        ? """<div class="notice success">App video schedule saved.</div>"""
+                        : http.Request.Query["regenerated"] == "1"
+                            ? """<div class="notice success">Brand videos queued for this week.</div>"""
+                            : http.Request.Query["deleted"] == "1"
+                                ? """<div class="notice success">Brand video removed.</div>"""
+                                : http.Request.Query["error"] == "1"
+                                    ? $"""<div class="notice error">{H.Encode(http.Request.Query["msg"].ToString())}</div>"""
+                                    : "";
+            return RenderOwner(http, store, settings, releaseNotes, notice, activeSection: section, shufflePromoPreviews: shuffle);
         });
 
         app.MapGet("/owner/promos", () => Results.Redirect("/owner-promos"));
@@ -245,6 +261,70 @@ static class OwnerRoutes
             return RenderOwner(http, store, settings, releaseNotes, activeSection: "facebook-api", facebookDiagnosticsHtml: html);
         });
 
+        app.MapPost("/owner/videos/schedule", async (HttpRequest request, AppStoreDb store) =>
+        {
+            if (OwnerGuard(store) is { } guard) return guard;
+            var form = await request.ReadFormAsync();
+            var parsed = int.TryParse(form["videosPerWeek"].ToString(), out var n) ? n : 0;
+            var autoPost = form["autoPost"].ToString() is "1" or "on" or "true";
+            var err = store.SaveBrandTikTokVideoSchedule(parsed, autoPost);
+            if (err is not null)
+                return Results.Redirect("/owner-promos?section=owner-videos&error=1&msg=" + Uri.EscapeDataString(err));
+            return Results.Redirect("/owner-promos?section=owner-videos&schedule=1");
+        });
+
+        app.MapPost("/owner/videos/regenerate-week", (HttpRequest request, AppStoreDb store, AppSettings settings, UploadPaths uploads, IServiceScopeFactory scopes) =>
+        {
+            if (OwnerGuard(store) is { } guard) return guard;
+            var baseUrl = PublicUrl.Base(request, settings);
+            var queued = store.RegenerateBrandThisWeeksVideos(baseUrl);
+            KickOwnerVideoRender(scopes, uploads.Path, baseUrl);
+            return Results.Redirect(queued > 0
+                ? "/owner-promos?section=owner-videos&regenerated=1"
+                : "/owner-promos?section=owner-videos&error=1&msg=" + Uri.EscapeDataString("Could not queue brand videos."));
+        });
+
+        app.MapPost("/owner/videos/post/{id:int}", async (int id, HttpRequest request, AppStoreDb store, AppSettings settings, TikTokService tiktok) =>
+        {
+            if (OwnerGuard(store) is { } guard) return guard;
+            var baseUrl = PublicUrl.Base(request, settings);
+            var (ok, message) = await store.PostBrandTikTokVideoAsync(id, tiktok, baseUrl);
+            if (request.Query.ContainsKey("ajax"))
+                return ok ? Results.Json(new { ok = true, message }) : Results.Json(new { ok = false, error = message }, statusCode: 400);
+            return Results.Redirect(ok
+                ? "/owner-promos?section=owner-videos&posted=1"
+                : "/owner-promos?section=owner-videos&error=1&msg=" + Uri.EscapeDataString(message));
+        });
+
+        app.MapPost("/owner/videos/retry/{id:int}", (int id, HttpRequest request, AppStoreDb store, AppSettings settings, UploadPaths uploads, IServiceScopeFactory scopes) =>
+        {
+            if (OwnerGuard(store) is { } guard) return guard;
+            var baseUrl = PublicUrl.Base(request, settings);
+            var ok = store.RetryFailedBrandWeeklyVideo(id, baseUrl);
+            if (ok > 0) KickOwnerVideoRender(scopes, uploads.Path, baseUrl);
+            if (request.Query.ContainsKey("ajax"))
+                return ok > 0 ? Results.Json(new { ok = true }) : Results.Json(new { ok = false }, statusCode: 404);
+            return Results.Redirect("/owner-promos?section=owner-videos&retried=1");
+        });
+
+        app.MapPost("/owner/videos/regenerate/{id:int}", (int id, HttpRequest request, AppStoreDb store, AppSettings settings, UploadPaths uploads, IServiceScopeFactory scopes) =>
+        {
+            if (OwnerGuard(store) is { } guard) return guard;
+            var baseUrl = PublicUrl.Base(request, settings);
+            var ok = store.RegenerateBrandWeeklyVideo(id, baseUrl);
+            if (ok > 0) KickOwnerVideoRender(scopes, uploads.Path, baseUrl);
+            if (request.Query.ContainsKey("ajax"))
+                return ok > 0 ? Results.Json(new { ok = true }) : Results.Json(new { ok = false }, statusCode: 404);
+            return Results.Redirect("/owner-promos?section=owner-videos&retried=1");
+        });
+
+        app.MapPost("/owner/videos/delete/{id:int}", (int id, AppStoreDb store) =>
+        {
+            if (OwnerGuard(store) is { } guard) return guard;
+            store.DeleteBrandTikTokVideo(id);
+            return Results.Redirect("/owner-promos?section=owner-videos&deleted=1");
+        });
+
         app.MapGet("/owner-login", (AppStoreDb store) => OwnerGuard(store) ?? Results.Redirect("/owner-promos"));
         app.MapPost("/owner-login", (AppStoreDb store) => OwnerGuard(store) ?? Results.Redirect("/owner-promos"));
     }
@@ -285,5 +365,23 @@ static class OwnerRoutes
         if (!store.IsLoggedIn) return Results.Redirect("/start");
         if (!store.IsOwner) return Results.Redirect("/dashboard");
         return null;
+    }
+
+    static void KickOwnerVideoRender(IServiceScopeFactory scopes, string uploadsPath, string baseUrl)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var scope = scopes.CreateScope();
+                var bgStore = scope.ServiceProvider.GetRequiredService<AppStoreDb>();
+                var bgRenderer = scope.ServiceProvider.GetRequiredService<VideoRenderService>();
+                await bgStore.RenderPendingVideosAsync(bgRenderer, uploadsPath, baseUrl);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Owner Videos] Background render failed: {ex.Message}");
+            }
+        });
     }
 }

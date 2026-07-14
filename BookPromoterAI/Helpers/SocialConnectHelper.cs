@@ -5,6 +5,7 @@ namespace BookPromoterAI;
 static class SocialConnectHelper
 {
     public const string OwnerReturnPath = "/owner-promos";
+    public const string OwnerVideosReturnPath = "/owner-promos?section=owner-videos";
     public const string VideosReturnPath = "/videos";
 
     public static string[] DefaultPlatforms(AppSettings? settings, bool brandContext = false) =>
@@ -41,13 +42,19 @@ static class SocialConnectHelper
     }
 
     public static bool IsAllowedReturnUrl(string? url) =>
-        url == OwnerReturnPath || url == "/my-account" || url == VideosReturnPath;
+        url == OwnerReturnPath
+        || url == OwnerVideosReturnPath
+        || url == "/my-account"
+        || url == VideosReturnPath
+        || (url?.StartsWith("/owner-promos?", StringComparison.OrdinalIgnoreCase) == true);
 
     public static string ResolveAccountKind(string? returnUrl) =>
-        returnUrl == OwnerReturnPath ? SocialAccountKinds.Brand : SocialAccountKinds.Author;
+        IsBrandContext(returnUrl) ? SocialAccountKinds.Brand : SocialAccountKinds.Author;
 
     public static bool IsBrandContext(string? returnUrl) =>
-        returnUrl == OwnerReturnPath;
+        returnUrl == OwnerReturnPath
+        || returnUrl == OwnerVideosReturnPath
+        || (returnUrl?.StartsWith("/owner-promos?", StringComparison.OrdinalIgnoreCase) == true);
 
     public static string ConnectButtons(string returnUrl, AppSettings? settings = null)
     {

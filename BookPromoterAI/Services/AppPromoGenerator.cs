@@ -80,6 +80,19 @@ static class AppPromoGenerator
         return GeneratePost(platform, hook, startUrl, trialUrl, tags, useTrialCta, swapLinkOrder);
     }
 
+    /// <summary>~60s narration for BookPromoter AI brand TikTok videos (logo + voice).</summary>
+    public static string BuildAppVideoNarration(string appBaseUrl, int seed)
+    {
+        var s = Math.Abs(seed);
+        var hook = Hooks[s % Hooks.Length];
+        var tags = Tags[(s / Hooks.Length) % Tags.Length].Replace('#', ' ').Trim();
+        var url = string.IsNullOrWhiteSpace(appBaseUrl) ? "bookpromoterai.us" : appBaseUrl.Replace("https://", "").Replace("http://", "").TrimEnd('/');
+        var body =
+            $"{hook} BookPromoter AI helps indie authors create platform-ready captions, schedule book promos with covers, " +
+            $"and track clicks that drive readers to buy. Start free at {url}. Search {tags}.";
+        return ReadAloudScript.LimitWords(body, TikTokVideoLimits.MaxExcerptWords);
+    }
+
     public static string GenerateUpdatePost(string platform, ProductUpdate update, string appBaseUrl)
     {
         var url = appBaseUrl.TrimEnd('/');

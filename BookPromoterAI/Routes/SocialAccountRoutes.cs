@@ -1025,12 +1025,18 @@ static class SocialAccountRoutes
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
             var form = await request.ReadFormAsync();
             var returnUrl = SocialConnectHelper.ResolveReturnUrl(request, form["return"].ToString());
-            if (store.CheckSocialAccountLimit(SocialAccountKinds.Author) is not null) return Results.Redirect(returnUrl);
+            var kind = SocialConnectHelper.ResolveAccountKind(returnUrl);
+            if (SocialAccountKinds.IsBrand(kind) && !store.IsOwner)
+                return Results.Redirect("/my-account");
+            if (SocialAccountKinds.IsAuthor(kind) && store.CheckSocialAccountLimit(SocialAccountKinds.Author) is not null)
+                return Results.Redirect(returnUrl);
             if (!settings.IsTikTokConfigured)
                 return Results.Redirect($"/social-accounts/connect/TikTok?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("TikTok API credentials are not configured.")}");
 
             var userId = store.GetCurrentDbUser()?.Id ?? 0;
             if (userId == 0) return Results.Redirect("/start");
+            var saveUserId = SocialAccountKinds.IsBrand(kind) ? store.PrimaryOwnerUserId() : userId;
+            if (saveUserId == 0) return Results.Redirect("/start");
 
             var appBaseUrl = PublicUrl.Base(request, settings);
             var callbackUrl = TikTokService.CallbackUrl(appBaseUrl);
@@ -1039,7 +1045,7 @@ static class SocialAccountRoutes
             {
                 UserId = userId,
                 ReturnUrl = returnUrl,
-                Kind = SocialAccountKinds.Author,
+                Kind = kind,
                 CodeVerifier = verifier
             });
             return Results.Redirect(authorizeUrl);
@@ -1091,21 +1097,24 @@ static class SocialAccountRoutes
             store.UpsertOAuthSocialAccountForUser(pending.UserId, new SocialAccount
             {
                 Platform = "TikTok",
-                DisplayName = user.DisplayName,
+                DisplayName = SocialAccountKinds.IsBrand(pending.Kind) ? "BookPromoter AI" : user.DisplayName,
                 Handle = user.HasPublicUsername ? user.Username : "",
                 IsConnected = true,
                 ConnectedViaOAuth = true,
-                AccountKind = SocialAccountKinds.Author,
+                AccountKind = pending.Kind,
                 AccessToken = tokens.AccessToken,
                 RefreshToken = tokens.RefreshToken,
                 ExternalAccountId = user.OpenId
-            }, SocialAccountKinds.Author);
+            }, pending.Kind);
 
-            // Same as other platforms: store a public profile URL readers can open.
-            if (user.ProfileUrl is string profileUrl)
+            // Same as other platforms: store a public profile URL readers can open (author only).
+            if (SocialAccountKinds.IsAuthor(pending.Kind) && user.ProfileUrl is string profileUrl)
                 store.SetCommunityTikTokProfileUrl(pending.UserId, profileUrl);
 
-            store.EnsureTikTokScheduleForUser(pending.UserId);
+            if (SocialAccountKinds.IsBrand(pending.Kind))
+                store.EnsureBrandTikTokSchedule();
+            else
+                store.EnsureTikTokScheduleForUser(pending.UserId);
 
             var successUrl = returnUrl.Contains('?') ? $"{returnUrl}&connected=1" : $"{returnUrl}?connected=1";
             return Results.Redirect(successUrl);
