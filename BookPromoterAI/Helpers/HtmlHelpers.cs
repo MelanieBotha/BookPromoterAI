@@ -451,14 +451,14 @@ details[open].ad-week-collapsible .ad-week-heading::after{transform:rotate(180de
 .copy-source{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;left:-9999px}
 .post-card-actions{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
 .page-ad-library{max-width:none;width:100%;padding:24px clamp(20px,3vw,48px) 40px}
-.page-ad-library .post-grid{display:grid;grid-template-columns:1fr;gap:20px}
-.page-ad-library .post-card{display:grid;grid-template-columns:minmax(140px,220px) minmax(0,1fr);column-gap:24px;row-gap:10px;align-items:start;padding:20px 24px}
-.page-ad-library .post-card-cover{margin-bottom:0;grid-column:1;grid-row:1/-1}
-.page-ad-library .post-card-cover .book-cover.large,.page-ad-library .post-card-cover .cover-placeholder.large{width:100%;height:auto;max-height:300px;object-fit:cover}
-.page-ad-library .post-card>:not(.post-card-cover){grid-column:2}
-.page-ad-library .post-card p{line-height:1.55;word-break:break-word;overflow-wrap:anywhere}
-.page-ad-library .post-card-actions{align-items:center}
-@media(max-width:720px){.page-ad-library .post-card{grid-template-columns:1fr}.page-ad-library .post-card-cover{grid-row:auto}.page-ad-library .post-card>:not(.post-card-cover){grid-column:1}}
+.page-ad-library .post-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.page-ad-library .post-card{display:flex;flex-direction:column;min-width:0;padding:16px}
+.page-ad-library .post-card-cover{flex:0 0 auto}
+.page-ad-library .post-card p{flex:1 1 auto;line-height:1.5;word-break:break-word;overflow-wrap:anywhere;font-size:14px}
+.page-ad-library .post-card-actions{align-items:flex-start;margin-top:auto}
+@media(max-width:1500px){.page-ad-library .post-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:1050px){.page-ad-library .post-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:800px){.page-ad-library .post-grid{grid-template-columns:1fr}}
 .copy-button.copied{background:var(--accent);color:white;border-color:var(--accent)}
 .password-field{display:flex;gap:8px;align-items:center}
 .password-field input{flex:1}

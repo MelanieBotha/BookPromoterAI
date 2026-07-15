@@ -4,10 +4,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>BookPromoterAI</RootNamespace>
-    <Version>1.24.2</Version>
-    <AssemblyVersion>1.24.2.0</AssemblyVersion>
-    <FileVersion>1.24.2.0</FileVersion>
-    <InformationalVersion>1.24.2</InformationalVersion>
+    <Version>1.24.3</Version>
+    <AssemblyVersion>1.24.3.0</AssemblyVersion>
+    <FileVersion>1.24.3.0</FileVersion>
+    <InformationalVersion>1.24.3</InformationalVersion>
   </PropertyGroup>
   <ItemGroup>
     <Content Update="ReleaseNotes.json" CopyToOutputDirectory="PreserveNewest" />
