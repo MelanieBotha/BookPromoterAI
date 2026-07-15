@@ -439,6 +439,8 @@ class AppStoreDb
         db.SaveChanges();
         account.Id = dbAcc.Id;
         account.AccountKind = kind;
+        if (SocialAccountKinds.IsBrand(kind))
+            EnsureBrandAutoPostSchedules();
         return account;
     }
 
@@ -472,6 +474,8 @@ class AppStoreDb
         db.SaveChanges();
         account.Id = dbAcc.Id;
         account.AccountKind = kind;
+        if (SocialAccountKinds.IsBrand(kind))
+            EnsureBrandAutoPostSchedules();
         return account;
     }
 
@@ -513,6 +517,8 @@ class AppStoreDb
         db.SaveChanges();
         account.Id = dbAcc.Id;
         account.AccountKind = kind;
+        if (SocialAccountKinds.IsBrand(kind))
+            EnsureBrandAutoPostSchedules();
         return account;
     }
 
@@ -774,6 +780,119 @@ class AppStoreDb
             }
         }
         db.SaveChanges();
+    }
+
+    public const int DefaultBrandTextPostsPerWeek = 1;
+    public const int DefaultBrandTikTokVideosPerWeek = 2;
+
+    /// <summary>
+    /// Ensures every connected brand account has an auto-post schedule (no Owner save required).
+    /// Text platforms default to 1 post/week; brand TikTok videos default to 2/week.
+    /// </summary>
+    public int EnsureBrandAutoPostSchedules()
+    {
+        using var db = Db();
+        var owner = db.Users.AsNoTracking().FirstOrDefault(u => u.Email == OwnerAccount.NormalizedEmail);
+        if (owner is null) return 0;
+
+        var accounts = db.SocialAccounts
+            .Where(a => a.UserId == owner.Id && a.AccountKind == SocialAccountKinds.Brand && a.IsConnected)
+            .ToList();
+
+        var changed = 0;
+        foreach (var account in accounts)
+        {
+            if (!SocialPlatforms.AllowsBrandConnect(account.Platform)) continue;
+            changed += PostLimits.IsTikTok(account.Platform)
+                ? EnsureBrandTikTokScheduleInDb(db, owner.Id)
+                : EnsureBrandTextScheduleInDb(db, owner.Id, account.Platform);
+        }
+
+        if (changed > 0)
+            db.SaveChanges();
+        return changed;
+    }
+
+    static int EnsureBrandTextScheduleInDb(AppDbContext db, int userId, string platform)
+    {
+        var existing = db.SocialSchedules.FirstOrDefault(s =>
+            s.UserId == userId
+            && s.ScheduleKind == SocialScheduleKinds.Brand
+            && s.Platform.ToLower() == platform.ToLower());
+        if (existing is null)
+        {
+            db.SocialSchedules.Add(new DbSocialSchedule
+            {
+                UserId = userId,
+                Platform = platform,
+                PostsPerWeek = DefaultBrandTextPostsPerWeek,
+                RequiresApproval = false,
+                AutoPostEnabled = true,
+                ScheduleKind = SocialScheduleKinds.Brand
+            });
+            return 1;
+        }
+
+        var changed = 0;
+        if (existing.PostsPerWeek > 0 && !existing.AutoPostEnabled)
+        {
+            existing.AutoPostEnabled = true;
+            changed = 1;
+        }
+
+        if (existing.RequiresApproval)
+        {
+            existing.RequiresApproval = false;
+            changed = 1;
+        }
+
+        return changed;
+    }
+
+    static int EnsureBrandTikTokScheduleInDb(AppDbContext db, int userId)
+    {
+        var existing = db.SocialSchedules.FirstOrDefault(s =>
+            s.UserId == userId
+            && s.ScheduleKind == SocialScheduleKinds.Brand
+            && s.Platform.ToLower() == "tiktok");
+        var currentWeek = System.Globalization.ISOWeek.GetWeekOfYear(DateTime.UtcNow);
+        if (existing is null)
+        {
+            db.SocialSchedules.Add(new DbSocialSchedule
+            {
+                UserId = userId,
+                Platform = "TikTok",
+                PostsPerWeek = DefaultBrandTikTokVideosPerWeek,
+                RequiresApproval = false,
+                AutoPostEnabled = true,
+                ScheduleKind = SocialScheduleKinds.Brand,
+                WeekTrackerStart = currentWeek,
+                PostsSentThisWeek = 0
+            });
+            return 1;
+        }
+
+        var changed = 0;
+        if (existing.WeekTrackerStart != currentWeek)
+        {
+            existing.WeekTrackerStart = currentWeek;
+            existing.PostsSentThisWeek = 0;
+            changed = 1;
+        }
+
+        if (existing.PostsPerWeek > 0 && !existing.AutoPostEnabled)
+        {
+            existing.AutoPostEnabled = true;
+            changed = 1;
+        }
+
+        if (existing.RequiresApproval)
+        {
+            existing.RequiresApproval = false;
+            changed = 1;
+        }
+
+        return changed;
     }
 
     public void RemoveSchedule(string platform)
@@ -1195,9 +1314,9 @@ class AppStoreDb
         {
             UserId = uid,
             Platform = "TikTok",
-            PostsPerWeek = 2,
+            PostsPerWeek = DefaultBrandTikTokVideosPerWeek,
             RequiresApproval = false,
-            AutoPostEnabled = false,
+            AutoPostEnabled = true,
             ScheduleKind = SocialScheduleKinds.Brand,
             WeekTrackerStart = currentWeek,
             PostsSentThisWeek = 0
@@ -1336,9 +1455,9 @@ class AppStoreDb
         {
             UserId = userId,
             Platform = "TikTok",
-            PostsPerWeek = 2,
+            PostsPerWeek = DefaultBrandTikTokVideosPerWeek,
             RequiresApproval = false,
-            AutoPostEnabled = false,
+            AutoPostEnabled = true,
             ScheduleKind = SocialScheduleKinds.Brand,
             WeekTrackerStart = currentWeek,
             PostsSentThisWeek = 0

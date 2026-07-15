@@ -77,8 +77,8 @@ static class OwnerPromoPage
         {
             var schedule = store.OwnerBrandSchedules.FirstOrDefault(s =>
                 s.Platform.Equals(account.Platform, StringComparison.OrdinalIgnoreCase));
-            var postsPerWeek = schedule?.PostsPerWeek ?? 1;
-            var autoPostChecked = (schedule?.AutoPostEnabled ?? false) ? "checked" : "";
+            var postsPerWeek = schedule?.PostsPerWeek ?? AppStoreDb.DefaultBrandTextPostsPerWeek;
+            var autoPostChecked = (schedule?.AutoPostEnabled ?? true) ? "checked" : "";
             var autoHint = schedule?.AutoPostEnabled == true
                 ? AppStoreDb.FormatNextAutoPostHint(schedule) is string hint
                     ? $"""<p class="muted small-text">{H.Encode(hint)}</p>"""
@@ -106,7 +106,7 @@ static class OwnerPromoPage
         var brandScheduleSection = socialAccounts.Any(a => !PostLimits.IsTikTok(a.Platform))
             ? $"""
                 <h3 style="margin-top:24px">Brand auto-post schedule</h3>
-                <p class="muted small-text">Promotes BookPromoter AI on a schedule (checks every 5 minutes). Set <strong>posts/week</strong> above 0 and check <strong>Auto-post</strong>. Posts include the BookPromoter AI logo on all live platforms. TikTok video promos are under <strong>App Videos</strong>.</p>
+                <p class="muted small-text">Connected brand platforms <strong>auto-schedule and auto-post</strong> by default (checked every 5 minutes) — no save needed after connect. Adjust posts/week below or use <strong>Post</strong> for a one-off manual push. TikTok video promos are under <strong>App Videos</strong>.</p>
                 <form method="post" action="/owner/brand-schedule" class="schedule-list">
                     {brandScheduleRows}
                     <button class="button" type="submit">Save brand schedule</button>

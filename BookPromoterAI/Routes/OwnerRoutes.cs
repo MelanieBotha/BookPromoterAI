@@ -9,6 +9,7 @@ static class OwnerRoutes
             if (OwnerGuard(store) is { } guard) return guard;
             var baseUrl = PublicUrl.Base(http.Request, settings);
             store.EnsureWeeklyOwnerBrandMailingDraft(baseUrl);
+            store.EnsureBrandAutoPostSchedules();
             store.EnsureBrandWeeklyVideos(baseUrl);
             store.ResetStuckRenderingVideos(TimeSpan.FromMinutes(15));
             KickOwnerVideoRender(scopes, uploads.Path, baseUrl);

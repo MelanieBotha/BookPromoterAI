@@ -36,6 +36,7 @@ class PostingSchedulerServiceDb : BackgroundService
                 // authors should not need to open My Account / save to generate.
                 store.EnsureWeeklyPostsForAllAuthors(generator, baseUrl);
                 await store.RunDuePostsAsync(postingService);
+                store.EnsureBrandAutoPostSchedules();
                 await store.RunDueOwnerPromosAsync(postingService, baseUrl);
                 await store.RunDueMailingListEmailsAsync(
                     mailingGenerator,
