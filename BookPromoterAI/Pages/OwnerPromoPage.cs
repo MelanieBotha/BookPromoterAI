@@ -309,6 +309,9 @@ static class OwnerPromoPage
             : """<p class="notice error">SendGrid is not configured — emails will not deliver until you add SendGrid variables in Railway.</p>""";
 
         var brandSettings = store.OwnerBrandMailingListSettings;
+        var brandEmailsPerWeek = brandSettings.EmailsPerWeek > 0
+            ? brandSettings.EmailsPerWeek
+            : AppStoreDb.DefaultBrandEmailsPerWeek;
         var brandAutoSendChecked = brandSettings.AutoSendEnabled ? "checked" : "";
         var brandRequiresApprovalChecked = brandSettings.RequiresApproval ? "checked" : "";
         var brandAutoHint = AppStoreDb.FormatNextMailingHint(brandSettings) is string brandHint
@@ -324,7 +327,9 @@ static class OwnerPromoPage
                     <button class="button secondary" type="submit">Approve brand draft</button>
                 </form>
                 """
-            : "";
+            : !string.IsNullOrWhiteSpace(brandSettings.PendingSubject) && brandSettings.AutoSendEnabled
+                ? """<p class="notice success">Brand draft ready — auto-send will use it on the next scheduled slot.</p>"""
+                : "";
         var brandDraftSubject = H.Encode(brandSettings.PendingSubject);
         var brandDraftBody = H.Encode(brandSettings.PendingBody);
         var brandSubscriberCount = store.OwnerBrandMailingListSubscriberCount;
@@ -403,19 +408,19 @@ static class OwnerPromoPage
                     </form>
 
                     <h3 style="margin-top:24px">Brand email auto-send</h3>
-                    <p class="muted small-text">Auto-generate BookPromoter AI promo emails to <strong>registered users</strong> (not author reader lists). Checks every 5 minutes.</p>
+                    <p class="muted small-text">Auto-generates and sends <strong>3 BookPromoter AI promo emails per week</strong> to <strong>registered users</strong> on a schedule (not author reader lists). No save needed after deploy — adjust frequency below or use Send for a one-off. Checks every 5 minutes.</p>
                     {sendGridNote}
                     <form method="post" action="/owner/brand-email/schedule" class="form">
                         <label>Emails per week
-                            <input name="emailsPerWeek" type="number" min="0" max="7" value="{brandSettings.EmailsPerWeek}">
+                            <input name="emailsPerWeek" type="number" min="0" max="7" value="{brandEmailsPerWeek}">
                         </label>
                         <label class="checkbox">
                             <input name="autoSendEnabled" type="checkbox" {brandAutoSendChecked}>
-                            Auto-send to registered users
+                            Auto-send on schedule
                         </label>
                         <label class="checkbox">
                             <input name="requiresApproval" type="checkbox" {brandRequiresApprovalChecked}>
-                            Approval required before sending
+                            Approval required before each send
                         </label>
                         <button class="button secondary" type="submit">Save brand email schedule</button>
                     </form>

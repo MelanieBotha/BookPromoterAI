@@ -38,12 +38,14 @@ class PostingSchedulerServiceDb : BackgroundService
                 await store.RunDuePostsAsync(postingService);
                 store.EnsureBrandAutoPostSchedules();
                 await store.RunDueOwnerPromosAsync(postingService, baseUrl);
+                store.EnsureAuthorMailingAutoSchedules();
                 await store.RunDueMailingListEmailsAsync(
                     mailingGenerator,
                     baseUrl,
                     settings.SendGridApiKey,
                     settings.SendGridSenderEmail,
                     settings.SendGridSenderName);
+                store.EnsureOwnerBrandMailingAutoSchedule();
                 await store.RunDueOwnerBrandEmailsAsync(
                     baseUrl,
                     settings.SendGridApiKey,

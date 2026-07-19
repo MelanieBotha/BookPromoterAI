@@ -2274,6 +2274,9 @@ class AppStoreDb
         return ToModel(EnsureMailingListSettingsRow(db, uid, listKind));
     }
 
+    public const int DefaultAuthorEmailsPerWeek = 3;
+    public const int DefaultBrandEmailsPerWeek = 3;
+
     public void SaveMailingListSettings(int emailsPerWeek, bool autoSendEnabled, bool requiresApproval, string listKind = MailingListKinds.Author)
     {
         var uid = CurrentUserId();
@@ -2281,14 +2284,89 @@ class AppStoreDb
         if (MailingListKinds.IsBrand(listKind) && !IsOwner) return;
         using var db = Db();
         var settings = EnsureMailingListSettingsRow(db, uid, listKind);
-        settings.EmailsPerWeek = MailingListKinds.IsAuthor(listKind)
-            ? (autoSendEnabled ? 1 : 0)
-            : Math.Clamp(emailsPerWeek, 0, 7);
+        settings.EmailsPerWeek = Math.Clamp(emailsPerWeek, 0, 7);
         settings.AutoSendEnabled = autoSendEnabled;
         settings.RequiresApproval = requiresApproval;
         if (!requiresApproval && !string.IsNullOrWhiteSpace(settings.PendingSubject))
             settings.PendingApproved = true;
         db.SaveChanges();
+    }
+
+    /// <summary>
+    /// Ensures every author mailing list is set to auto-send on a weekly schedule
+    /// (default 3 emails/week). Paused lists (EmailsPerWeek = 0) stay paused.
+    /// </summary>
+    public int EnsureAuthorMailingAutoSchedules()
+    {
+        using var db = Db();
+        var all = db.MailingListSettings
+            .Where(s => s.ListKind == MailingListKinds.Author)
+            .ToList();
+        var authorUserIds = db.Users
+            .Where(u => u.HasCustomerAccess)
+            .Select(u => u.Id)
+            .ToList();
+
+        var changed = 0;
+        foreach (var uid in authorUserIds)
+        {
+            var settings = all.FirstOrDefault(s => s.UserId == uid)
+                ?? EnsureMailingListSettingsRow(db, uid, MailingListKinds.Author);
+            changed += ApplyMailingListAutoDefaults(settings, DefaultAuthorEmailsPerWeek);
+        }
+
+        if (changed > 0)
+            db.SaveChanges();
+        return changed;
+    }
+
+    /// <summary>
+    /// Ensures the owner brand mailing list auto-sends 3 promo emails/week to registered users
+    /// without requiring Owner to save a schedule.
+    /// </summary>
+    public int EnsureOwnerBrandMailingAutoSchedule()
+    {
+        using var db = Db();
+        var owner = db.Users.AsNoTracking().FirstOrDefault(u => u.Email == OwnerAccount.NormalizedEmail);
+        if (owner is null) return 0;
+
+        var settings = EnsureMailingListSettingsRow(db, owner.Id, MailingListKinds.Brand);
+        var changed = ApplyMailingListAutoDefaults(settings, DefaultBrandEmailsPerWeek);
+        if (changed > 0)
+            db.SaveChanges();
+        return changed;
+    }
+
+    static int ApplyMailingListAutoDefaults(DbMailingListSettings settings, int defaultEmailsPerWeek)
+    {
+        var changed = 0;
+        // Legacy defaults (1/week auto-on, or 0/week auto-off) → hands-free 3/week.
+        if (settings.AutoSendEnabled && settings.EmailsPerWeek == 1)
+        {
+            settings.EmailsPerWeek = defaultEmailsPerWeek;
+            changed = 1;
+        }
+        else if (!settings.AutoSendEnabled && settings.EmailsPerWeek <= 0)
+        {
+            settings.EmailsPerWeek = defaultEmailsPerWeek;
+            settings.AutoSendEnabled = true;
+            changed = 1;
+        }
+        else if (settings.EmailsPerWeek > 0 && !settings.AutoSendEnabled)
+        {
+            settings.AutoSendEnabled = true;
+            changed = 1;
+        }
+
+        if (settings.RequiresApproval)
+        {
+            settings.RequiresApproval = false;
+            if (!string.IsNullOrWhiteSpace(settings.PendingSubject))
+                settings.PendingApproved = true;
+            changed = 1;
+        }
+
+        return changed;
     }
 
     public void ApprovePendingMailingDraft(string listKind = MailingListKinds.Author)
@@ -2384,11 +2462,12 @@ class AppStoreDb
         AppDbContext db,
         DbMailingListSettings settings,
         MailingListEmailGenerator generator,
-        string baseUrl)
+        string baseUrl,
+        bool forceNew = false)
     {
         var now = DateTime.UtcNow;
         var (week, year, _) = AdWeek.For(now);
-        if (AuthorWeeklyDraftIsCurrent(settings, week, year)) return;
+        if (!forceNew && AuthorWeeklyDraftIsCurrent(settings, week, year)) return;
 
         var dbBooks = db.Books.Include(b => b.Links).Where(b => b.UserId == settings.UserId).ToList();
         if (dbBooks.Count == 0) return;
@@ -2398,7 +2477,7 @@ class AppStoreDb
 
         var book = ToModel(dbBook);
         var trackingUrl = PostBranding.PurchaseUrlForPost(book, baseUrl);
-        var (subject, body) = generator.Generate(book, trackingUrl, dbBook.PostVariantSeed);
+        var (subject, body) = generator.Generate(book, trackingUrl, dbBook.PostVariantSeed + settings.EmailsSentThisWeek);
 
         settings.PendingSubject = subject;
         settings.PendingBody = body;
@@ -2564,7 +2643,11 @@ class AppStoreDb
         if (!settings.AutoSendEnabled || settings.EmailsPerWeek <= 0 || subCount == 0 || generator is null)
             return sentCount;
 
-        if (settings.EmailsSentThisWeek >= 1)
+        if (settings.EmailsSentThisWeek >= settings.EmailsPerWeek)
+            return sentCount;
+
+        var hoursBetween = (24.0 * 7) / settings.EmailsPerWeek;
+        if (settings.LastSentAt is DateTime lastWeekly && (now - lastWeekly).TotalHours < hoursBetween)
             return sentCount;
 
         EnsureAuthorWeeklyBookDraft(db, settings, generator, appBaseUrl);
@@ -2582,8 +2665,12 @@ class AppStoreDb
         if (weeklySent > 0)
         {
             settings.LastSentAt = now;
-            settings.EmailsSentThisWeek = 1;
+            settings.EmailsSentThisWeek++;
             settings.PendingApproved = false;
+            settings.PendingSubject = "";
+            settings.PendingBody = "";
+            // Next slot needs a fresh featured-book draft (rotate through catalog).
+            EnsureAuthorWeeklyBookDraft(db, settings, generator, appBaseUrl, forceNew: true);
             sentCount++;
         }
 
@@ -2598,9 +2685,9 @@ class AppStoreDb
         {
             UserId = userId,
             ListKind = listKind,
-            RequiresApproval = MailingListKinds.IsAuthor(listKind) ? false : true,
-            AutoSendEnabled = MailingListKinds.IsAuthor(listKind),
-            EmailsPerWeek = MailingListKinds.IsAuthor(listKind) ? 1 : 0
+            RequiresApproval = false,
+            AutoSendEnabled = true,
+            EmailsPerWeek = MailingListKinds.IsBrand(listKind) ? DefaultBrandEmailsPerWeek : DefaultAuthorEmailsPerWeek
         };
         db.MailingListSettings.Add(row);
         db.SaveChanges();
@@ -2745,20 +2832,30 @@ class AppStoreDb
     public static string? FormatNextMailingHint(MailingListSettings? settings)
     {
         if (settings is null || !settings.AutoSendEnabled || settings.EmailsPerWeek <= 0)
-            return "Turn on weekly auto-send to email readers automatically.";
+            return "Turn on auto-send and set emails/week above 0 to email readers automatically.";
 
-        if (settings.EmailsSentThisWeek >= 1)
+        var sent = settings.EmailsSentThisWeek;
+        var cap = settings.EmailsPerWeek;
+        if (sent >= cap)
         {
             var now = DateTime.UtcNow;
             var (week, year, _) = AdWeek.For(now);
             var nextWeekStart = System.Globalization.ISOWeek.ToDateTime(year, week, DayOfWeek.Monday).AddDays(7);
-            return $"This week's featured book was emailed. Next weekly send: {nextWeekStart:ddd MMM d, yyyy}.";
+            return $"This week's {cap} auto-email(s) are done ({sent}/{cap}). Next week starts {nextWeekStart:ddd MMM d, yyyy}.";
         }
 
         if (settings.RequiresApproval && !settings.PendingApproved && !string.IsNullOrWhiteSpace(settings.PendingSubject))
-            return "This week's draft is ready — approve it below to allow auto-send.";
+            return "A draft is ready — approve it below to allow the next auto-send.";
 
-        return "Weekly auto-send is on — readers get one featured book per week (checked every 5 minutes).";
+        if (settings.LastSentAt is DateTime last && cap > 0)
+        {
+            var hoursBetween = (24.0 * 7) / cap;
+            var nextAt = last.AddHours(hoursBetween);
+            if (nextAt > DateTime.UtcNow)
+                return $"{sent}/{cap} sent this week. Next auto-send ~{AppTimeZone.FormatWithZone(nextAt, "ddd MMM d, HH:mm")}.";
+        }
+
+        return $"Auto-send is on — {cap} featured-book email(s) per week ({sent}/{cap} sent). Checked every 5 minutes.";
     }
 
     public List<GeneratedAd> GenerateWeeklyPosts(PostGenerator generator, string baseUrl, bool replaceUnapproved = false) =>

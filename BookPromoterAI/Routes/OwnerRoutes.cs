@@ -8,6 +8,7 @@ static class OwnerRoutes
         {
             if (OwnerGuard(store) is { } guard) return guard;
             var baseUrl = PublicUrl.Base(http.Request, settings);
+            store.EnsureOwnerBrandMailingAutoSchedule();
             store.EnsureWeeklyOwnerBrandMailingDraft(baseUrl);
             store.EnsureBrandAutoPostSchedules();
             store.EnsureBrandWeeklyVideos(baseUrl);

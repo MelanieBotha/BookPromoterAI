@@ -1,4 +1,20 @@
 {
+  "1.25.1": {
+    "title": "BookPromoter AI v1.25.1 — What's new",
+    "updated": [
+      "Owner brand email: auto-schedule and auto-send 3 promo emails/week to registered users (same hands-free pattern as author mailing lists)"
+    ],
+    "new": [],
+    "added": []
+  },
+  "1.25.0": {
+    "title": "BookPromoter AI v1.25.0 — What's new",
+    "updated": [],
+    "new": [
+      "Mailing List auto-send: 3 featured-book emails per week on a schedule to all subscribers (rotating books) — manual Send still available"
+    ],
+    "added": []
+  },
   "1.24.4": {
     "title": "BookPromoter AI v1.24.4 — What's new",
     "updated": [

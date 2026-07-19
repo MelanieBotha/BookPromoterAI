@@ -96,12 +96,13 @@ static class MailingListPage
             ? """<p class="muted small-text">The novel cover will appear at the top of the sent email.</p>"""
             : "";
         var featuringNote = draftBook is not null
-            ? $"""<p class="muted small-text">This week's featured book: <strong>{H.Encode(draftBook.Title)}</strong>{(store.Books.Count > 1 ? " — rotates to the next novel each week" : "")}</p>"""
+            ? $"""<p class="muted small-text">Next featured book: <strong>{H.Encode(draftBook.Title)}</strong>{(store.Books.Count > 1 ? " — rotates through your catalog" : "")}</p>"""
             : store.Books.Count > 0
-                ? """<p class="muted small-text">One book is featured per week and auto-emailed to readers. New books trigger an immediate new-release announcement.</p>"""
+                ? """<p class="muted small-text">Featured books rotate across 3 auto-emails each week. New books also trigger an immediate new-release announcement.</p>"""
                 : "";
         var refreshDraftButton = "Refresh Draft";
 
+        var emailsPerWeek = settings.EmailsPerWeek > 0 ? settings.EmailsPerWeek : AppStoreDb.DefaultAuthorEmailsPerWeek;
         var autoSendChecked = settings.AutoSendEnabled ? "checked" : "";
         var requiresApprovalChecked = settings.RequiresApproval ? "checked" : "";
         var autoHint = AppStoreDb.FormatNextMailingHint(settings) is string hint
@@ -121,7 +122,7 @@ static class MailingListPage
                 </form>
                 """
             : settings.PendingApproved && settings.AutoSendEnabled && !string.IsNullOrWhiteSpace(settings.PendingSubject)
-                ? """<p class="notice success">Draft approved — auto-send will use this message on the next scheduled slot.</p>"""
+                ? """<p class="notice success">Draft ready — auto-send will use this message on the next scheduled slot.</p>"""
                 : "";
 
         var viewedSection = viewedCampaign is null ? "" : $"""
@@ -143,10 +144,10 @@ static class MailingListPage
                 <div>
                     <p class="eyebrow">Mailing List</p>
                     <h1>Build a reader list and email your subscribers.</h1>
-                    <p class="muted">One featured novel per week, auto-sent to your readers. Add a new book and readers get an immediate new-release announcement.{(store.IsOwner ? " <strong>Registered user emails</strong> (product updates) are on the <a href=\"/owner-promos\">Owner</a> page." : "")}</p>
+                    <p class="muted">Auto-sends <strong>3 featured-book emails per week</strong> to your readers on a schedule. Add a new book and readers get an immediate new-release announcement.{(store.IsOwner ? " <strong>Registered user emails</strong> (product updates) are on the <a href=\"/owner-promos\">Owner</a> page." : "")}</p>
                 </div>
                 <form method="post" action="/mailing-list/generate" class="inline-form">
-                    <button class="button" type="submit">Preview This Week's Email</button>
+                    <button class="button" type="submit">Preview Next Email</button>
                 </form>
             </section>
 
@@ -155,20 +156,22 @@ static class MailingListPage
             {subscriptionsSection}
 
             <section class="panel">
-                <h2>Weekly auto-send</h2>
-                <p class="muted">Each week, one of your books is featured and emailed to <strong>your readers</strong>. Books rotate automatically. When you add a new book, readers get a <strong>new-release</strong> email right away.</p>
+                <h2>Auto-send schedule</h2>
+                <p class="muted">Generates rotating featured-book emails and sends them to <strong>all your subscribers</strong> on a schedule (default <strong>3 per week</strong>). No approval needed. Use <strong>Send to All Subscribers</strong> below for a one-off manual push.</p>
                 {sendGridNote}
                 <form method="post" action="/mailing-list/schedule" class="form">
+                    <label>Emails per week
+                        <input name="emailsPerWeek" type="number" min="0" max="7" value="{emailsPerWeek}" required>
+                    </label>
                     <label class="checkbox">
                         <input name="autoSendEnabled" type="checkbox" {autoSendChecked}>
-                        Auto-send one featured book per week
+                        Auto-send on schedule
                     </label>
                     <label class="checkbox">
                         <input name="requiresApproval" type="checkbox" {requiresApprovalChecked}>
-                        Approval required before weekly send
+                        Approval required before each send
                     </label>
-                    <input type="hidden" name="emailsPerWeek" value="1">
-                    <button class="button" type="submit">Save</button>
+                    <button class="button" type="submit">Save schedule</button>
                 </form>
                 {autoHint}
                 {approveSection}
@@ -195,7 +198,7 @@ static class MailingListPage
 
             <section class="panel" id="compose-email">
                 <h2>Send Email to List</h2>
-                <p class="muted">{(store.MailingListSubscribers.Count == 0 ? "<strong>Add subscribers first.</strong> " : $"Ready to reach {store.MailingListSubscribers.Count} subscriber(s). ")}Use Auto-Generate to draft a promotion from your books, edit if needed, then send. Manual sends are separate from weekly auto-send.</p>
+                <p class="muted">{(store.MailingListSubscribers.Count == 0 ? "<strong>Add subscribers first.</strong> " : $"Ready to reach {store.MailingListSubscribers.Count} subscriber(s). ")}Preview or edit the next draft below, then send manually if you want. Manual sends are separate from auto-send.</p>
                 <form method="post" action="/mailing-list/send" class="form" onsubmit="return confirm('Send this email to all {store.MailingListSubscribers.Count} subscriber(s)?');">
                     {bookField}
                     <label>Subject <input name="subject" required placeholder="New book announcement" value="{H.Encode(effectiveSubject)}"></label>

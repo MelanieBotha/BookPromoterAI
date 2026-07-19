@@ -8,6 +8,7 @@ static class MailingListRoutes
         {
             if (!store.HasCustomerAccess || !store.IsLoggedIn) return Results.Redirect("/start");
             var baseUrl = PublicUrl.Base(request, settings);
+            store.EnsureAuthorMailingAutoSchedules();
             store.EnsureWeeklyMailingDraft(emailGenerator, baseUrl);
             MailingListCampaign? viewed = null;
             if (int.TryParse(request.Query["view"].ToString(), out var viewId))
@@ -21,7 +22,7 @@ static class MailingListRoutes
             var baseUrl = PublicUrl.Base(request, settings);
             store.EnsureWeeklyMailingDraft(emailGenerator, baseUrl);
             var draft = store.MailingListSettings;
-            var notice = """<div class="notice success">This week's featured book draft is ready. Review and send, or leave auto-send on.</div>""";
+            var notice = """<div class="notice success">Next featured-book draft is ready. Review and send, or leave auto-send on.</div>""";
             return Results.Content(H.RenderPage(http, "Mailing List", MailingListPage.Render(
                 store, notice, baseUrl, draft.PendingSubject, draft.PendingBody, draft.PendingBookId ?? 0), store), "text/html");
         });
