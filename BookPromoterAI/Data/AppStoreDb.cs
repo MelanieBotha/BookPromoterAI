@@ -4960,6 +4960,8 @@ class AppStoreDb
             }
             if (schedule.PostsSentThisWeek >= schedule.PostsPerWeek) continue;
 
+            // Space evenly across the week (~42h for 4/week). Catch up when behind —
+            // do not wait for fixed Mon/Wed/Fri slots that already passed.
             var nextSlot = PostSchedule.NextBrandAutoPostUtc(ToModel(schedule), now);
             if (nextSlot is DateTime due && due > now) continue;
 
@@ -4969,7 +4971,37 @@ class AppStoreDb
                 && a.AccountKind == SocialAccountKinds.Brand)
                 .ToListAsync())
                 .FirstOrDefault(a => PostLimits.PlatformsMatch(a.Platform, schedule.Platform));
-            if (account is null) continue;
+            if (account is null)
+            {
+                db.PostingLog.Add(new DbPostingLogEntry
+                {
+                    UserId = owner.Id,
+                    Platform = schedule.Platform,
+                    BookTitle = "BookPromoter AI",
+                    Success = false,
+                    Message = $"No connected brand {schedule.Platform} account — reconnect under Owner → Brand Social.",
+                    AttemptedAt = now,
+                    LogKind = PostingLogKinds.Brand
+                });
+                continue;
+            }
+
+            var accountModel = ToModel(account);
+            if (PostLimits.RequiresLiveConnection(accountModel.Platform) && !accountModel.IsLiveConnection)
+            {
+                db.PostingLog.Add(new DbPostingLogEntry
+                {
+                    UserId = owner.Id,
+                    Platform = schedule.Platform,
+                    BookTitle = "BookPromoter AI",
+                    Success = false,
+                    Message = PostLimits.LiveReconnectHint(accountModel.Platform),
+                    AttemptedAt = now,
+                    LogKind = PostingLogKinds.Brand
+                });
+                // Don't burn the weekly slot on a dead connection — skip until reconnected.
+                continue;
+            }
 
             var promoSeed = AppPromoGenerator.WeeklyPromoSeed(now, schedule.Platform, schedule.PostsSentThisWeek);
             var brandCommunity = GetBrandCommunityProfile(baseUrl);
@@ -4978,22 +5010,6 @@ class AppStoreDb
                 schedule.Platform,
                 brandCommunity);
             if (string.IsNullOrWhiteSpace(postText)) continue;
-
-            var accountModel = ToModel(account);
-            if (PostLimits.IsFacebook(accountModel.Platform) && !accountModel.IsLiveConnection)
-            {
-                db.PostingLog.Add(new DbPostingLogEntry
-                {
-                    UserId = owner.Id,
-                    Platform = schedule.Platform,
-                    BookTitle = "BookPromoter AI",
-                    Success = false,
-                    Message = "Facebook not live — missing Page token. Reconnect from Owner → Brand Social.",
-                    AttemptedAt = now,
-                    LogKind = PostingLogKinds.Brand
-                });
-                continue;
-            }
 
             var outcome = await postingService.PostAsync(
                 accountModel,
@@ -5014,6 +5030,11 @@ class AppStoreDb
                 schedule.LastPostedAt = now;
                 schedule.PostsSentThisWeek++;
                 count++;
+            }
+            else if (IsTransientAuthFailure(result.Message))
+            {
+                // Auth/token failures: advance LastPostedAt slightly so we don't retry every 5 minutes.
+                schedule.LastPostedAt = now;
             }
         }
 
@@ -5136,15 +5157,26 @@ class AppStoreDb
             return null;
 
         if (schedule.PostsSentThisWeek >= schedule.PostsPerWeek)
-            return "Weekly auto-post limit reached for this platform.";
+            return $"Weekly auto-post limit reached ({schedule.PostsSentThisWeek}/{schedule.PostsPerWeek} this week).";
 
         var nextAt = PostSchedule.NextBrandAutoPostUtc(schedule, DateTime.UtcNow);
         if (nextAt is null)
-            return "Weekly auto-post limit reached for this platform.";
+            return $"Weekly auto-post limit reached ({schedule.PostsSentThisWeek}/{schedule.PostsPerWeek} this week).";
         if (nextAt <= DateTime.UtcNow)
-            return "Auto-post checks every 5 minutes — due now.";
+            return $"Auto-post due now ({schedule.PostsSentThisWeek}/{schedule.PostsPerWeek} sent this week) — checks every 5 minutes.";
 
-        return $"Next auto-post slot: ~{AppTimeZone.FormatWithZone(nextAt.Value, "ddd MMM d, HH:mm")}";
+        return $"Next auto-post ~{AppTimeZone.FormatWithZone(nextAt.Value, "ddd MMM d, HH:mm")} ({schedule.PostsSentThisWeek}/{schedule.PostsPerWeek} sent this week).";
+    }
+
+    static bool IsTransientAuthFailure(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message)) return false;
+        return message.Contains("expired", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("reconnect", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("not live", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("invalid token", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("unauthorized", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("OAuth", StringComparison.OrdinalIgnoreCase);
     }
 
     // ── Client matching ────────────────────────────────────────────────

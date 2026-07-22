@@ -1,4 +1,12 @@
 {
+  "1.25.2": {
+    "title": "BookPromoter AI v1.25.2 — What's new",
+    "updated": [
+      "Owner brand auto-post: catch up with even spacing when behind schedule (no longer waits for missed weekday slots); clearer next-post hint; less spam retry on expired Facebook/Tumblr tokens"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.25.1": {
     "title": "BookPromoter AI v1.25.1 — What's new",
     "updated": [

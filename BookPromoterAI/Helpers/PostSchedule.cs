@@ -111,26 +111,21 @@ static class PostSchedule
         return AppTimeZone.ToUtcFromLocal(localWallClock);
     }
 
-    /// <summary>Next brand auto-post slot based on posts already sent this week.</summary>
+    /// <summary>
+    /// Next brand auto-post time. Uses even spacing across the week so missed
+    /// weekday slots still catch up (unlike Ad Library day-of-week assignment).
+    /// </summary>
     public static DateTime? NextBrandAutoPostUtc(SocialSchedule schedule, DateTime nowUtc)
     {
         if (schedule.PostsPerWeek <= 0 || schedule.PostsSentThisWeek >= schedule.PostsPerWeek)
             return null;
 
-        var weekYear = System.Globalization.ISOWeek.GetYear(nowUtc);
-        var weekNumber = System.Globalization.ISOWeek.GetWeekOfYear(nowUtc);
-        var slots = BuildSlotTimes(schedule.PostsPerWeek, schedule.PostsPerWeek, weekYear, weekNumber, nowUtc);
-        var slotIndex = Math.Clamp(schedule.PostsSentThisWeek, 0, slots.Count - 1);
-        if (slots.Count == 0)
+        if (schedule.LastPostedAt is not DateTime last)
             return nowUtc;
 
-        for (var i = slotIndex; i < slots.Count; i++)
-        {
-            if (slots[i] > nowUtc)
-                return slots[i];
-        }
-
-        return nowUtc;
+        var hoursBetween = (24.0 * 7) / schedule.PostsPerWeek;
+        var next = last.AddHours(hoursBetween);
+        return next > nowUtc ? next : nowUtc;
     }
 
     public static DateTime DisplayTime(GeneratedAd ad) =>
