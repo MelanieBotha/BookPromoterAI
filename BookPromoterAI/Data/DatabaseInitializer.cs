@@ -248,6 +248,9 @@ static class DatabaseInitializer
         AddColumnIfMissing(db, "PostingLog", "ClickCount", """ALTER TABLE "PostingLog" ADD COLUMN "ClickCount" INTEGER NULL""");
         AddColumnIfMissing(db, "PostingLog", "MetricsFetchedAt", """ALTER TABLE "PostingLog" ADD COLUMN "MetricsFetchedAt" TEXT NULL""");
         AddColumnIfMissing(db, "GeneratedAds", "PostedVia", """ALTER TABLE "GeneratedAds" ADD COLUMN "PostedVia" TEXT NOT NULL DEFAULT ''""");
+        AddColumnIfMissing(db, "GeneratedAds", "AdKind", """ALTER TABLE "GeneratedAds" ADD COLUMN "AdKind" TEXT NOT NULL DEFAULT 'Author'""");
+        if (TableExists(db, "GeneratedAds") && ColumnExists(db, "GeneratedAds", "AdKind"))
+            db.Database.ExecuteSqlRaw("""UPDATE "GeneratedAds" SET "AdKind" = 'Author' WHERE "AdKind" IS NULL OR "AdKind" = ''""");
         AddColumnIfMissing(db, "PostingLog", "PostDelivery", """ALTER TABLE "PostingLog" ADD COLUMN "PostDelivery" TEXT NOT NULL DEFAULT ''""");
         AddColumnIfMissing(db, "Users", "CommunityDiscordUrl", """ALTER TABLE "Users" ADD COLUMN "CommunityDiscordUrl" TEXT NOT NULL DEFAULT ''""");
         AddColumnIfMissing(db, "Users", "CommunityTelegramUrl", """ALTER TABLE "Users" ADD COLUMN "CommunityTelegramUrl" TEXT NOT NULL DEFAULT ''""");
@@ -296,7 +299,8 @@ static class DatabaseInitializer
             foreach (var orphan in orphanSchedules)
             {
                 var ads = db.GeneratedAds.Where(a => a.UserId == userId).AsEnumerable()
-                    .Where(a => PostLimits.PlatformsMatch(a.Platform, orphan.Platform))
+                    .Where(a => GeneratedAdKinds.IsAuthor(a.AdKind)
+                        && PostLimits.PlatformsMatch(a.Platform, orphan.Platform))
                     .ToList();
                 if (ads.Count > 0)
                     db.GeneratedAds.RemoveRange(ads);
@@ -312,28 +316,47 @@ static class DatabaseInitializer
         if (!TableExists(db, "GeneratedAds") || !TableExists(db, "Books")) return;
 
         var bookOrphans = db.GeneratedAds.AsEnumerable()
-            .Where(a => !db.Books.Any(b => b.Id == a.BookId && b.UserId == a.UserId))
+            .Where(a => GeneratedAdKinds.IsAuthor(a.AdKind)
+                && !db.Books.Any(b => b.Id == a.BookId && b.UserId == a.UserId))
             .ToList();
         if (bookOrphans.Count > 0)
             db.GeneratedAds.RemoveRange(bookOrphans);
 
         foreach (var userId in db.GeneratedAds.Select(a => a.UserId).Distinct().ToList())
         {
-            var connectedPlatforms = db.SocialAccounts
+            var connectedAuthor = db.SocialAccounts
                 .Where(a => a.UserId == userId && a.IsConnected
                     && (a.AccountKind == SocialAccountKinds.Author || a.AccountKind == ""))
                 .Select(a => a.Platform)
                 .ToList();
-            var scheduledPlatforms = db.SocialSchedules
+            var scheduledAuthor = db.SocialSchedules
                 .Where(s => s.UserId == userId && s.PostsPerWeek > 0
                     && (s.ScheduleKind == SocialScheduleKinds.Author || s.ScheduleKind == ""))
+                .Select(s => s.Platform)
+                .ToList();
+            var connectedBrand = db.SocialAccounts
+                .Where(a => a.UserId == userId && a.IsConnected
+                    && a.AccountKind == SocialAccountKinds.Brand)
+                .Select(a => a.Platform)
+                .ToList();
+            var scheduledBrand = db.SocialSchedules
+                .Where(s => s.UserId == userId && s.PostsPerWeek > 0
+                    && s.ScheduleKind == SocialScheduleKinds.Brand)
                 .Select(s => s.Platform)
                 .ToList();
 
             var platformOrphans = db.GeneratedAds.Where(a => a.UserId == userId).AsEnumerable()
                 .Where(a =>
-                    !connectedPlatforms.Any(p => PostLimits.PlatformsMatch(p, a.Platform)) &&
-                    !scheduledPlatforms.Any(p => PostLimits.PlatformsMatch(p, a.Platform)))
+                {
+                    if (GeneratedAdKinds.IsBrand(a.AdKind))
+                    {
+                        return !connectedBrand.Any(p => PostLimits.PlatformsMatch(p, a.Platform)) &&
+                               !scheduledBrand.Any(p => PostLimits.PlatformsMatch(p, a.Platform));
+                    }
+
+                    return !connectedAuthor.Any(p => PostLimits.PlatformsMatch(p, a.Platform)) &&
+                           !scheduledAuthor.Any(p => PostLimits.PlatformsMatch(p, a.Platform));
+                })
                 .ToList();
             if (platformOrphans.Count > 0)
                 db.GeneratedAds.RemoveRange(platformOrphans);

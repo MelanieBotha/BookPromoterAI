@@ -271,6 +271,8 @@ class GeneratedAd
     public int WeekNumber { get; set; }
     public int WeekYear { get; set; }
     public string WeekLabel { get; set; } = "";
+    /// <summary>Author book promos vs owner BookPromoter AI brand promos.</summary>
+    public string AdKind { get; set; } = GeneratedAdKinds.Author;
 
     // Auto-posting status for this generated post.
     // Pending -> awaiting approval or awaiting its scheduled time

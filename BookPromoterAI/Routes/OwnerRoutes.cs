@@ -11,6 +11,7 @@ static class OwnerRoutes
             store.EnsureOwnerBrandMailingAutoSchedule();
             store.EnsureWeeklyOwnerBrandMailingDraft(baseUrl);
             store.EnsureBrandAutoPostSchedules();
+            store.EnsureWeeklyBrandPosts(baseUrl);
             store.EnsureBrandWeeklyVideos(baseUrl);
             store.ResetStuckRenderingVideos(TimeSpan.FromMinutes(15));
             KickOwnerVideoRender(scopes, uploads.Path, baseUrl);
@@ -178,7 +179,38 @@ static class OwnerRoutes
                 baseUrl,
                 string.IsNullOrWhiteSpace(platform) ? null : platform);
             var cls = message.Contains("Posted", StringComparison.OrdinalIgnoreCase) ? "success" : "error";
-            return RenderOwner(http, store, settings, releaseNotes, $"""<div class="notice {cls}">{H.Encode(message)}</div>""");
+            return RenderOwner(http, store, settings, releaseNotes, $"""<div class="notice {cls}">{H.Encode(message)}</div>""", "promote-app");
+        });
+
+        app.MapPost("/owner/app-promo/generate-week", (HttpContext http, AppStoreDb store, AppSettings settings, ReleaseNotesCatalog releaseNotes) =>
+        {
+            if (OwnerGuard(store) is { } guard) return guard;
+            var baseUrl = PublicUrl.Base(http.Request, settings);
+            var created = store.GenerateWeeklyBrandPosts(baseUrl, replaceUnposted: true);
+            var notice = created.Count > 0
+                ? $"""<div class="notice success">Generated {created.Count} random brand post(s) for this week (posted cards kept).</div>"""
+                : """<div class="notice success">This week's brand posts are already filled. Use Regenerate on a card for a new random caption.</div>""";
+            return RenderOwner(http, store, settings, releaseNotes, notice, "promote-app");
+        });
+
+        app.MapPost("/owner/app-promo/regenerate/{id:int}", (int id, HttpContext http, AppStoreDb store, AppSettings settings, ReleaseNotesCatalog releaseNotes) =>
+        {
+            if (OwnerGuard(store) is { } guard) return guard;
+            var baseUrl = PublicUrl.Base(http.Request, settings);
+            var resultId = store.RegenerateBrandAd(id, baseUrl);
+            var notice = resultId is not null
+                ? """<div class="notice success">Regenerated with a new random caption.</div>"""
+                : """<div class="notice error">Brand post not found.</div>""";
+            return RenderOwner(http, store, settings, releaseNotes, notice, "promote-app");
+        });
+
+        app.MapPost("/owner/app-promo/post-now/{id:int}", async (int id, HttpContext http, AppStoreDb store, AppSettings settings, SocialPostingService posting, ReleaseNotesCatalog releaseNotes) =>
+        {
+            if (OwnerGuard(store) is { } guard) return guard;
+            var baseUrl = PublicUrl.Base(http.Request, settings);
+            var (success, message) = await store.PostBrandAdNowAsync(id, posting, baseUrl);
+            var cls = success ? "success" : "error";
+            return RenderOwner(http, store, settings, releaseNotes, $"""<div class="notice {cls}">{H.Encode(message)}</div>""", "promote-app");
         });
 
         app.MapPost("/owner/brand-schedule", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings, SocialPostingService posting, ReleaseNotesCatalog releaseNotes) =>
@@ -206,6 +238,7 @@ static class OwnerRoutes
 
             store.SaveBrandSchedules(schedules);
             var baseUrl = PublicUrl.Base(http.Request, settings);
+            store.GenerateWeeklyBrandPosts(baseUrl, replaceUnposted: false);
             var posted = await store.RunDueOwnerPromosAsync(posting, baseUrl);
             var notice = posted > 0
                 ? $"""<div class="notice success">Brand schedule saved. {posted} app promo(s) auto-posted now.</div>"""

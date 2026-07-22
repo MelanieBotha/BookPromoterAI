@@ -563,13 +563,26 @@ class AppStoreDb
         if (acc is null) return;
         if (SocialAccountKinds.IsBrand(acc.AccountKind) && !IsOwner) return;
         var platform = acc.Platform;
+        var isBrand = SocialAccountKinds.IsBrand(acc.AccountKind);
         db.SocialAccounts.Remove(acc);
-        DeleteGeneratedAdsForPlatform(db, uid, platform);
-        var schedule = db.SocialSchedules.FirstOrDefault(x => x.UserId == uid
-            && x.Platform.ToLower() == platform.ToLower()
-            && (x.ScheduleKind == SocialScheduleKinds.Author || x.ScheduleKind == ""));
-        if (schedule is not null)
-            db.SocialSchedules.Remove(schedule);
+        if (isBrand)
+        {
+            DeleteBrandGeneratedAdsForPlatform(db, uid, platform);
+            var brandSchedule = db.SocialSchedules.FirstOrDefault(x => x.UserId == uid
+                && x.Platform.ToLower() == platform.ToLower()
+                && x.ScheduleKind == SocialScheduleKinds.Brand);
+            if (brandSchedule is not null)
+                db.SocialSchedules.Remove(brandSchedule);
+        }
+        else
+        {
+            DeleteGeneratedAdsForPlatform(db, uid, platform);
+            var schedule = db.SocialSchedules.FirstOrDefault(x => x.UserId == uid
+                && x.Platform.ToLower() == platform.ToLower()
+                && (x.ScheduleKind == SocialScheduleKinds.Author || x.ScheduleKind == ""));
+            if (schedule is not null)
+                db.SocialSchedules.Remove(schedule);
+        }
         if (PostLimits.IsTikTok(platform))
         {
             var user = db.Users.FirstOrDefault(u => u.Id == uid);
@@ -736,7 +749,8 @@ class AppStoreDb
         if (schedules.Count == 0) return;
 
         var weekAds = db.GeneratedAds
-            .Where(a => a.UserId == uid && a.WeekNumber == currentWeek && a.WeekYear == currentYear)
+            .Where(a => a.UserId == uid && a.WeekNumber == currentWeek && a.WeekYear == currentYear
+                && (a.AdKind == "" || a.AdKind == GeneratedAdKinds.Author))
             .ToList();
 
         foreach (var schedule in schedules)
@@ -895,6 +909,223 @@ class AppStoreDb
         return changed;
     }
 
+    /// <summary>
+    /// Fill this ISO week's brand Ad Library slots from owner brand schedules.
+    /// Captions use a random seed so Generate / Regenerate always produce fresh copy.
+    /// </summary>
+    public List<GeneratedAd> GenerateWeeklyBrandPosts(string baseUrl, bool replaceUnposted = false)
+    {
+        var touched = new List<GeneratedAd>();
+        // replaceUnposted is owner-UI only; background scheduler only fills missing slots.
+        if (replaceUnposted && !IsOwner) return touched;
+        var uid = BrandDataUserId();
+        if (uid == 0) return touched;
+
+        using var db = Db();
+        var connectedAccounts = db.SocialAccounts
+            .Where(a => a.UserId == uid && a.IsConnected && a.AccountKind == SocialAccountKinds.Brand)
+            .AsNoTracking()
+            .ToList()
+            .Select(ToModel)
+            .Where(a => SocialPlatforms.AllowsBrandConnect(a.Platform) && !PostLimits.IsTikTok(a.Platform))
+            .ToList();
+        var activeSchedules = db.SocialSchedules
+            .Where(s => s.UserId == uid && s.PostsPerWeek > 0 && s.ScheduleKind == SocialScheduleKinds.Brand)
+            .AsNoTracking()
+            .ToList()
+            .Select(ToModel)
+            .Where(s => !PostLimits.IsTikTok(s.Platform)
+                && connectedAccounts.Any(a => PostLimits.PlatformsMatch(a.Platform, s.Platform)))
+            .ToList();
+        if (activeSchedules.Count == 0) return touched;
+
+        var now = DateTime.UtcNow;
+        var (currentWeek, currentYear, weekLabel) = AdWeek.For(now);
+        var weekAds = db.GeneratedAds
+            .Where(a => a.UserId == uid && a.WeekNumber == currentWeek && a.WeekYear == currentYear
+                && a.AdKind == GeneratedAdKinds.Brand)
+            .ToList();
+
+        foreach (var ad in weekAds.ToList())
+        {
+            if (connectedAccounts.Any(a => PostLimits.PlatformsMatch(a.Platform, ad.Platform))) continue;
+            if (ad.PostStatus == "Posted") continue;
+            db.GeneratedAds.Remove(ad);
+            weekAds.Remove(ad);
+        }
+
+        if (replaceUnposted)
+        {
+            var disposable = weekAds.Where(a => a.PostStatus != "Posted").ToList();
+            if (disposable.Count > 0)
+            {
+                db.GeneratedAds.RemoveRange(disposable);
+                foreach (var ad in disposable)
+                    weekAds.Remove(ad);
+            }
+        }
+
+        var postsThisWeekByPlatform = weekAds
+            .GroupBy(a => a.Platform)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        var brandCommunity = GetBrandCommunityProfile(baseUrl);
+        foreach (var schedule in activeSchedules)
+        {
+            var existingCount = postsThisWeekByPlatform.GetValueOrDefault(schedule.Platform, 0);
+            var needed = schedule.PostsPerWeek - existingCount;
+            if (needed <= 0) continue;
+
+            for (var i = 0; i < needed; i++)
+            {
+                var seed = Random.Shared.Next();
+                var text = CommunityLinks.AppendPromotion(
+                    AppPromoGenerator.GeneratePromoPost(schedule.Platform, baseUrl, seed),
+                    schedule.Platform,
+                    brandCommunity);
+                var created = new DbGeneratedAd
+                {
+                    UserId = uid,
+                    BookId = 0,
+                    BookTitle = "BookPromoter AI",
+                    CoverImageUrl = PostBranding.LogoPath,
+                    Platform = schedule.Platform,
+                    PostText = text,
+                    GeneratedAt = now,
+                    WeekNumber = currentWeek,
+                    WeekYear = currentYear,
+                    WeekLabel = weekLabel,
+                    AdKind = GeneratedAdKinds.Brand,
+                    PostStatus = "Pending",
+                    ApprovedForPosting = true
+                };
+                db.GeneratedAds.Add(created);
+                weekAds.Add(created);
+                postsThisWeekByPlatform[schedule.Platform] = postsThisWeekByPlatform.GetValueOrDefault(schedule.Platform, 0) + 1;
+                touched.Add(ToModel(created));
+            }
+        }
+
+        foreach (var schedule in activeSchedules)
+        {
+            var platformAds = weekAds
+                .Where(a => PostLimits.PlatformsMatch(a.Platform, schedule.Platform))
+                .ToList();
+            PostSchedule.AssignWeeklyPostSlots(platformAds, schedule.PostsPerWeek, now, currentYear, currentWeek);
+        }
+
+        db.SaveChanges();
+        return touched;
+    }
+
+    public int EnsureWeeklyBrandPosts(string baseUrl) =>
+        GenerateWeeklyBrandPosts(baseUrl, replaceUnposted: false).Count;
+
+    public int? RegenerateBrandAd(int adId, string baseUrl)
+    {
+        if (!IsOwner) return null;
+        var uid = BrandDataUserId();
+        using var db = Db();
+        var ad = db.GeneratedAds.FirstOrDefault(a =>
+            a.Id == adId && a.UserId == uid && a.AdKind == GeneratedAdKinds.Brand);
+        if (ad is null) return null;
+        RefreshBrandGeneratedAdEntity(ad, baseUrl);
+        var now = DateTime.UtcNow;
+        var (currentWeek, currentYear, _) = AdWeek.For(now);
+        var platformAds = db.GeneratedAds
+            .Where(a => a.UserId == uid && a.WeekNumber == currentWeek && a.WeekYear == currentYear
+                && a.Platform == ad.Platform && a.AdKind == GeneratedAdKinds.Brand)
+            .ToList();
+        var schedule = db.SocialSchedules.FirstOrDefault(s =>
+            s.UserId == uid && s.Platform == ad.Platform && s.ScheduleKind == SocialScheduleKinds.Brand);
+        if (schedule is not null)
+            PostSchedule.AssignWeeklyPostSlots(platformAds, schedule.PostsPerWeek, now, currentYear, currentWeek);
+        db.SaveChanges();
+        return adId;
+    }
+
+    void RefreshBrandGeneratedAdEntity(DbGeneratedAd ad, string baseUrl)
+    {
+        var seed = Random.Shared.Next();
+        var brandCommunity = GetBrandCommunityProfile(baseUrl);
+        ad.PostText = CommunityLinks.AppendPromotion(
+            AppPromoGenerator.GeneratePromoPost(ad.Platform, baseUrl, seed),
+            ad.Platform,
+            brandCommunity);
+        ad.BookTitle = "BookPromoter AI";
+        ad.CoverImageUrl = PostBranding.LogoPath;
+        ad.GeneratedAt = DateTime.UtcNow;
+        ad.PostStatus = "Pending";
+        ad.PostedAt = null;
+        ad.PostError = null;
+        ad.PostedVia = "";
+        ad.ApprovedForPosting = true;
+        ad.ScheduledPostAt = null;
+    }
+
+    public async Task<(bool Success, string Message)> PostBrandAdNowAsync(int adId, SocialPostingService postingService, string appBaseUrl)
+    {
+        if (!IsOwner) return (false, "Owner only.");
+        var uid = BrandDataUserId();
+        if (uid == 0) return (false, "Owner account not found.");
+
+        var now = DateTime.UtcNow;
+        using var db = Db();
+        var ad = await db.GeneratedAds.FirstOrDefaultAsync(a =>
+            a.Id == adId && a.UserId == uid && a.AdKind == GeneratedAdKinds.Brand);
+        if (ad is null) return (false, "Brand post not found.");
+        if (ad.PostStatus == "Posted")
+            return (false, "This post was already published. Click Regenerate for a fresh caption.");
+
+        var schedule = await db.SocialSchedules.FirstOrDefaultAsync(s =>
+            s.UserId == uid && s.Platform == ad.Platform && s.ScheduleKind == SocialScheduleKinds.Brand);
+
+        var account = (await db.SocialAccounts.Where(a =>
+            a.UserId == uid && a.IsConnected && a.AccountKind == SocialAccountKinds.Brand)
+            .ToListAsync())
+            .FirstOrDefault(a => PostLimits.PlatformsMatch(a.Platform, ad.Platform));
+        if (account is null)
+            return (false, $"Connect your brand {ad.Platform} account under Owner → Brand Social first.");
+
+        var accountModel = ToModel(account);
+        if (PostLimits.RequiresLiveConnection(ad.Platform) && !accountModel.IsLiveConnection)
+            return (false, PostLimits.LiveReconnectHint(ad.Platform));
+
+        var outcome = await postingService.PostAsync(
+            accountModel,
+            ad.PostText,
+            brandMedia: BuildBrandPostMedia(appBaseUrl));
+        var result = outcome.Result;
+        if (!string.IsNullOrWhiteSpace(outcome.AccessToken))
+        {
+            account.AccessToken = outcome.AccessToken;
+            if (!string.IsNullOrWhiteSpace(outcome.RefreshToken))
+                account.RefreshToken = outcome.RefreshToken;
+        }
+
+        var posted = ApplyGeneratedAdPostResult(ad, result, now, PostDeliveryKinds.Manual);
+        db.PostingLog.Add(NewPostingLogEntry(uid, ad.Platform, ad.BookTitle, posted,
+            posted ? "Posted now from brand Ad Library." : result.Message,
+            now, PostingLogKinds.Brand, ad.Id, result, PostDeliveryKinds.Manual));
+
+        if (posted && schedule is not null)
+        {
+            var currentWeek = System.Globalization.ISOWeek.GetWeekOfYear(now);
+            if (schedule.WeekTrackerStart != currentWeek)
+            {
+                schedule.WeekTrackerStart = currentWeek;
+                schedule.PostsSentThisWeek = 0;
+            }
+            schedule.LastPostedAt = now;
+            schedule.PostsSentThisWeek++;
+        }
+
+        await db.SaveChangesAsync();
+        return posted
+            ? (true, $"Posted to {ad.Platform}.")
+            : (false, result.Message);
+    }
+
     public void RemoveSchedule(string platform)
     {
         var uid = CurrentUserId();
@@ -915,7 +1146,18 @@ class AppStoreDb
     static void DeleteGeneratedAdsForPlatform(AppDbContext db, int userId, string platform)
     {
         var ads = db.GeneratedAds.Where(a => a.UserId == userId).AsEnumerable()
-            .Where(a => PostLimits.PlatformsMatch(a.Platform, platform))
+            .Where(a => GeneratedAdKinds.IsAuthor(a.AdKind)
+                && PostLimits.PlatformsMatch(a.Platform, platform))
+            .ToList();
+        if (ads.Count > 0)
+            db.GeneratedAds.RemoveRange(ads);
+    }
+
+    static void DeleteBrandGeneratedAdsForPlatform(AppDbContext db, int userId, string platform)
+    {
+        var ads = db.GeneratedAds.Where(a => a.UserId == userId).AsEnumerable()
+            .Where(a => GeneratedAdKinds.IsBrand(a.AdKind)
+                && PostLimits.PlatformsMatch(a.Platform, platform))
             .ToList();
         if (ads.Count > 0)
             db.GeneratedAds.RemoveRange(ads);
@@ -2182,11 +2424,37 @@ class AppStoreDb
                 .AsNoTracking()
                 .ToList();
             return db.GeneratedAds
-                .Where(a => a.UserId == uid)
+                .Where(a => a.UserId == uid && (a.AdKind == "" || a.AdKind == GeneratedAdKinds.Author))
                 .Where(a => db.Books.Any(b => b.Id == a.BookId && b.UserId == uid))
                 .AsNoTracking()
                 .ToList()
                 .Where(a => connectedPlatforms.Any(p => PostLimits.PlatformsMatch(p, a.Platform)))
+                .OrderByDescending(a => a.GeneratedAt)
+                .Select(ToModel)
+                .ToList();
+        }
+    }
+
+    /// <summary>Owner brand promo ads (BookPromoter AI captions), week-grouped like Ad Library.</summary>
+    public List<GeneratedAd> OwnerBrandGeneratedAds
+    {
+        get
+        {
+            if (!IsOwner) return [];
+            var uid = BrandDataUserId();
+            if (uid == 0) return [];
+            using var db = Db();
+            var connectedPlatforms = db.SocialAccounts
+                .Where(a => a.UserId == uid && a.IsConnected && a.AccountKind == SocialAccountKinds.Brand)
+                .Select(a => a.Platform)
+                .AsNoTracking()
+                .ToList();
+            return db.GeneratedAds
+                .Where(a => a.UserId == uid && a.AdKind == GeneratedAdKinds.Brand)
+                .AsNoTracking()
+                .ToList()
+                .Where(a => connectedPlatforms.Any(p => PostLimits.PlatformsMatch(p, a.Platform))
+                    || a.PostStatus == "Posted")
                 .OrderByDescending(a => a.GeneratedAt)
                 .Select(ToModel)
                 .ToList();
@@ -2199,7 +2467,7 @@ class AppStoreDb
         var now = DateTime.UtcNow;
         var (weekNum, weekYear, weekLabel) = AdWeek.For(now);
         using var db = Db();
-        var ad = new DbGeneratedAd { UserId = uid, BookId = book.Id, BookTitle = book.Title, CoverImageUrl = book.CoverImageUrl, Platform = platform, PostText = postText, GeneratedAt = now, WeekNumber = weekNum, WeekYear = weekYear, WeekLabel = weekLabel };
+        var ad = new DbGeneratedAd { UserId = uid, BookId = book.Id, BookTitle = book.Title, CoverImageUrl = book.CoverImageUrl, Platform = platform, PostText = postText, GeneratedAt = now, WeekNumber = weekNum, WeekYear = weekYear, WeekLabel = weekLabel, AdKind = GeneratedAdKinds.Author };
         db.GeneratedAds.Add(ad);
         db.SaveChanges();
         return ToModel(ad);
@@ -2217,7 +2485,8 @@ class AppStoreDb
     {
         var uid = CurrentUserId();
         using var db = Db();
-        var ad = db.GeneratedAds.FirstOrDefault(a => a.Id == adId && a.UserId == uid);
+        var ad = db.GeneratedAds.FirstOrDefault(a =>
+            a.Id == adId && a.UserId == uid && (a.AdKind == "" || a.AdKind == GeneratedAdKinds.Author));
         if (ad is null) return null;
         var book = db.Books.Include(b => b.Links).FirstOrDefault(b => b.Id == ad.BookId && b.UserId == uid);
         if (book is null) return null;
@@ -2225,9 +2494,12 @@ class AppStoreDb
         var now = DateTime.UtcNow;
         var (currentWeek, currentYear, _) = AdWeek.For(now);
         var platformAds = db.GeneratedAds
-            .Where(a => a.UserId == uid && a.WeekNumber == currentWeek && a.WeekYear == currentYear && a.Platform == ad.Platform)
+            .Where(a => a.UserId == uid && a.WeekNumber == currentWeek && a.WeekYear == currentYear
+                && a.Platform == ad.Platform
+                && (a.AdKind == "" || a.AdKind == GeneratedAdKinds.Author))
             .ToList();
-        var schedule = db.SocialSchedules.FirstOrDefault(s => s.UserId == uid && s.Platform == ad.Platform);
+        var schedule = db.SocialSchedules.FirstOrDefault(s => s.UserId == uid && s.Platform == ad.Platform
+            && (s.ScheduleKind == SocialScheduleKinds.Author || s.ScheduleKind == ""));
         if (schedule is not null)
             PostSchedule.AssignWeeklyPostSlots(platformAds, schedule.PostsPerWeek, now, currentYear, currentWeek);
         db.SaveChanges();
@@ -2896,7 +3168,8 @@ class AppStoreDb
         var now = DateTime.UtcNow;
         var (currentWeek, currentYear, weekLabel) = AdWeek.For(now);
         var weekAds = db.GeneratedAds
-            .Where(a => a.UserId == userId && a.WeekNumber == currentWeek && a.WeekYear == currentYear)
+            .Where(a => a.UserId == userId && a.WeekNumber == currentWeek && a.WeekYear == currentYear
+                && (a.AdKind == "" || a.AdKind == GeneratedAdKinds.Author))
             .ToList();
 
         foreach (var ad in weekAds.ToList())
@@ -2969,7 +3242,8 @@ class AppStoreDb
                     GeneratedAt = now,
                     WeekNumber = currentWeek,
                     WeekYear = currentYear,
-                    WeekLabel = weekLabel
+                    WeekLabel = weekLabel,
+                    AdKind = GeneratedAdKinds.Author
                 };
                 db.GeneratedAds.Add(created);
                 weekAds.Add(created);
@@ -3029,7 +3303,8 @@ class AppStoreDb
 
         using var db = Db();
         var weekAds = db.GeneratedAds
-            .Where(a => a.UserId == uid && a.WeekNumber == currentWeek && a.WeekYear == currentYear)
+            .Where(a => a.UserId == uid && a.WeekNumber == currentWeek && a.WeekYear == currentYear
+                && (a.AdKind == "" || a.AdKind == GeneratedAdKinds.Author))
             .ToList();
         if (weekAds.Count == 0) return;
 
@@ -4900,6 +5175,7 @@ class AppStoreDb
             var pendingAds = await db.GeneratedAds.Where(a =>
                     a.UserId == schedule.UserId
                     && a.Platform == schedule.Platform
+                    && (a.AdKind == "" || a.AdKind == GeneratedAdKinds.Author)
                     && a.PostStatus == "Pending"
                     && (!schedule.RequiresApproval || a.ApprovedForPosting))
                 .ToListAsync();
@@ -4926,7 +5202,7 @@ class AppStoreDb
         return count;
     }
 
-    /// <summary>Auto-post BookPromoter AI app promos to owner brand social accounts.</summary>
+    /// <summary>Auto-post scheduled brand Ad Library posts to owner brand social accounts.</summary>
     public async Task<int> RunDueOwnerPromosAsync(SocialPostingService postingService, string appBaseUrl)
     {
         using var db = Db();
@@ -4938,6 +5214,10 @@ class AppStoreDb
             baseUrl = _settings.PublicBaseUrl.TrimEnd('/');
         if (string.IsNullOrWhiteSpace(baseUrl))
             baseUrl = "https://bookpromoterai.us";
+
+        // Ensure this week's brand slots exist before posting due ones.
+        // GenerateWeeklyBrandPosts needs owner session — call via uid path inline.
+        EnsureWeeklyBrandPostsForOwner(db, owner.Id, baseUrl);
 
         var count = 0;
         var now = DateTime.UtcNow;
@@ -4959,11 +5239,6 @@ class AppStoreDb
                 schedule.PostsSentThisWeek = 0;
             }
             if (schedule.PostsSentThisWeek >= schedule.PostsPerWeek) continue;
-
-            // Space evenly across the week (~42h for 4/week). Catch up when behind —
-            // do not wait for fixed Mon/Wed/Fri slots that already passed.
-            var nextSlot = PostSchedule.NextBrandAutoPostUtc(ToModel(schedule), now);
-            if (nextSlot is DateTime due && due > now) continue;
 
             var account = (await db.SocialAccounts.Where(a =>
                 a.UserId == owner.Id
@@ -4999,21 +5274,24 @@ class AppStoreDb
                     AttemptedAt = now,
                     LogKind = PostingLogKinds.Brand
                 });
-                // Don't burn the weekly slot on a dead connection — skip until reconnected.
                 continue;
             }
 
-            var promoSeed = AppPromoGenerator.WeeklyPromoSeed(now, schedule.Platform, schedule.PostsSentThisWeek);
-            var brandCommunity = GetBrandCommunityProfile(baseUrl);
-            var postText = CommunityLinks.AppendPromotion(
-                AppPromoGenerator.GeneratePromoPost(schedule.Platform, baseUrl, promoSeed),
-                schedule.Platform,
-                brandCommunity);
-            if (string.IsNullOrWhiteSpace(postText)) continue;
+            var pendingAds = await db.GeneratedAds.Where(a =>
+                    a.UserId == owner.Id
+                    && a.AdKind == GeneratedAdKinds.Brand
+                    && a.Platform == schedule.Platform
+                    && a.PostStatus == "Pending")
+                .ToListAsync();
+            var candidate = pendingAds
+                .Where(a => a.ScheduledPostAt is not null && a.ScheduledPostAt <= now)
+                .OrderBy(a => a.ScheduledPostAt)
+                .FirstOrDefault();
+            if (candidate is null) continue;
 
             var outcome = await postingService.PostAsync(
                 accountModel,
-                postText,
+                candidate.PostText,
                 brandMedia: BuildBrandPostMedia(baseUrl));
             var result = outcome.Result;
             if (!string.IsNullOrWhiteSpace(outcome.AccessToken))
@@ -5023,8 +5301,10 @@ class AppStoreDb
                     account.RefreshToken = outcome.RefreshToken;
             }
 
-            var posted = result.PostedToFeed;
-            db.PostingLog.Add(NewPostingLogEntry(owner.Id, schedule.Platform, "BookPromoter AI", posted, posted ? "Auto-posted owner app promo." : result.Message, now, PostingLogKinds.Brand, result: result, postDelivery: PostDeliveryKinds.Scheduled));
+            var posted = ApplyGeneratedAdPostResult(candidate, result, now, PostDeliveryKinds.Scheduled);
+            db.PostingLog.Add(NewPostingLogEntry(owner.Id, schedule.Platform, candidate.BookTitle, posted,
+                posted ? "Auto-posted owner app promo." : result.Message,
+                now, PostingLogKinds.Brand, candidate.Id, result, PostDeliveryKinds.Scheduled));
             if (posted)
             {
                 schedule.LastPostedAt = now;
@@ -5033,13 +5313,91 @@ class AppStoreDb
             }
             else if (IsTransientAuthFailure(result.Message))
             {
-                // Auth/token failures: advance LastPostedAt slightly so we don't retry every 5 minutes.
                 schedule.LastPostedAt = now;
             }
         }
 
         await db.SaveChangesAsync();
         return count;
+    }
+
+    void EnsureWeeklyBrandPostsForOwner(AppDbContext db, int ownerId, string baseUrl)
+    {
+        var connectedAccounts = db.SocialAccounts
+            .Where(a => a.UserId == ownerId && a.IsConnected && a.AccountKind == SocialAccountKinds.Brand)
+            .AsNoTracking()
+            .ToList()
+            .Select(ToModel)
+            .Where(a => SocialPlatforms.AllowsBrandConnect(a.Platform) && !PostLimits.IsTikTok(a.Platform))
+            .ToList();
+        var activeSchedules = db.SocialSchedules
+            .Where(s => s.UserId == ownerId && s.PostsPerWeek > 0 && s.ScheduleKind == SocialScheduleKinds.Brand)
+            .ToList()
+            .Where(s => !PostLimits.IsTikTok(s.Platform)
+                && connectedAccounts.Any(a => PostLimits.PlatformsMatch(a.Platform, s.Platform)))
+            .ToList();
+        if (activeSchedules.Count == 0) return;
+
+        var now = DateTime.UtcNow;
+        var (currentWeek, currentYear, weekLabel) = AdWeek.For(now);
+        var weekAds = db.GeneratedAds
+            .Where(a => a.UserId == ownerId && a.WeekNumber == currentWeek && a.WeekYear == currentYear
+                && a.AdKind == GeneratedAdKinds.Brand)
+            .ToList();
+
+        var postsThisWeekByPlatform = weekAds
+            .GroupBy(a => a.Platform)
+            .ToDictionary(g => g.Key, g => g.Count());
+        var brandCommunity = GetBrandCommunityProfile(baseUrl);
+        var createdAny = false;
+
+        foreach (var schedule in activeSchedules)
+        {
+            var existingCount = postsThisWeekByPlatform.GetValueOrDefault(schedule.Platform, 0);
+            var needed = schedule.PostsPerWeek - existingCount;
+            if (needed <= 0) continue;
+
+            for (var i = 0; i < needed; i++)
+            {
+                var seed = Random.Shared.Next();
+                var text = CommunityLinks.AppendPromotion(
+                    AppPromoGenerator.GeneratePromoPost(schedule.Platform, baseUrl, seed),
+                    schedule.Platform,
+                    brandCommunity);
+                var created = new DbGeneratedAd
+                {
+                    UserId = ownerId,
+                    BookId = 0,
+                    BookTitle = "BookPromoter AI",
+                    CoverImageUrl = PostBranding.LogoPath,
+                    Platform = schedule.Platform,
+                    PostText = text,
+                    GeneratedAt = now,
+                    WeekNumber = currentWeek,
+                    WeekYear = currentYear,
+                    WeekLabel = weekLabel,
+                    AdKind = GeneratedAdKinds.Brand,
+                    PostStatus = "Pending",
+                    ApprovedForPosting = true
+                };
+                db.GeneratedAds.Add(created);
+                weekAds.Add(created);
+                postsThisWeekByPlatform[schedule.Platform] = postsThisWeekByPlatform.GetValueOrDefault(schedule.Platform, 0) + 1;
+                createdAny = true;
+            }
+        }
+
+        foreach (var schedule in activeSchedules)
+        {
+            var platformAds = weekAds
+                .Where(a => PostLimits.PlatformsMatch(a.Platform, schedule.Platform))
+                .ToList();
+            PostSchedule.AssignWeeklyPostSlots(platformAds, schedule.PostsPerWeek, now, currentYear, currentWeek,
+                onlyAdsMissingFutureSlot: !createdAny);
+        }
+
+        if (createdAny || weekAds.Any(a => a.ScheduledPostAt is null && a.PostStatus == "Pending"))
+            db.SaveChanges();
     }
 
     /// <summary>Post a single Ad Library ad immediately, bypassing schedule spacing.</summary>
@@ -5050,7 +5408,8 @@ class AppStoreDb
 
         var now = DateTime.UtcNow;
         using var db = Db();
-        var ad = await db.GeneratedAds.FirstOrDefaultAsync(a => a.Id == adId && a.UserId == uid);
+        var ad = await db.GeneratedAds.FirstOrDefaultAsync(a =>
+            a.Id == adId && a.UserId == uid && (a.AdKind == "" || a.AdKind == GeneratedAdKinds.Author));
         if (ad is null) return (false, "Post not found.");
         if (ad.PostStatus == "Posted") return (false, "This post was already published. Click Regenerate to create a fresh version you can post again.");
 
@@ -5269,6 +5628,8 @@ class AppStoreDb
     {
         if (!IsOwner) return (0, 0, "Only the owner can post app promotions.");
 
+        EnsureWeeklyBrandPosts(appBaseUrl);
+
         using var db = Db();
         var owner = db.Users.FirstOrDefault(u => u.Email == OwnerAccount.NormalizedEmail);
         if (owner is null) return (0, 0, "Owner account not found.");
@@ -5276,22 +5637,23 @@ class AppStoreDb
         var accounts = await db.SocialAccounts
             .Where(a => a.UserId == owner.Id && a.IsConnected && a.AccountKind == SocialAccountKinds.Brand)
             .ToListAsync();
-        accounts = accounts.Where(a => SocialPlatforms.AllowsBrandConnect(a.Platform)).ToList();
+        accounts = accounts.Where(a => SocialPlatforms.AllowsBrandConnect(a.Platform) && !PostLimits.IsTikTok(a.Platform)).ToList();
 
         if (!string.IsNullOrWhiteSpace(platformFilter))
             accounts = accounts.Where(a => a.Platform.Equals(platformFilter, StringComparison.OrdinalIgnoreCase)).ToList();
 
         if (accounts.Count == 0)
-            return (0, 0, "Connect BookPromoter AI brand accounts under Owner → Owner Social Media Accounts, then try again.");
+            return (0, 0, "Connect BookPromoter AI brand accounts under Owner → Brand Social, then try again.");
 
         var posted = 0;
         var failed = 0;
         var now = DateTime.UtcNow;
+        var currentWeek = System.Globalization.ISOWeek.GetWeekOfYear(now);
 
         foreach (var account in accounts)
         {
             var model = ToModel(account);
-            if (PostLimits.IsFacebook(model.Platform) && !model.IsLiveConnection)
+            if (PostLimits.RequiresLiveConnection(model.Platform) && !model.IsLiveConnection)
             {
                 db.PostingLog.Add(new DbPostingLogEntry
                 {
@@ -5299,7 +5661,7 @@ class AppStoreDb
                     Platform = account.Platform,
                     BookTitle = "BookPromoter AI",
                     Success = false,
-                    Message = "Facebook not live — missing Page token. Reconnect from Owner → Brand Social.",
+                    Message = PostLimits.LiveReconnectHint(model.Platform),
                     AttemptedAt = now,
                     LogKind = PostingLogKinds.Brand
                 });
@@ -5307,17 +5669,22 @@ class AppStoreDb
                 continue;
             }
 
-            var promoSeed = AppPromoGenerator.WeeklyPromoSeed(now, account.Platform, 0);
-            var brandCommunity = GetBrandCommunityProfile(appBaseUrl);
-            var postText = CommunityLinks.AppendPromotion(
-                AppPromoGenerator.GeneratePromoPost(account.Platform, appBaseUrl, promoSeed),
-                account.Platform,
-                brandCommunity);
-            if (string.IsNullOrWhiteSpace(postText)) continue;
+            var pending = await db.GeneratedAds
+                .Where(a => a.UserId == owner.Id
+                    && a.AdKind == GeneratedAdKinds.Brand
+                    && a.Platform == account.Platform
+                    && a.PostStatus == "Pending")
+                .OrderBy(a => a.ScheduledPostAt ?? a.GeneratedAt)
+                .FirstOrDefaultAsync();
+            if (pending is null)
+            {
+                failed++;
+                continue;
+            }
 
             var outcome = await postingService.PostAsync(
                 model,
-                postText,
+                pending.PostText,
                 brandMedia: BuildBrandPostMedia(appBaseUrl));
             var result = outcome.Result;
             if (!string.IsNullOrWhiteSpace(outcome.AccessToken))
@@ -5326,8 +5693,32 @@ class AppStoreDb
                 if (!string.IsNullOrWhiteSpace(outcome.RefreshToken))
                     account.RefreshToken = outcome.RefreshToken;
             }
-            db.PostingLog.Add(NewPostingLogEntry(owner.Id, account.Platform, "BookPromoter AI", result.PostedToFeed, result.Message, now, PostingLogKinds.Brand, result: result, postDelivery: PostDeliveryKinds.Manual));
-            if (result.PostedToFeed) posted++; else failed++;
+
+            var ok = ApplyGeneratedAdPostResult(pending, result, now, PostDeliveryKinds.Manual);
+            db.PostingLog.Add(NewPostingLogEntry(owner.Id, account.Platform, pending.BookTitle, ok,
+                ok ? "Posted now from brand Ad Library." : result.Message,
+                now, PostingLogKinds.Brand, pending.Id, result, PostDeliveryKinds.Manual));
+            if (ok)
+            {
+                posted++;
+                var schedule = await db.SocialSchedules.FirstOrDefaultAsync(s =>
+                    s.UserId == owner.Id && s.Platform == account.Platform
+                    && s.ScheduleKind == SocialScheduleKinds.Brand);
+                if (schedule is not null)
+                {
+                    if (schedule.WeekTrackerStart != currentWeek)
+                    {
+                        schedule.WeekTrackerStart = currentWeek;
+                        schedule.PostsSentThisWeek = 0;
+                    }
+                    schedule.LastPostedAt = now;
+                    schedule.PostsSentThisWeek++;
+                }
+            }
+            else
+            {
+                failed++;
+            }
         }
 
         await db.SaveChangesAsync();
@@ -5532,7 +5923,7 @@ class AppStoreDb
         PostsSentThisWeek = s.PostsSentThisWeek,
         WeekTrackerStart = s.WeekTrackerStart
     };
-    static GeneratedAd ToModel(DbGeneratedAd a) => new() { Id = a.Id, BookId = a.BookId, BookTitle = a.BookTitle, CoverImageUrl = a.CoverImageUrl, Platform = a.Platform, PostText = a.PostText, GeneratedAt = a.GeneratedAt, ScheduledPostAt = a.ScheduledPostAt, WeekNumber = a.WeekNumber, WeekYear = a.WeekYear, WeekLabel = a.WeekLabel, PostStatus = a.PostStatus, PostedAt = a.PostedAt, PostError = a.PostError, ApprovedForPosting = a.ApprovedForPosting, PostedVia = a.PostedVia };
+    static GeneratedAd ToModel(DbGeneratedAd a) => new() { Id = a.Id, BookId = a.BookId, BookTitle = a.BookTitle, CoverImageUrl = a.CoverImageUrl, Platform = a.Platform, PostText = a.PostText, GeneratedAt = a.GeneratedAt, ScheduledPostAt = a.ScheduledPostAt, WeekNumber = a.WeekNumber, WeekYear = a.WeekYear, WeekLabel = a.WeekLabel, AdKind = string.IsNullOrWhiteSpace(a.AdKind) ? GeneratedAdKinds.Author : a.AdKind, PostStatus = a.PostStatus, PostedAt = a.PostedAt, PostError = a.PostError, ApprovedForPosting = a.ApprovedForPosting, PostedVia = a.PostedVia };
     static PostingLogEntry ToModel(DbPostingLogEntry l) => new()
     {
         Id = l.Id,

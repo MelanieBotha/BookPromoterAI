@@ -10,6 +10,7 @@ static class OwnerPromoPage
         string? activeSection = null,
         bool shufflePromoPreviews = false)
     {
+        _ = shufflePromoPreviews;
         var open = (string id) => string.Equals(id, activeSection, StringComparison.OrdinalIgnoreCase) ? " open" : "";
         var returnPath = SocialConnectHelper.OwnerReturnPath;
         var version = AppVersion.Display;
@@ -31,13 +32,8 @@ static class OwnerPromoPage
         var authorOnlyBrandAccounts = socialAccounts
             .Where(a => !SocialPlatforms.AllowsBrandConnect(a.Platform))
             .ToList();
-        var weekBaseSeed = shufflePromoPreviews
-            ? Random.Shared.Next()
-            : AppPromoGenerator.WeeklyPromoSeed(now, "owner-promo-preview");
-        var promoPosts = AppPromoGenerator.GeneratePromoPosts(
-            promoAccounts.Select(a => a.Platform),
-            appBaseUrl,
-            weekBaseSeed);
+        var brandAds = store.OwnerBrandGeneratedAds;
+        var (currentWeek, currentYear, currentWeekLabel) = AdWeek.For(now);
         var logoPreviewUrl = PostBranding.LogoUrlForSite(appBaseUrl);
         var authorOnlyNote = authorOnlyBrandAccounts.Count > 0
             ? $"""<p class="notice">These connected accounts are <strong>author-only</strong> and are not used for BookPromoter AI brand promos: {H.Encode(string.Join(", ", authorOnlyBrandAccounts.Select(a => a.Platform)))}. Use <strong>My Account</strong> for book promos, or remove them here.</p>"""
@@ -79,10 +75,18 @@ static class OwnerPromoPage
                 s.Platform.Equals(account.Platform, StringComparison.OrdinalIgnoreCase));
             var postsPerWeek = schedule?.PostsPerWeek ?? AppStoreDb.DefaultBrandTextPostsPerWeek;
             var autoPostChecked = (schedule?.AutoPostEnabled ?? true) ? "checked" : "";
+            var nextBrandAd = brandAds
+                .Where(a => PostLimits.PlatformsMatch(a.Platform, account.Platform)
+                    && a.PostStatus == "Pending"
+                    && a.ScheduledPostAt is not null)
+                .OrderBy(a => a.ScheduledPostAt)
+                .FirstOrDefault();
             var autoHint = schedule?.AutoPostEnabled == true
-                ? AppStoreDb.FormatNextAutoPostHint(schedule) is string hint
-                    ? $"""<p class="muted small-text">{H.Encode(hint)}</p>"""
-                    : ""
+                ? nextBrandAd?.ScheduledPostAt is DateTime nextAt
+                    ? $"""<p class="muted small-text">Next scheduled ~{AppTimeZone.FormatWithZone(nextAt, "ddd MMM d, HH:mm")} ({schedule.PostsSentThisWeek}/{schedule.PostsPerWeek} sent this week).</p>"""
+                    : AppStoreDb.FormatNextAutoPostHint(schedule) is string hint
+                        ? $"""<p class="muted small-text">{H.Encode(hint)}</p>"""
+                        : ""
                 : "";
             brandScheduleRows.Append($"""
                 <article class="book-row account-schedule-row">
@@ -106,13 +110,15 @@ static class OwnerPromoPage
         var brandScheduleSection = socialAccounts.Any(a => !PostLimits.IsTikTok(a.Platform))
             ? $"""
                 <h3 style="margin-top:24px">Brand auto-post schedule</h3>
-                <p class="muted small-text">Connected brand platforms <strong>auto-schedule and auto-post</strong> by default (checked every 5 minutes) — no save needed after connect. Adjust posts/week below or use <strong>Post</strong> for a one-off manual push. TikTok video promos are under <strong>App Videos</strong>.</p>
+                <p class="muted small-text">Connected brand platforms <strong>auto-schedule and auto-post</strong> by default (checked every 5 minutes) — no save needed after connect. Adjust posts/week below or use <strong>Post now</strong> on a card in Promote. TikTok video promos are under <strong>App Videos</strong>.</p>
                 <form method="post" action="/owner/brand-schedule" class="schedule-list">
                     {brandScheduleRows}
                     <button class="button" type="submit">Save brand schedule</button>
                 </form>
                 """
             : "";
+
+        var brandLibraryHtml = RenderBrandAdLibrary(store, brandAds, promoAccounts, appBaseUrl, logoPreviewUrl, currentWeek, currentYear, currentWeekLabel);
 
         var brandLogRows = new StringBuilder();
         foreach (var entry in store.OwnerBrandPostingLog.Take(20))
@@ -248,44 +254,6 @@ static class OwnerPromoPage
             platformOptions.Append(SocialConnectHelper.RenderPlatformOption(platform, settings: settings, brandContext: true));
         }
 
-        var promoCards = new StringBuilder();
-        if (promoAccounts.Count == 0)
-        {
-            promoCards.Append("""<p class="muted">Connect Facebook, Bluesky, X, LinkedIn, or another brand platform above to preview and post BookPromoter AI promos here.</p>""");
-        }
-        foreach (var account in promoAccounts)
-        {
-            var platform = account.Platform;
-            if (!promoPosts.TryGetValue(platform, out var text)) continue;
-            var copyId = $"app-promo-{platform.Replace(" ", "").Replace("(", "").Replace(")", "").ToLowerInvariant()}";
-            var showsLogo = true;
-            var logoBlock = showsLogo
-                ? $"""<img src="{H.Encode(logoPreviewUrl)}" alt="BookPromoter AI logo" class="promo-logo-thumb">"""
-                : "";
-            var liveBadge = account.IsLiveConnection
-                ? """<span class="status available">Live</span> """
-                : """<span class="status used">Manual</span> """;
-            promoCards.Append($"""
-                <div class="promo-row plan-row">
-                    <span>{liveBadge}{H.Encode(platform)}</span>
-                    <span>
-                        <div class="promo-preview-with-image">
-                            {logoBlock}
-                            <pre class="post-preview">{H.Encode(text)}</pre>
-                        </div>
-                        <textarea id="{copyId}" class="copy-source" readonly>{H.Encode(text)}</textarea>
-                    </span>
-                    <span>
-                        <button class="button secondary small copy-button" type="button" onclick="copyPromoText('{copyId}', this)">Copy</button>
-                        <form method="post" action="/owner/app-promo/post-social" class="inline-form tight">
-                            <input type="hidden" name="platform" value="{H.Encode(platform)}">
-                            <button class="button small" type="submit">Post</button>
-                        </form>
-                    </span>
-                </div>
-                """);
-        }
-
         var historyRows = new StringBuilder();
         foreach (var update in store.ProductUpdates)
         {
@@ -387,25 +355,20 @@ static class OwnerPromoPage
             <details class="owner-collapsible" id="owner-section-promote-app"{open("promote-app")}>
                 <summary class="owner-collapsible-heading">Promote BookPromoter AI (Social &amp; Email)</summary>
                 <div class="panel owner-settings">
-                    <p class="muted">Generate ready-to-share posts that promote BookPromoter AI. <strong>Captions rotate automatically each ISO week</strong> — auto-post and manual Post use this week&apos;s variation. Click <strong>Shuffle previews</strong> to try a different caption before posting.</p>
+                    <p class="muted">Brand social posts work like the author <strong>Ad Library</strong>: weekly slots, past weeks collapsed, random captions on generate/regenerate. Set posts/week under Brand Social Accounts. Auto-post runs every <strong>5 minutes</strong>.</p>
                     {accountNote}
                     {authorOnlyNote}
                     {sendGridNote}
-                    <p class="muted small-text">Only <strong>connected brand accounts</strong> appear below. Enable <strong>Auto-post</strong> under Brand Social Accounts, or email registered users on the <strong>brand mailing list</strong> ({brandSubscriberCount} subscriber(s) — separate from author reader lists).</p>
-                    <div class="promo-table">
-                        <div class="promo-header">
-                            <strong>Platform</strong>
-                            <strong>Post preview</strong>
-                            <strong>Actions</strong>
-                        </div>
-                        {promoCards}
+                    <p class="muted small-text">{brandAds.Count} brand post(s) total &middot; {brandAds.Count(a => a.WeekYear == currentYear && a.WeekNumber == currentWeek)} this week ({H.Encode(currentWeekLabel)}) &middot; Schedule: {store.OwnerBrandSchedules.Where(s => !PostLimits.IsTikTok(s.Platform)).Sum(s => s.PostsPerWeek)} posts/week across {promoAccounts.Count} platform(s)</p>
+                    <div class="form-actions" style="margin-top:12px;margin-bottom:16px;display:flex;flex-wrap:wrap;gap:8px">
+                        <form method="post" action="/owner/app-promo/generate-week" class="inline-form">
+                            <button class="button" type="submit">Generate random posts this week</button>
+                        </form>
+                        <form method="post" action="/owner/app-promo/post-social" class="inline-form">
+                            <button class="button secondary" type="submit">Post next pending to all platforms</button>
+                        </form>
                     </div>
-                    <div class="form-actions" style="margin-top:12px">
-                        <a class="button secondary" href="/owner-promos?section=promote-app&amp;shuffle=1">Shuffle previews</a>
-                    </div>
-                    <form method="post" action="/owner/app-promo/post-social" class="inline-form" style="margin-top:12px">
-                        <button class="button secondary" type="submit">Post to all connected accounts</button>
-                    </form>
+                    {brandLibraryHtml}
 
                     <h3 style="margin-top:24px">Brand email auto-send</h3>
                     <p class="muted small-text">Auto-generates and sends <strong>3 BookPromoter AI promo emails per week</strong> to <strong>registered users</strong> on a schedule (not author reader lists). No save needed after deploy — adjust frequency below or use Send for a one-off. Checks every 5 minutes.</p>
@@ -626,6 +589,132 @@ static class OwnerPromoPage
             """;
     }
 
+    static string RenderBrandAdLibrary(
+        AppStoreDb store,
+        List<GeneratedAd> brandAds,
+        List<SocialAccount> promoAccounts,
+        string appBaseUrl,
+        string logoPreviewUrl,
+        int currentWeek,
+        int currentYear,
+        string currentWeekLabel)
+    {
+        if (promoAccounts.Count == 0)
+        {
+            return """<p class="muted">Connect Facebook, Bluesky, X, Tumblr, or another brand platform above to generate and schedule BookPromoter AI posts.</p>""";
+        }
+
+        var byWeek = brandAds
+            .GroupBy(a => (a.WeekYear, a.WeekNumber, a.WeekLabel))
+            .OrderByDescending(g => g.Key.WeekYear)
+            .ThenByDescending(g => g.Key.WeekNumber)
+            .ToList();
+
+        var weekSections = new StringBuilder();
+        if (byWeek.Count == 0)
+        {
+            weekSections.Append("""
+                <p class="muted">No brand posts yet. Click <strong>Generate random posts this week</strong>, or wait for the background scheduler to fill slots from your posts/week settings.</p>
+                """);
+        }
+
+        foreach (var week in byWeek)
+        {
+            var cards = new StringBuilder();
+            foreach (var ad in week.OrderBy(a => PostSchedule.DisplayTime(a)))
+                cards.Append(RenderBrandPostCard(store, ad, promoAccounts, logoPreviewUrl));
+
+            var isCurrentWeek = week.Key.WeekYear == currentYear && week.Key.WeekNumber == currentWeek;
+            var weekLabel = string.IsNullOrWhiteSpace(week.Key.WeekLabel)
+                ? $"Week {week.Key.WeekNumber}, {week.Key.WeekYear}"
+                : week.Key.WeekLabel;
+            var openAttr = isCurrentWeek ? " open" : "";
+
+            weekSections.Append($"""
+                <details class="ad-week-collapsible"{openAttr}>
+                    <summary class="ad-week-heading">
+                        <span>{H.Encode(weekLabel)}{(isCurrentWeek ? " <span class=\"status available small-text\">This week</span>" : "")}</span>
+                        <span class="ad-week-count">{week.Count()} post(s)</span>
+                    </summary>
+                    <div class="ad-week-body">
+                        <div class="post-grid">{cards}</div>
+                    </div>
+                </details>
+                """);
+        }
+
+        _ = currentWeekLabel;
+        return $"""
+            <div class="brand-ad-library">
+                {weekSections}
+            </div>
+            """;
+    }
+
+    static string RenderBrandPostCard(
+        AppStoreDb store,
+        GeneratedAd ad,
+        List<SocialAccount> promoAccounts,
+        string logoPreviewUrl)
+    {
+        var cover = $"""<img class="book-cover large" src="{H.Encode(logoPreviewUrl)}" alt="BookPromoter AI logo">""";
+        var copyId = $"brand-post-{ad.Id}";
+        var statusClass = ad.PostStatus switch
+        {
+            "Posted" => "available",
+            "Failed" => "used",
+            _ => "used"
+        };
+        var statusBadge = $"""<span class="status {statusClass}">{H.Encode(ad.PostStatus)}</span>""";
+        var schedule = store.OwnerBrandSchedules.FirstOrDefault(s =>
+            s.Platform.Equals(ad.Platform, StringComparison.OrdinalIgnoreCase));
+        var account = promoAccounts.FirstOrDefault(a => PostLimits.PlatformsMatch(a.Platform, ad.Platform));
+        var platformNotLive = account is not null
+            && PostLimits.RequiresLiveConnection(ad.Platform)
+            && !account.IsLiveConnection;
+        var canPostNow = account is not null
+            && !platformNotLive
+            && ad.PostStatus is "Pending" or "Failed";
+        var postNowButton = canPostNow
+            ? $"""<form method="post" action="/owner/app-promo/post-now/{ad.Id}"><button class="button small" type="submit">Post now</button></form>"""
+            : platformNotLive && ad.PostStatus is "Pending" or "Failed"
+                ? $"""<p class="muted small-text">{H.Encode(PostLimits.LivePostNowHint(ad.Platform))}</p>"""
+                : "";
+        var regenButton =
+            $"""<form method="post" action="/owner/app-promo/regenerate/{ad.Id}"><button class="button secondary small" type="submit">Regenerate</button></form>""";
+        var postErrorNote = ad.PostStatus == "Failed" && !string.IsNullOrWhiteSpace(ad.PostError)
+            ? $"""<p class="notice error small-text">{H.Encode(ad.PostError)}</p>"""
+            : "";
+        var autoPostHint = PostSchedule.FormatAdAutoPostHint(ad, schedule) is string hint
+            ? $"""<p class="muted small-text">{H.Encode(hint)}</p>"""
+            : "";
+        var timeSubtitle = PostSchedule.FormatAdTimeSubtitle(ad);
+        var charCount = PostLimits.CharacterCountLabel(ad.Platform, ad.PostText);
+
+        return $"""
+            <article class="post-card" id="brand-ad-{ad.Id}">
+                <div class="post-card-cover">{cover}</div>
+                <div class="post-card-header">
+                    <div>
+                        <strong>{H.Encode(ad.BookTitle)}</strong>
+                        <small>{H.Encode(timeSubtitle)}</small>
+                    </div>
+                    {statusBadge}
+                </div>
+                <p class="platform-tag">{H.Encode(ad.Platform)}{charCount}</p>
+                <p>{H.Encode(ad.PostText)}</p>
+                {postErrorNote}
+                {autoPostHint}
+                <textarea id="{copyId}" class="copy-source" readonly>{H.Encode(ad.PostText)}</textarea>
+                <div class="post-card-actions">
+                    <button class="button secondary small copy-button" type="button" onclick="copyPromoText('{copyId}', this)">Copy post</button>
+                    {regenButton}
+                    {postNowButton}
+                </div>
+            </article>
+            """;
+    }
+
     static string OwnerCustomPlatformScript() => """
         <script>
         function toggleOwnerCustomPlatform(select) {
@@ -641,15 +730,25 @@ static class OwnerPromoPage
             var textarea = document.getElementById(textareaId);
             if (!textarea) return;
             var text = textarea.value;
+            function showCopied() {
+                var original = button.textContent;
+                button.textContent = 'Copied!';
+                button.classList.add('copied');
+                setTimeout(function () {
+                    button.textContent = original;
+                    button.classList.remove('copied');
+                }, 2000);
+            }
             if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(text).then(function () {
-                    button.textContent = 'Copied!';
-                    button.classList.add('copied');
-                    setTimeout(function () { button.textContent = 'Copy'; button.classList.remove('copied'); }, 2000);
+                navigator.clipboard.writeText(text).then(showCopied).catch(function () {
+                    textarea.select();
+                    document.execCommand('copy');
+                    showCopied();
                 });
             } else {
-                textarea.style.position = 'static'; textarea.style.opacity = '1';
-                textarea.select(); document.execCommand('copy');
+                textarea.select();
+                document.execCommand('copy');
+                showCopied();
             }
         }
         </script>

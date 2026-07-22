@@ -37,6 +37,7 @@ class PostingSchedulerServiceDb : BackgroundService
                 store.EnsureWeeklyPostsForAllAuthors(generator, baseUrl);
                 await store.RunDuePostsAsync(postingService);
                 store.EnsureBrandAutoPostSchedules();
+                store.EnsureWeeklyBrandPosts(baseUrl);
                 await store.RunDueOwnerPromosAsync(postingService, baseUrl);
                 store.EnsureAuthorMailingAutoSchedules();
                 await store.RunDueMailingListEmailsAsync(

@@ -222,6 +222,7 @@ class DbGeneratedAd
     public int WeekNumber { get; set; }
     public int WeekYear { get; set; }
     public string WeekLabel { get; set; } = "";
+    public string AdKind { get; set; } = GeneratedAdKinds.Author;
     public string PostStatus { get; set; } = "Pending";
     public DateTime? PostedAt { get; set; }
     public string? PostError { get; set; }
