@@ -449,7 +449,8 @@ body{margin:0;font-family:Arial,Helvetica,sans-serif;color:var(--ink);background
 .marketing-topbar .brand-logo{height:56px}
 nav{display:flex;gap:18px;flex-wrap:wrap}
 nav a{color:var(--muted);text-decoration:none;font-size:14px}
-.page{max-width:1120px;width:100%;margin:0 auto;padding:28px}
+.page{width:100%;max-width:none;margin:0;padding:24px 28px;box-sizing:border-box}
+.app-main .page{max-width:none}
 .soft-launch-banner{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:baseline;border-radius:8px;padding:12px 16px;margin-bottom:18px;border:1px solid #fde68a;background:#fefce8;color:#854d0e;font-size:14px;line-height:1.5}
 .soft-launch-banner strong{font-weight:700}
 .account-banner{border-radius:8px;padding:12px 16px;margin-bottom:18px;border:1px solid var(--line);font-weight:700}
@@ -695,7 +696,7 @@ body.sidebar-open .sidebar-backdrop{display:block}
 .marketing-topbar{background:rgba(255,255,255,0.95);backdrop-filter:blur(8px);position:sticky;top:0;z-index:20}
 .marketing-nav{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
 .marketing-nav .nav-cta{padding:8px 16px;font-size:14px}
-.marketing-page{max-width:1100px}
+.marketing-page{max-width:1100px;margin:0 auto;padding:28px}
 .landing-hero{display:grid;grid-template-columns:1.2fr 1fr;gap:28px;align-items:center;padding:28px 0 40px}
 .landing-lead{font-size:18px;line-height:1.6;color:var(--muted);max-width:560px}
 .landing-cta-row{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 12px}
