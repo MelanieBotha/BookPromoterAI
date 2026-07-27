@@ -39,19 +39,21 @@ static class OwnerPage
                 ? H.Encode(code.RedeemedByEmail)
                 : H.Encode(code.IntendedRecipientEmail ?? "Unknown");
             var redeemedWhen = code.RedeemedAt is DateTime at ? at.ToString("MMM d, yyyy") : "";
+            var statusLabel = store.DescribeRedeemedAccessCodeStatus(code);
+            var statusClass = statusLabel.Contains("Active", StringComparison.OrdinalIgnoreCase) ? "available" : "used";
             accessRows.Append($"""
                 <div class="promo-row">
                     <span>{H.Encode(code.Code)}</span>
                     <span>{redeemedInfo} &middot; {code.FreeTrialDays}-day access{(string.IsNullOrEmpty(redeemedWhen) ? "" : $" &middot; {redeemedWhen}")}</span>
-                    <span class="status used">Used</span>
+                    <span class="status {statusClass}">{H.Encode(statusLabel)}</span>
                     <span>{DeletePromoButton(code, "access-codes")}</span>
                 </div>
                 """);
         }
         if (accessAvailable.Count == 0 && accessRedeemedTotal == 0)
             accessRows.Append("""<p class="muted">No access codes yet. Codes are created automatically when users sign up.</p>""");
-        else if (accessRedeemedTotal > accessRedeemed.Count)
-            accessRows.Append($"""<p class="muted small-text">Showing {accessRedeemed.Count} of {accessRedeemedTotal} redeemed access codes (most recent first).</p>""");
+        else
+            accessRows.Append($"""<p class="muted small-text">{accessAvailable.Count} available &middot; {accessRedeemedTotal} used (full history, most recent first).</p>""");
 
         var (lifetimeAvailable, lifetimeRedeemed, lifetimeRedeemedTotal) = store.GetLifetimeCodesForDisplay();
         var lifetimeRows = new StringBuilder();
@@ -329,7 +331,7 @@ static class OwnerPage
             <details class="owner-collapsible" id="owner-section-access-codes"{open("access-codes")}>
                 <summary class="owner-collapsible-heading">Access Codes (30-Day Access)</summary>
                 <div class="panel owner-settings">
-                    <p class="muted">Available and active 30-day trial codes only. Users who upgrade to a paid or lifetime plan are removed from this list automatically.</p>
+                    <p class="muted">All 30-day trial codes: available, active, expired, and upgraded. Status shows whether the trial is still active.</p>
                     <div class="promo-table promo-table-actions">
                         <div class="promo-header">
                             <strong>Code</strong>

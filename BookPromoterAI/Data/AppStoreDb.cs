@@ -4026,12 +4026,39 @@ class AppStoreDb
             .Select(ToModel)
             .ToList();
 
-        var redeemed = FilterRedeemedAccessCodes(db);
-        var redeemedTotal = redeemed.Count;
-        var visible = redeemed
-            .Take(PromoConstants.MaxVisiblePromoCodes)
+        // Full redeemed history (active, expired, and upgraded) — not capped.
+        var redeemed = db.PromoCodes.AsNoTracking()
+            .Where(p => !p.IsLifetimeFree && p.IsRedeemed)
+            .OrderByDescending(p => p.RedeemedAt)
+            .ThenByDescending(p => p.Id)
+            .ToList()
+            .Select(ToModel)
             .ToList();
-        return (available, visible, redeemedTotal);
+        return (available, redeemed, redeemed.Count);
+    }
+
+    /// <summary>Owner Access Codes status label for a redeemed 30-day code.</summary>
+    public string DescribeRedeemedAccessCodeStatus(PromoCode code)
+    {
+        using var db = Db();
+        var email = code.RedeemedByEmail?.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(email))
+            email = code.IntendedRecipientEmail?.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(email))
+            return "Used";
+
+        var user = db.Users.AsNoTracking().FirstOrDefault(u => u.Email == email);
+        if (user is null)
+            return "Used";
+        if (IsActiveFreeTrialUser(user))
+            return "Used · Active trial";
+        if (user.AccessType == "Lifetime Free (Publisher)")
+            return "Used · Lifetime";
+        if (user.AccessType.EndsWith(" Subscription", StringComparison.Ordinal))
+            return $"Used · {user.AccessType.Replace(" Subscription", "", StringComparison.Ordinal)}";
+        if (!user.HasCustomerAccess)
+            return "Used · Expired";
+        return "Used";
     }
 
     public (List<PromoCode> Available, List<PromoCode> Redeemed, int RedeemedTotal) GetLifetimeCodesForDisplay()
@@ -4085,24 +4112,6 @@ class AppStoreDb
         return (visible, total);
     }
 
-    static List<PromoCode> FilterRedeemedAccessCodes(AppDbContext db)
-    {
-        var promos = db.PromoCodes.AsNoTracking()
-            .Where(p => !p.IsLifetimeFree && p.IsRedeemed)
-            .OrderByDescending(p => p.RedeemedAt)
-            .ThenByDescending(p => p.Id)
-            .ToList();
-
-        var results = new List<PromoCode>();
-        foreach (var promo in promos)
-        {
-            var user = FindPromoRedeemer(db, promo);
-            if (user is not null && IsActiveFreeTrialUser(user))
-                results.Add(ToModel(promo));
-        }
-        return results;
-    }
-
     static List<PromoCode> FilterRedeemedLifetimeCodes(AppDbContext db)
     {
         var promos = db.PromoCodes.AsNoTracking()
@@ -4150,11 +4159,7 @@ class AppStoreDb
 
     static void FinalizeTrialGraduation(DbUser user, AppDbContext db)
     {
-        var trialPromos = db.PromoCodes
-            .Where(p => !p.IsLifetimeFree && p.IsRedeemed && p.RedeemedByEmail == user.Email)
-            .ToList();
-        db.PromoCodes.RemoveRange(trialPromos);
-
+        // Keep redeemed trial promo codes for Owner history; only clear trial subscription rows.
         var trialSubs = db.Subscriptions
             .Where(s => s.UserId == user.Id && !s.PromoCodeUsed.StartsWith("Paid ("))
             .ToList();
