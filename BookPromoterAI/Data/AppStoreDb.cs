@@ -4423,15 +4423,20 @@ class AppStoreDb
     }
 
     // ── Public forum ───────────────────────────────────────────────────
-    public List<ForumThread> ListForumThreads()
+    public List<ForumThread> ListForumThreads(string sort = "latest", string? category = null)
     {
         using var db = Db();
         var threads = db.ForumThreads.AsNoTracking()
             .Where(t => !t.IsRemoved)
-            .OrderByDescending(t => t.IsPinned)
-            .ThenByDescending(t => t.UpdatedAt)
-            .Take(100)
             .ToList();
+        if (!string.IsNullOrWhiteSpace(category) &&
+            !category.Equals("all", StringComparison.OrdinalIgnoreCase))
+        {
+            threads = threads
+                .Where(t => t.Category.Equals(category, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
         var threadIds = threads.Select(t => t.Id).ToList();
         var postStats = db.ForumPosts.AsNoTracking()
             .Where(p => threadIds.Contains(p.ThreadId) && !p.IsRemoved)
@@ -4440,31 +4445,44 @@ class AppStoreDb
             .ToList()
             .ToDictionary(x => x.ThreadId);
 
-        return threads.Select(t =>
+        var models = threads.Select(t =>
         {
             postStats.TryGetValue(t.Id, out var stats);
             return new ForumThread
             {
                 Id = t.Id,
                 Title = t.Title,
+                Category = string.IsNullOrWhiteSpace(t.Category) ? "general" : t.Category,
                 AuthorEmail = t.AuthorEmail,
                 AuthorDisplayName = t.AuthorDisplayName,
                 CreatedAt = t.CreatedAt,
                 UpdatedAt = t.UpdatedAt,
                 IsPinned = t.IsPinned,
                 IsRemoved = t.IsRemoved,
+                ViewCount = t.ViewCount,
                 ReplyCount = Math.Max(0, (stats?.Count ?? 0) - 1),
                 LastPostAt = stats?.LastAt ?? t.UpdatedAt
             };
         }).ToList();
+
+        IOrderedEnumerable<ForumThread> ordered = sort.Equals("top", StringComparison.OrdinalIgnoreCase)
+            ? models.OrderByDescending(t => t.IsPinned).ThenByDescending(t => t.ReplyCount).ThenByDescending(t => t.ViewCount)
+            : models.OrderByDescending(t => t.IsPinned).ThenByDescending(t => t.LastPostAt ?? t.UpdatedAt);
+
+        return ordered.Take(100).ToList();
     }
 
-    public (ForumThread? Thread, List<ForumPost> Posts) GetForumThread(int threadId)
+    public (ForumThread? Thread, List<ForumPost> Posts) GetForumThread(int threadId, bool incrementView = false)
     {
         using var db = Db();
-        var thread = db.ForumThreads.AsNoTracking()
-            .FirstOrDefault(t => t.Id == threadId && !t.IsRemoved);
+        var thread = db.ForumThreads.FirstOrDefault(t => t.Id == threadId && !t.IsRemoved);
         if (thread is null) return (null, []);
+
+        if (incrementView)
+        {
+            thread.ViewCount++;
+            db.SaveChanges();
+        }
 
         var posts = db.ForumPosts.AsNoTracking()
             .Where(p => p.ThreadId == threadId && !p.IsRemoved)
@@ -4476,7 +4494,7 @@ class AppStoreDb
         return (ToModel(thread, posts.Count), posts);
     }
 
-    public (ForumThread? Thread, string? Error) CreateForumThread(string title, string body)
+    public (ForumThread? Thread, string? Error) CreateForumThread(string title, string body, string? category = null)
     {
         if (!IsLoggedIn) return (null, "Log in to start a forum thread.");
         var cleanTitle = title.Trim();
@@ -4486,6 +4504,7 @@ class AppStoreDb
         if (cleanBody.Length < 3) return (null, "Write a short opening message.");
         if (cleanBody.Length > 4000) return (null, "Message is too long (max 4000 characters).");
 
+        var cat = NormalizeForumCategory(category);
         var email = LoggedInEmail!.Trim().ToLowerInvariant();
         var display = ForumDisplayName(email);
         var now = DateTime.UtcNow;
@@ -4493,12 +4512,14 @@ class AppStoreDb
         var thread = new DbForumThread
         {
             Title = cleanTitle,
+            Category = cat,
             AuthorEmail = email,
             AuthorDisplayName = display,
             CreatedAt = now,
             UpdatedAt = now,
             IsPinned = false,
-            IsRemoved = false
+            IsRemoved = false,
+            ViewCount = 0
         };
         db.ForumThreads.Add(thread);
         db.SaveChanges();
@@ -4571,6 +4592,76 @@ class AppStoreDb
         return null;
     }
 
+    // ── App reviews (public) ───────────────────────────────────────────
+    public List<AppReview> ListAppReviews()
+    {
+        using var db = Db();
+        return db.AppReviews.AsNoTracking()
+            .Where(r => !r.IsRemoved)
+            .OrderByDescending(r => r.CreatedAt)
+            .Take(100)
+            .ToList()
+            .Select(ToModel)
+            .ToList();
+    }
+
+    public (double Average, int Count) AppReviewSummary()
+    {
+        using var db = Db();
+        var ratings = db.AppReviews.AsNoTracking()
+            .Where(r => !r.IsRemoved)
+            .Select(r => r.Rating)
+            .ToList();
+        if (ratings.Count == 0) return (0, 0);
+        return (Math.Round(ratings.Average(), 1), ratings.Count);
+    }
+
+    public (AppReview? Review, string? Error) AddAppReview(int rating, string body)
+    {
+        if (!IsLoggedIn) return (null, "Log in to add a review.");
+        var cleanBody = body.Trim();
+        if (cleanBody.Length < 3) return (null, "Write a short review (at least 3 characters).");
+        if (cleanBody.Length > 2000) return (null, "Review is too long (max 2000 characters).");
+        var stars = Math.Clamp(rating, 1, 5);
+
+        var email = LoggedInEmail!.Trim().ToLowerInvariant();
+        using var db = Db();
+        var existing = db.AppReviews.FirstOrDefault(r => r.AuthorEmail == email && !r.IsRemoved);
+        if (existing is not null)
+        {
+            existing.Rating = stars;
+            existing.Body = cleanBody;
+            existing.CreatedAt = DateTime.UtcNow;
+            existing.AuthorDisplayName = ForumDisplayName(email);
+            db.SaveChanges();
+            return (ToModel(existing), null);
+        }
+
+        var review = new DbAppReview
+        {
+            AuthorEmail = email,
+            AuthorDisplayName = ForumDisplayName(email),
+            Rating = stars,
+            Body = cleanBody,
+            CreatedAt = DateTime.UtcNow,
+            IsRemoved = false
+        };
+        db.AppReviews.Add(review);
+        db.SaveChanges();
+        return (ToModel(review), null);
+    }
+
+    public string? RemoveAppReview(int reviewId)
+    {
+        if (!IsOwner) return "Owner only.";
+        using var db = Db();
+        var review = db.AppReviews.FirstOrDefault(r => r.Id == reviewId);
+        if (review is null) return "Review not found.";
+        review.IsRemoved = true;
+        db.SaveChanges();
+        return null;
+    }
+
     public static string MaskEmailForPublic(string email)
     {
         if (string.IsNullOrWhiteSpace(email) || !email.Contains('@'))
@@ -4579,6 +4670,32 @@ class AppStoreDb
         var local = email[..at];
         if (local.Length <= 2) return local[0] + "***";
         return local[0] + "***" + local[^1] + email[at..];
+    }
+
+    public static string FormatRelativeActivity(DateTime utc)
+    {
+        var span = DateTime.UtcNow - utc;
+        if (span.TotalMinutes < 1) return "just now";
+        if (span.TotalMinutes < 60) return $"{(int)span.TotalMinutes}m";
+        if (span.TotalHours < 24) return $"{(int)span.TotalHours}h";
+        if (span.TotalDays < 7) return $"{(int)span.TotalDays}d";
+        if (span.TotalDays < 30) return $"{(int)(span.TotalDays / 7)}w";
+        return utc.ToString("MMM d");
+    }
+
+    public static string FormatForumCategory(string? category) =>
+        NormalizeForumCategory(category) switch
+        {
+            "ideas" => "ideas",
+            "bugs" => "bugs",
+            "help" => "help",
+            _ => "general"
+        };
+
+    static string NormalizeForumCategory(string? category)
+    {
+        var c = (category ?? "general").Trim().ToLowerInvariant();
+        return c is "ideas" or "bugs" or "help" or "general" ? c : "general";
     }
 
     static string ForumDisplayName(string email)
@@ -4595,12 +4712,14 @@ class AppStoreDb
     {
         Id = t.Id,
         Title = t.Title,
+        Category = string.IsNullOrWhiteSpace(t.Category) ? "general" : t.Category,
         AuthorEmail = t.AuthorEmail,
         AuthorDisplayName = t.AuthorDisplayName,
         CreatedAt = t.CreatedAt,
         UpdatedAt = t.UpdatedAt,
         IsPinned = t.IsPinned,
         IsRemoved = t.IsRemoved,
+        ViewCount = t.ViewCount,
         ReplyCount = Math.Max(0, postCount - 1),
         LastPostAt = t.UpdatedAt
     };
@@ -4615,6 +4734,17 @@ class AppStoreDb
         CreatedAt = p.CreatedAt,
         IsRemoved = p.IsRemoved,
         IsOwnerReply = p.IsOwnerReply
+    };
+
+    static AppReview ToModel(DbAppReview r) => new()
+    {
+        Id = r.Id,
+        AuthorEmail = r.AuthorEmail,
+        AuthorDisplayName = r.AuthorDisplayName,
+        Rating = r.Rating,
+        Body = r.Body,
+        CreatedAt = r.CreatedAt,
+        IsRemoved = r.IsRemoved
     };
 
     public bool AccountExists(string email)

@@ -89,7 +89,7 @@ static class H
                     <a href="/#features">Features</a>
                     <a href="/#pricing">Pricing</a>
                     <a href="/community">Community</a>
-                    <a href="/app-feedback">Feedback</a>
+                    <a href="/app-feedback">Reviews</a>
                     <a href="/trial">Access code</a>
                     <a href="/terms">Terms</a>
                     <a href="/privacy">Privacy</a>
@@ -108,7 +108,7 @@ static class H
                 <a href="/start">Sign in</a>
                 <a href="/trial">Free access code</a>
                 <a href="/community">Community</a>
-                <a href="/app-feedback">Feedback &amp; Forum</a>
+                <a href="/app-feedback">Reviews &amp; Forum</a>
                 <a href="{BrandConstants.OfficialBlueskyUrl}" target="_blank" rel="noopener">@{BrandConstants.OfficialBlueskyHandle}</a>
                 {CommunityFooterExtras(store)}
                 <span>&copy; {DateTime.UtcNow.Year} {LegalConstants.ContactName}</span>
@@ -182,6 +182,7 @@ static class H
                     {(store.HasCustomerAccess ? "" : """<a href="/start">Start</a>""")}
                     {(store.HasCustomerAccess ? """<a href="/help">Help</a>""" : "")}
                     <a href="/dashboard">Dashboard</a>
+                    <a href="/app-feedback?tab=forum">Forum</a>
                     {(store.HasCustomerAccess ? """<a href="/videos">Videos</a>""" : "")}
                     {ManageDropdown(store)}
                     {AccountDropdown(store)}

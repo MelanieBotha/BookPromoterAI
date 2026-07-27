@@ -48,6 +48,7 @@ class AppDbContext : DbContext
     public DbSet<DbBrandClick> BrandClicks => Set<DbBrandClick>();
     public DbSet<DbForumThread> ForumThreads => Set<DbForumThread>();
     public DbSet<DbForumPost> ForumPosts => Set<DbForumPost>();
+    public DbSet<DbAppReview> AppReviews => Set<DbAppReview>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -447,12 +448,14 @@ class DbForumThread
 {
     public int Id { get; set; }
     public string Title { get; set; } = "";
+    public string Category { get; set; } = "general";
     public string AuthorEmail { get; set; } = "";
     public string AuthorDisplayName { get; set; } = "";
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public bool IsPinned { get; set; }
     public bool IsRemoved { get; set; }
+    public int ViewCount { get; set; }
 }
 
 class DbForumPost
@@ -465,4 +468,15 @@ class DbForumPost
     public DateTime CreatedAt { get; set; }
     public bool IsRemoved { get; set; }
     public bool IsOwnerReply { get; set; }
+}
+
+class DbAppReview
+{
+    public int Id { get; set; }
+    public string AuthorEmail { get; set; } = "";
+    public string AuthorDisplayName { get; set; } = "";
+    public int Rating { get; set; } = 5;
+    public string Body { get; set; } = "";
+    public DateTime CreatedAt { get; set; }
+    public bool IsRemoved { get; set; }
 }

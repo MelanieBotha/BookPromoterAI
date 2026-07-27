@@ -162,12 +162,14 @@ static class DatabaseInitializer
                 CREATE TABLE IF NOT EXISTS "ForumThreads" (
                     "Id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
                     "Title" TEXT NOT NULL,
+                    "Category" TEXT NOT NULL DEFAULT 'general',
                     "AuthorEmail" TEXT NOT NULL,
                     "AuthorDisplayName" TEXT NOT NULL,
                     "CreatedAt" TEXT NOT NULL,
                     "UpdatedAt" TEXT NOT NULL,
                     "IsPinned" INTEGER NOT NULL DEFAULT 0,
-                    "IsRemoved" INTEGER NOT NULL DEFAULT 0
+                    "IsRemoved" INTEGER NOT NULL DEFAULT 0,
+                    "ViewCount" INTEGER NOT NULL DEFAULT 0
                 );
                 """);
         }
@@ -188,6 +190,24 @@ static class DatabaseInitializer
                 );
                 """);
             db.Database.ExecuteSqlRaw("""CREATE INDEX IF NOT EXISTS "IX_ForumPosts_ThreadId" ON "ForumPosts" ("ThreadId");""");
+        }
+
+        AddColumnIfMissing(db, "ForumThreads", "Category", """ALTER TABLE "ForumThreads" ADD COLUMN "Category" TEXT NOT NULL DEFAULT 'general'""");
+        AddColumnIfMissing(db, "ForumThreads", "ViewCount", """ALTER TABLE "ForumThreads" ADD COLUMN "ViewCount" INTEGER NOT NULL DEFAULT 0""");
+
+        if (!TableExists(db, "AppReviews"))
+        {
+            db.Database.ExecuteSqlRaw("""
+                CREATE TABLE IF NOT EXISTS "AppReviews" (
+                    "Id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    "AuthorEmail" TEXT NOT NULL,
+                    "AuthorDisplayName" TEXT NOT NULL,
+                    "Rating" INTEGER NOT NULL DEFAULT 5,
+                    "Body" TEXT NOT NULL,
+                    "CreatedAt" TEXT NOT NULL,
+                    "IsRemoved" INTEGER NOT NULL DEFAULT 0
+                );
+                """);
         }
     }
 

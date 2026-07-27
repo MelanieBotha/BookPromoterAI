@@ -355,6 +355,7 @@ class ForumThread
 {
     public int Id { get; set; }
     public string Title { get; set; } = "";
+    public string Category { get; set; } = "general";
     public string AuthorEmail { get; set; } = "";
     public string AuthorDisplayName { get; set; } = "";
     public DateTime CreatedAt { get; set; }
@@ -362,6 +363,7 @@ class ForumThread
     public bool IsPinned { get; set; }
     public bool IsRemoved { get; set; }
     public int ReplyCount { get; set; }
+    public int ViewCount { get; set; }
     public DateTime? LastPostAt { get; set; }
 }
 
@@ -375,6 +377,17 @@ class ForumPost
     public DateTime CreatedAt { get; set; }
     public bool IsRemoved { get; set; }
     public bool IsOwnerReply { get; set; }
+}
+
+class AppReview
+{
+    public int Id { get; set; }
+    public string AuthorEmail { get; set; } = "";
+    public string AuthorDisplayName { get; set; } = "";
+    public int Rating { get; set; } = 5;
+    public string Body { get; set; } = "";
+    public DateTime CreatedAt { get; set; }
+    public bool IsRemoved { get; set; }
 }
 
 // Owner-only payout destination for subscription revenue (Stripe Connect, manual transfer, etc.)

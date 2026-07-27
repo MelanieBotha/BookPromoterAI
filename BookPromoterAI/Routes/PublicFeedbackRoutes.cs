@@ -7,26 +7,30 @@ static class PublicFeedbackRoutes
         app.MapGet("/app-feedback", (HttpContext http, AppStoreDb store) =>
         {
             var tab = http.Request.Query["tab"].ToString();
+            if (string.Equals(tab, "feedback", StringComparison.OrdinalIgnoreCase))
+                tab = "reviews";
+            var sort = http.Request.Query["sort"].ToString();
+            var category = http.Request.Query["category"].ToString();
             return Results.Content(
                 H.RenderMarketingPage(
                     http,
-                    "App Feedback & Forum",
-                    PublicFeedbackPage.Render(store, tab),
+                    "Reviews & Forum",
+                    PublicFeedbackPage.Render(store, tab, forumSort: sort, forumCategory: category),
                     store,
-                    metaDescription: "See public feedback for BookPromoter AI and join the community forum — browse freely before you sign up."),
+                    metaDescription: "Read BookPromoter AI reviews and join the community forum — browse freely before you sign up."),
                 "text/html");
         });
 
         app.MapGet("/app-feedback/thread/{id:int}", (int id, HttpContext http, AppStoreDb store) =>
         {
-            var (thread, posts) = store.GetForumThread(id);
+            var (thread, posts) = store.GetForumThread(id, incrementView: true);
             if (thread is null)
             {
                 return Results.Content(
                     H.RenderMarketingPage(
                         http,
-                        "App Feedback & Forum",
-                        PublicFeedbackPage.Render(store, "forum", """<div class="notice error">Thread not found.</div>"""),
+                        "Reviews & Forum",
+                        PublicFeedbackPage.Render(store, "forum", """<div class="notice error">Topic not found.</div>"""),
                         store),
                     "text/html");
             }
@@ -40,36 +44,45 @@ static class PublicFeedbackRoutes
                 "text/html");
         });
 
-        app.MapPost("/app-feedback/submit", async (HttpRequest request, HttpContext http, AppStoreDb store, AppSettings settings) =>
+        app.MapPost("/app-feedback/review", async (HttpRequest request, HttpContext http, AppStoreDb store) =>
         {
             if (!store.IsLoggedIn)
                 return Results.Redirect("/start");
 
             var form = await request.ReadFormAsync();
-            var email = form["email"].ToString();
-            var message = form["message"].ToString();
-            if (string.IsNullOrWhiteSpace(message))
-            {
-                return Results.Content(
-                    H.RenderMarketingPage(
-                        http,
-                        "App Feedback & Forum",
-                        PublicFeedbackPage.Render(store, "feedback", """<div class="notice error">Please enter a message.</div>"""),
-                        store),
-                    "text/html");
-            }
-
-            var entry = store.AddFeedback(email, "General Feedback", message);
-            var baseUrl = PublicUrl.Base(http.Request, settings);
-            await EmailService.SendThankYouEmail(email, entry.ThankYouEmail, settings.SendGridApiKey, settings.SendGridSenderEmail, settings.SendGridSenderName, baseUrl);
-            await EmailService.SendOwnerFeedbackNotificationEmail(entry, settings.SendGridApiKey, settings.SendGridSenderEmail, settings.SendGridSenderName, baseUrl);
-
+            _ = int.TryParse(form["rating"].ToString(), out var rating);
+            var (_, error) = store.AddAppReview(rating, form["body"].ToString());
+            var notice = error is not null
+                ? $"""<div class="notice error">{H.Encode(error)}</div>"""
+                : """<div class="notice success">Thanks — your review is live.</div>""";
             return Results.Content(
                 H.RenderMarketingPage(
                     http,
-                    "App Feedback & Forum",
-                    PublicFeedbackPage.Render(store, "feedback", """<div class="notice success">Thanks — your general feedback is now on this page.</div>"""),
+                    "Reviews & Forum",
+                    PublicFeedbackPage.Render(store, "reviews", notice),
                     store),
+                "text/html");
+        });
+
+        app.MapPost("/app-feedback/review/{id:int}/remove", (int id, AppStoreDb store) =>
+        {
+            if (!store.IsOwner) return Results.Redirect("/app-feedback?tab=reviews");
+            store.RemoveAppReview(id);
+            return Results.Redirect("/app-feedback?tab=reviews");
+        });
+
+        // Legacy general-feedback submit → reviews form
+        app.MapPost("/app-feedback/submit", async (HttpRequest request, HttpContext http, AppStoreDb store) =>
+        {
+            if (!store.IsLoggedIn)
+                return Results.Redirect("/start");
+            var form = await request.ReadFormAsync();
+            var (_, error) = store.AddAppReview(5, form["message"].ToString());
+            var notice = error is not null
+                ? $"""<div class="notice error">{H.Encode(error)}</div>"""
+                : """<div class="notice success">Thanks — your review is live.</div>""";
+            return Results.Content(
+                H.RenderMarketingPage(http, "Reviews & Forum", PublicFeedbackPage.Render(store, "reviews", notice), store),
                 "text/html");
         });
 
@@ -79,14 +92,17 @@ static class PublicFeedbackRoutes
                 return Results.Redirect("/start");
 
             var form = await request.ReadFormAsync();
-            var (thread, error) = store.CreateForumThread(form["title"].ToString(), form["body"].ToString());
+            var (thread, error) = store.CreateForumThread(
+                form["title"].ToString(),
+                form["body"].ToString(),
+                form["category"].ToString());
             if (error is not null || thread is null)
             {
                 return Results.Content(
                     H.RenderMarketingPage(
                         http,
-                        "App Feedback & Forum",
-                        PublicFeedbackPage.Render(store, "forum", $"""<div class="notice error">{H.Encode(error ?? "Could not create thread.")}</div>"""),
+                        "Reviews & Forum",
+                        PublicFeedbackPage.Render(store, "forum", $"""<div class="notice error">{H.Encode(error ?? "Could not create topic.")}</div>"""),
                         store),
                     "text/html");
             }
@@ -107,7 +123,7 @@ static class PublicFeedbackRoutes
                 return Results.Content(
                     H.RenderMarketingPage(
                         http,
-                        "App Feedback & Forum",
+                        "Reviews & Forum",
                         PublicFeedbackPage.Render(store, "forum", $"""<div class="notice error">{H.Encode(error)}</div>""", thread, posts),
                         store),
                     "text/html");
