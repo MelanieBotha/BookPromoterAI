@@ -163,6 +163,19 @@ static class H
         var accountBanner = IsReaderFacingPage(http) ? "" : AccountBanner(store);
 
         var pageClass = string.IsNullOrWhiteSpace(mainClass) ? "page" : $"page {Encode(mainClass)}";
+        var currentPath = http?.Request.Path.Value ?? "";
+        var sidebar = AppSidebar(store, currentPath);
+        var sidebarScript = """
+            <script>
+            function toggleAppSidebar(e) {
+                if (e) e.stopPropagation();
+                document.body.classList.toggle('sidebar-open');
+            }
+            function closeAppSidebar() {
+                document.body.classList.remove('sidebar-open');
+            }
+            </script>
+            """;
 
         return $"""
         <!DOCTYPE html>
@@ -175,137 +188,177 @@ static class H
             <title>{Encode(title)} - BookPromoter AI</title>
             <style>{Css}</style>
         </head>
-        <body>
-            <header class="topbar">
-                <a class="brand" href="/"><img src="/images/BookPromoterAI.logo.png" alt="BookPromoter AI" class="brand-logo"></a>
-                <nav>
-                    {(store.HasCustomerAccess ? "" : """<a href="/start">Start</a>""")}
-                    {(store.HasCustomerAccess ? """<a href="/help">Help</a>""" : "")}
-                    <a href="/dashboard">Dashboard</a>
-                    <a href="/app-feedback?tab=forum">Forum</a>
-                    {(store.HasCustomerAccess ? """<a href="/videos">Videos</a>""" : "")}
-                    {ManageDropdown(store)}
-                    {AccountDropdown(store)}
-                    {(store.IsOwner ? """<a href="/owner-promos">Owner</a>""" : "")}
-                </nav>
-            </header>
-            <main class="{pageClass}">
-                {softLaunchBanner}
-                {accountBanner}
-                {helpPanel}
-                {body}
-            </main>
-            <footer class="app-footer">
-                <span>BookPromoter AI</span>
-                <span>v{AppVersion.Display}</span>
-                <a href="/terms">Terms &amp; Conditions</a>
-                <a href="/privacy">Privacy Policy</a>
-                <a href="/community">Community</a>
-                <a href="{BrandConstants.OfficialBlueskyUrl}" target="_blank" rel="noopener">@{BrandConstants.OfficialBlueskyHandle}</a>
-                {CommunityFooterExtras(store)}
-                <span>&copy; {DateTime.UtcNow.Year} {LegalConstants.ContactName}</span>
-            </footer>
+        <body class="app-body">
+            <div class="app-shell">
+                {sidebar}
+                <div class="app-main">
+                    <header class="app-mobile-bar">
+                        <button type="button" class="sidebar-toggle" onclick="toggleAppSidebar(event)" aria-label="Open menu">&#9776;</button>
+                        <a class="app-mobile-brand" href="/dashboard">BookPromoter AI</a>
+                    </header>
+                    <main class="{pageClass}">
+                        {softLaunchBanner}
+                        {accountBanner}
+                        {helpPanel}
+                        {body}
+                    </main>
+                    <footer class="app-footer">
+                        <span>BookPromoter AI</span>
+                        <span>v{AppVersion.Display}</span>
+                        <a href="/terms">Terms &amp; Conditions</a>
+                        <a href="/privacy">Privacy Policy</a>
+                        <a href="/community">Community</a>
+                        <a href="{BrandConstants.OfficialBlueskyUrl}" target="_blank" rel="noopener">@{BrandConstants.OfficialBlueskyHandle}</a>
+                        {CommunityFooterExtras(store)}
+                        <span>&copy; {DateTime.UtcNow.Year} {LegalConstants.ContactName}</span>
+                    </footer>
+                </div>
+            </div>
+            <div class="sidebar-backdrop" onclick="closeAppSidebar()"></div>
+            {sidebarScript}
             {csrfScript}
         </body>
         </html>
         """;
     }
 
-    // Combined "Manage" nav item with a dropdown to Team and Clients.
-    // Only renders if at least one of those sections is visible to the user.
-    static string ManageDropdown(AppStoreDb store)
+    // Manager.io-style flat left sidebar — all sections visible, no dropdowns.
+    static string AppSidebar(AppStoreDb store, string currentPath)
     {
-        // Show Manage dropdown whenever the user has customer access —
-        // trial users see all tabs (with upgrade prompts inside them),
-        // and paid users see the tabs their plan unlocks.
-        if (!store.HasCustomerAccess) return "";
+        var billingHref = store.HasCustomerAccess ? "/billing" : "/subscription";
+        var billingLabel = store.HasCustomerAccess ? "Billing" : "Subscribe";
+        var bookCount = store.IsLoggedIn ? store.Books.Count : 0;
+        var teamCount = store.IsLoggedIn && store.HasCustomerAccess ? store.TeamMembers.Count : 0;
+        var clientCount = store.IsLoggedIn && store.HasCustomerAccess ? store.Clients.Count : 0;
+        var videoCount = store.IsLoggedIn && store.HasCustomerAccess ? store.TikTokVideos.Count : 0;
 
-        var menuHtml = """
-            <div class="nav-dropdown">
-                <button type="button" class="nav-dropdown-toggle" onclick="toggleManageMenu(event)">
-                    Manage <span class="caret">&#9662;</span>
-                </button>
-                <div class="nav-dropdown-menu" id="manage-dropdown-menu">
-                    <a href="/team">Team</a>
-                    <a href="/clients">Clients</a>
-                </div>
-            </div>
-            """;
+        var sb = new StringBuilder();
+        sb.Append("""
+            <aside class="app-sidebar" id="app-sidebar">
+                <a class="sidebar-brand" href="/dashboard">
+                    <img src="/images/BookPromoterAI.logo.png" alt="BookPromoter AI" class="sidebar-logo">
+                </a>
+                <nav class="sidebar-nav">
+            """);
 
-        var script = """
-            <script>
-            function toggleManageMenu(e) {
-                e.stopPropagation();
-                var menu = document.getElementById('manage-dropdown-menu');
-                menu.classList.toggle('open');
-            }
-            document.addEventListener('click', function (e) {
-                var menu = document.getElementById('manage-dropdown-menu');
-                if (menu && !menu.contains(e.target) && !e.target.closest('.nav-dropdown-toggle')) {
-                    menu.classList.remove('open');
-                }
-            });
-            </script>
-            """;
-
-        return menuHtml + script;
-    }
-
-    // Combined "My Account" nav item with a dropdown to the main app
-    // sections plus the account/profile and billing pages.
-    static string AccountDropdown(AppStoreDb store)
-    {
-        if (!store.IsLoggedIn)
+        void Link(string href, string label, string icon, string match, int? count = null)
         {
-            return store.HasCustomerAccess
-                ? """<a href="/billing">Subscription &amp; Billing</a>"""
-                : """<a href="/subscription">Subscribe</a>""";
+            var active = NavActive(currentPath, match) ? " active" : "";
+            var countHtml = count is int n
+                ? $"""<span class="sidebar-count">{n}</span>"""
+                : "";
+            sb.Append($"""
+                <a class="sidebar-link{active}" href="{href}">
+                    <span class="sidebar-icon" aria-hidden="true">{icon}</span>
+                    <span class="sidebar-label">{label}</span>
+                    {countHtml}
+                </a>
+                """);
         }
 
-        var billingLabel = store.HasCustomerAccess ? "Subscription &amp; Billing" : "Subscribe";
-        var billingHref = store.HasCustomerAccess ? "/billing" : "/subscription";
-        var analyticsLink = store.HasCustomerAccess ? """<a href="/analytics">Analytics</a>""" : "";
+        void Divider() => sb.Append("""<div class="sidebar-divider"></div>""");
 
-        var menuHtml = $"""
-            <div class="nav-dropdown">
-                <button type="button" class="nav-dropdown-toggle" onclick="toggleAccountMenu(event)">
-                    My Account <span class="caret">&#9662;</span>
-                </button>
-                <div class="nav-dropdown-menu" id="account-dropdown-menu">
-                    <a href="/books">Books</a>
-                    <a href="/schedule">Schedule</a>
-                    <a href="/ad-library">Ad Library</a>
-                    <a href="/videos">Videos</a>
-                    <a href="/mailing-list">Mailing List</a>
-                    {analyticsLink}
-                    <div class="nav-dropdown-divider"></div>
-                    <a href="/my-account">My Account</a>
-                    <a href="{billingHref}">{billingLabel}</a>
-                    <a href="/help">Help guide</a>
-                    <a href="/feedback">Feedback &amp; Suggestions</a>
-                </div>
-            </div>
-            """;
+        // Simple line-style SVG icons (Manager-like).
+        static string Icon(string paths) =>
+            $"""<svg class="sidebar-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{paths}</svg>""";
 
-        // Script is a plain (non-interpolated) raw string so the JS curly
-        // braces aren't misread as C# interpolation holes.
-        var script = """
-            <script>
-            function toggleAccountMenu(e) {
-                e.stopPropagation();
-                var menu = document.getElementById('account-dropdown-menu');
-                menu.classList.toggle('open');
-            }
-            document.addEventListener('click', function (e) {
-                var menu = document.getElementById('account-dropdown-menu');
-                if (menu && !menu.contains(e.target) && !e.target.closest('.nav-dropdown-toggle')) {
-                    menu.classList.remove('open');
-                }
-            });
-            </script>
-            """;
+        var iDash = Icon("""<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>""");
+        var iBook = Icon("""<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>""");
+        var iCal = Icon("""<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>""");
+        var iAds = Icon("""<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>""");
+        var iVid = Icon("""<rect x="2" y="6" width="14" height="12" rx="2"/><polygon points="16 10 22 7 22 17 16 14"/>""");
+        var iMail = Icon("""<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>""");
+        var iChart = Icon("""<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>""");
+        var iTeam = Icon("""<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>""");
+        var iClient = Icon("""<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>""");
+        var iForum = Icon("""<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>""");
+        var iFeed = Icon("""<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>""");
+        var iHelp = Icon("""<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>""");
+        var iUser = Icon("""<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>""");
+        var iBill = Icon("""<rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>""");
+        var iOwner = Icon("""<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>""");
+        var iStart = Icon("""<polygon points="5 3 19 12 5 21 5 3"/>""");
 
-        return menuHtml + script;
+        if (!store.HasCustomerAccess)
+            Link("/start", "Start", iStart, "/start");
+
+        Link("/dashboard", "Dashboard", iDash, "/dashboard");
+
+        if (store.IsLoggedIn)
+        {
+            Link("/books", "Books", iBook, "/books", bookCount);
+            Link("/schedule", "Schedule", iCal, "/schedule");
+            Link("/ad-library", "Ad Library", iAds, "/ad-library");
+            Link("/videos", "Videos", iVid, "/videos", store.HasCustomerAccess ? videoCount : null);
+            Link("/mailing-list", "Mailing List", iMail, "/mailing-list");
+            if (store.HasCustomerAccess)
+                Link("/analytics", "Analytics", iChart, "/analytics");
+        }
+
+        if (store.HasCustomerAccess)
+        {
+            Divider();
+            Link("/team", "Team", iTeam, "/team", teamCount);
+            Link("/clients", "Clients", iClient, "/clients", clientCount);
+        }
+
+        Divider();
+        Link("/app-feedback?tab=forum", "Forum", iForum, "/app-feedback");
+        if (store.IsLoggedIn)
+            Link("/feedback", "Feedback", iFeed, "/feedback");
+        if (store.HasCustomerAccess)
+            Link("/help", "Help", iHelp, "/help");
+
+        Divider();
+        if (store.IsLoggedIn)
+        {
+            Link("/my-account", "My Account", iUser, "/my-account");
+            Link(billingHref, billingLabel, iBill, "/billing");
+        }
+        else
+        {
+            Link(billingHref, billingLabel, iBill, "/billing");
+        }
+
+        if (store.IsOwner)
+        {
+            Divider();
+            Link("/owner-promos", "Owner", iOwner, "/owner");
+        }
+
+        sb.Append("""
+                </nav>
+            </aside>
+            """);
+        return sb.ToString();
+    }
+
+    static bool NavActive(string? path, string match)
+    {
+        path ??= "";
+        var q = path.IndexOf('?');
+        if (q >= 0) path = path[..q];
+        path = path.TrimEnd('/');
+        if (path.Length == 0) path = "/";
+
+        match = match.TrimEnd('/');
+        if (match.Equals("/dashboard", StringComparison.OrdinalIgnoreCase))
+            return path.Equals("/dashboard", StringComparison.OrdinalIgnoreCase);
+        if (match.Equals("/billing", StringComparison.OrdinalIgnoreCase))
+            return path.StartsWith("/billing", StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith("/subscription", StringComparison.OrdinalIgnoreCase);
+        if (match.Equals("/owner", StringComparison.OrdinalIgnoreCase))
+            return path.StartsWith("/owner", StringComparison.OrdinalIgnoreCase);
+        if (match.Equals("/app-feedback", StringComparison.OrdinalIgnoreCase))
+            return path.StartsWith("/app-feedback", StringComparison.OrdinalIgnoreCase);
+        if (match.Equals("/videos", StringComparison.OrdinalIgnoreCase))
+            return path.StartsWith("/videos", StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith("/tiktok", StringComparison.OrdinalIgnoreCase);
+        if (match.Equals("/feedback", StringComparison.OrdinalIgnoreCase))
+            return path.Equals("/feedback", StringComparison.OrdinalIgnoreCase);
+
+        return path.Equals(match, StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith(match + "/", StringComparison.OrdinalIgnoreCase);
     }
 
     static string CommunityFooterExtras(AppStoreDb store)
@@ -366,24 +419,37 @@ static class H
     }
 
     public const string Css = """
-:root{color-scheme:light;--ink:#172033;--muted:#667085;--line:#d7dde8;--paper:#fff;--soft:#f4f7fb;--accent:#0f766e;--accent-dark:#115e59}
+:root{color-scheme:light;--ink:#172033;--muted:#667085;--line:#d7dde8;--paper:#fff;--soft:#f4f7fb;--accent:#0f766e;--accent-dark:#115e59;--sidebar-w:240px;--nav-active-bg:#e6f4f2;--nav-active:#0f766e}
 *{box-sizing:border-box}
 body{margin:0;font-family:Arial,Helvetica,sans-serif;color:var(--ink);background:var(--soft)}
-.topbar{min-height:196px;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:14px 28px;background:var(--paper);border-bottom:1px solid var(--line)}
+.app-body{min-height:100vh}
+.app-shell{display:flex;min-height:100vh;align-items:stretch}
+.app-sidebar{width:var(--sidebar-w);flex:0 0 var(--sidebar-w);background:var(--paper);border-right:1px solid var(--line);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;z-index:40}
+.sidebar-brand{display:flex;align-items:center;justify-content:center;padding:16px 18px 12px;border-bottom:1px solid var(--line);text-decoration:none}
+.sidebar-logo{height:56px;width:auto;display:block}
+.sidebar-nav{display:flex;flex-direction:column;padding:10px 10px 24px;gap:2px}
+.sidebar-link{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:6px;color:var(--ink);text-decoration:none;font-size:14px;line-height:1.25}
+.sidebar-link:hover{background:var(--soft)}
+.sidebar-link.active{background:var(--nav-active-bg);color:var(--nav-active);font-weight:600}
+.sidebar-icon{flex:0 0 20px;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;color:var(--muted)}
+.sidebar-link.active .sidebar-icon{color:var(--nav-active)}
+.sidebar-svg{width:18px;height:18px;display:block}
+.sidebar-label{flex:1 1 auto;min-width:0}
+.sidebar-count{flex:0 0 auto;font-size:12px;color:var(--muted);font-weight:600;min-width:1.5em;text-align:right}
+.sidebar-link.active .sidebar-count{color:var(--nav-active)}
+.sidebar-divider{height:1px;background:var(--line);margin:8px 6px}
+.app-main{flex:1 1 auto;min-width:0;display:flex;flex-direction:column}
+.app-mobile-bar{display:none;align-items:center;gap:12px;padding:10px 14px;background:var(--paper);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:30}
+.sidebar-toggle{border:1px solid var(--line);background:var(--paper);border-radius:6px;width:40px;height:36px;font-size:20px;cursor:pointer;color:var(--ink);line-height:1}
+.app-mobile-brand{font-weight:700;color:var(--ink);text-decoration:none;font-size:15px}
+.sidebar-backdrop{display:none}
+.topbar{min-height:72px;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:14px 28px;background:var(--paper);border-bottom:1px solid var(--line)}
 .brand{font-weight:700;color:var(--ink);text-decoration:none;display:flex;align-items:center}
-.brand-logo{height:176px;width:auto;display:block}
+.brand-logo{height:56px;width:auto;display:block}
+.marketing-topbar .brand-logo{height:56px}
 nav{display:flex;gap:18px;flex-wrap:wrap}
 nav a{color:var(--muted);text-decoration:none;font-size:14px}
-.nav-dropdown{position:relative;display:inline-block}
-.nav-dropdown-toggle{background:none;border:0;color:var(--muted);font-size:14px;font:inherit;cursor:pointer;padding:0;display:flex;align-items:center;gap:4px}
-.nav-dropdown-toggle:hover{color:var(--ink)}
-.nav-dropdown-toggle .caret{font-size:10px}
-.nav-dropdown-menu{display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--paper);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(23,32,51,0.12);min-width:200px;z-index:50;overflow:hidden}
-.nav-dropdown-menu.open{display:block}
-.nav-dropdown-menu a{display:block;padding:12px 16px;color:var(--ink);font-size:14px;text-decoration:none}
-.nav-dropdown-menu a:hover{background:var(--soft)}
-.nav-dropdown-divider{height:1px;background:var(--line);margin:4px 0}
-.page{max-width:1120px;margin:0 auto;padding:28px}
+.page{max-width:1120px;width:100%;margin:0 auto;padding:28px}
 .soft-launch-banner{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:baseline;border-radius:8px;padding:12px 16px;margin-bottom:18px;border:1px solid #fde68a;background:#fefce8;color:#854d0e;font-size:14px;line-height:1.5}
 .soft-launch-banner strong{font-weight:700}
 .account-banner{border-radius:8px;padding:12px 16px;margin-bottom:18px;border:1px solid var(--line);font-weight:700}
@@ -615,8 +681,16 @@ details[open] .owner-collapsible-heading::after{transform:rotate(180deg)}
 .oauth-panel{max-width:520px}
 .oauth-platform-badge{width:64px;height:64px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:white;font-size:22px;font-weight:900;margin-bottom:16px}
 @media(max-width:1000px){.plans-grid{grid-template-columns:repeat(2,1fr)}.checkout-layout{grid-template-columns:1fr}.checkout-summary{position:static}}
+@media(max-width:900px){
+.app-sidebar{position:fixed;left:0;top:0;transform:translateX(-105%);transition:transform .2s ease;box-shadow:none}
+body.sidebar-open .app-sidebar{transform:translateX(0);box-shadow:8px 0 24px rgba(23,32,51,0.12)}
+.app-mobile-bar{display:flex}
+.sidebar-backdrop{display:none;position:fixed;inset:0;background:rgba(23,32,51,0.35);z-index:35}
+body.sidebar-open .sidebar-backdrop{display:block}
+.app-main .page{padding:20px 16px}
+}
 @media(max-width:800px){.hero,.topbar,.book-row{align-items:flex-start;flex-direction:column}.stats,.post-grid,.split,.schedule-row,.promo-header,.promo-row,.choice-grid,.plans-grid,.link-row,.bar-row{grid-template-columns:1fr}}
-.app-footer{text-align:center;padding:18px 28px;border-top:1px solid var(--line);background:var(--paper);color:var(--muted);font-size:12px;display:flex;justify-content:center;gap:24px;margin-top:32px;flex-wrap:wrap}
+.app-footer{text-align:center;padding:18px 28px;border-top:1px solid var(--line);background:var(--paper);color:var(--muted);font-size:12px;display:flex;justify-content:center;gap:24px;margin-top:auto;flex-wrap:wrap}
 .marketing-body{background:linear-gradient(180deg,#f8fafc 0%,var(--soft) 240px)}
 .marketing-topbar{background:rgba(255,255,255,0.95);backdrop-filter:blur(8px);position:sticky;top:0;z-index:20}
 .marketing-nav{display:flex;align-items:center;gap:18px;flex-wrap:wrap}

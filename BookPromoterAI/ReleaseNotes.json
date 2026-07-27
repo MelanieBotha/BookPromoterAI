@@ -1,4 +1,12 @@
 {
+  "1.28.1": {
+    "title": "BookPromoter AI v1.28.1 — What's new",
+    "updated": [
+      "App navigation: Manager-style left sidebar with all sections visible (no Manage/My Account dropdowns); active page highlighting and counts for Books, Team, Clients, Videos"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.28.0": {
     "title": "BookPromoter AI v1.28.0 — What's new",
     "updated": [
