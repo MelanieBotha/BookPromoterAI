@@ -89,6 +89,7 @@ static class H
                     <a href="/#features">Features</a>
                     <a href="/#pricing">Pricing</a>
                     <a href="/community">Community</a>
+                    <a href="/app-feedback">Feedback</a>
                     <a href="/trial">Access code</a>
                     <a href="/terms">Terms</a>
                     <a href="/privacy">Privacy</a>
@@ -107,6 +108,7 @@ static class H
                 <a href="/start">Sign in</a>
                 <a href="/trial">Free access code</a>
                 <a href="/community">Community</a>
+                <a href="/app-feedback">Feedback &amp; Forum</a>
                 <a href="{BrandConstants.OfficialBlueskyUrl}" target="_blank" rel="noopener">@{BrandConstants.OfficialBlueskyHandle}</a>
                 {CommunityFooterExtras(store)}
                 <span>&copy; {DateTime.UtcNow.Year} {LegalConstants.ContactName}</span>

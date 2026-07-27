@@ -4391,6 +4391,22 @@ class AppStoreDb
         }
     }
 
+    /// <summary>General Feedback entries for the public App Feedback page (emails are masked in the UI).</summary>
+    public List<FeedbackEntry> PublicGeneralFeedbackEntries
+    {
+        get
+        {
+            using var db = Db();
+            return db.FeedbackEntries.AsNoTracking()
+                .Where(f => f.Category == "General Feedback")
+                .OrderByDescending(f => f.SubmittedAt)
+                .Take(100)
+                .ToList()
+                .Select(ToModel)
+                .ToList();
+        }
+    }
+
     public FeedbackEntry AddFeedback(string email, string category, string message)
     {
         using var db = Db();
@@ -4405,6 +4421,201 @@ class AppStoreDb
         var f = db.FeedbackEntries.Find(id);
         if (f is not null) { f.Investigated = !f.Investigated; db.SaveChanges(); }
     }
+
+    // ── Public forum ───────────────────────────────────────────────────
+    public List<ForumThread> ListForumThreads()
+    {
+        using var db = Db();
+        var threads = db.ForumThreads.AsNoTracking()
+            .Where(t => !t.IsRemoved)
+            .OrderByDescending(t => t.IsPinned)
+            .ThenByDescending(t => t.UpdatedAt)
+            .Take(100)
+            .ToList();
+        var threadIds = threads.Select(t => t.Id).ToList();
+        var postStats = db.ForumPosts.AsNoTracking()
+            .Where(p => threadIds.Contains(p.ThreadId) && !p.IsRemoved)
+            .GroupBy(p => p.ThreadId)
+            .Select(g => new { ThreadId = g.Key, Count = g.Count(), LastAt = g.Max(p => p.CreatedAt) })
+            .ToList()
+            .ToDictionary(x => x.ThreadId);
+
+        return threads.Select(t =>
+        {
+            postStats.TryGetValue(t.Id, out var stats);
+            return new ForumThread
+            {
+                Id = t.Id,
+                Title = t.Title,
+                AuthorEmail = t.AuthorEmail,
+                AuthorDisplayName = t.AuthorDisplayName,
+                CreatedAt = t.CreatedAt,
+                UpdatedAt = t.UpdatedAt,
+                IsPinned = t.IsPinned,
+                IsRemoved = t.IsRemoved,
+                ReplyCount = Math.Max(0, (stats?.Count ?? 0) - 1),
+                LastPostAt = stats?.LastAt ?? t.UpdatedAt
+            };
+        }).ToList();
+    }
+
+    public (ForumThread? Thread, List<ForumPost> Posts) GetForumThread(int threadId)
+    {
+        using var db = Db();
+        var thread = db.ForumThreads.AsNoTracking()
+            .FirstOrDefault(t => t.Id == threadId && !t.IsRemoved);
+        if (thread is null) return (null, []);
+
+        var posts = db.ForumPosts.AsNoTracking()
+            .Where(p => p.ThreadId == threadId && !p.IsRemoved)
+            .OrderBy(p => p.CreatedAt)
+            .ToList()
+            .Select(ToModel)
+            .ToList();
+
+        return (ToModel(thread, posts.Count), posts);
+    }
+
+    public (ForumThread? Thread, string? Error) CreateForumThread(string title, string body)
+    {
+        if (!IsLoggedIn) return (null, "Log in to start a forum thread.");
+        var cleanTitle = title.Trim();
+        var cleanBody = body.Trim();
+        if (cleanTitle.Length < 3) return (null, "Give your thread a short title (at least 3 characters).");
+        if (cleanTitle.Length > 120) return (null, "Title is too long (max 120 characters).");
+        if (cleanBody.Length < 3) return (null, "Write a short opening message.");
+        if (cleanBody.Length > 4000) return (null, "Message is too long (max 4000 characters).");
+
+        var email = LoggedInEmail!.Trim().ToLowerInvariant();
+        var display = ForumDisplayName(email);
+        var now = DateTime.UtcNow;
+        using var db = Db();
+        var thread = new DbForumThread
+        {
+            Title = cleanTitle,
+            AuthorEmail = email,
+            AuthorDisplayName = display,
+            CreatedAt = now,
+            UpdatedAt = now,
+            IsPinned = false,
+            IsRemoved = false
+        };
+        db.ForumThreads.Add(thread);
+        db.SaveChanges();
+
+        db.ForumPosts.Add(new DbForumPost
+        {
+            ThreadId = thread.Id,
+            AuthorEmail = email,
+            AuthorDisplayName = display,
+            Body = cleanBody,
+            CreatedAt = now,
+            IsRemoved = false,
+            IsOwnerReply = IsOwner
+        });
+        db.SaveChanges();
+        return (ToModel(thread, 1), null);
+    }
+
+    public (ForumPost? Post, string? Error) ReplyToForumThread(int threadId, string body)
+    {
+        if (!IsLoggedIn) return (null, "Log in to reply in the forum.");
+        var cleanBody = body.Trim();
+        if (cleanBody.Length < 1) return (null, "Write a reply.");
+        if (cleanBody.Length > 4000) return (null, "Reply is too long (max 4000 characters).");
+
+        using var db = Db();
+        var thread = db.ForumThreads.FirstOrDefault(t => t.Id == threadId && !t.IsRemoved);
+        if (thread is null) return (null, "Thread not found.");
+
+        var email = LoggedInEmail!.Trim().ToLowerInvariant();
+        var display = ForumDisplayName(email);
+        var now = DateTime.UtcNow;
+        var post = new DbForumPost
+        {
+            ThreadId = threadId,
+            AuthorEmail = email,
+            AuthorDisplayName = display,
+            Body = cleanBody,
+            CreatedAt = now,
+            IsRemoved = false,
+            IsOwnerReply = IsOwner
+        };
+        thread.UpdatedAt = now;
+        db.ForumPosts.Add(post);
+        db.SaveChanges();
+        return (ToModel(post), null);
+    }
+
+    public string? RemoveForumThread(int threadId)
+    {
+        if (!IsOwner) return "Owner only.";
+        using var db = Db();
+        var thread = db.ForumThreads.FirstOrDefault(t => t.Id == threadId);
+        if (thread is null) return "Thread not found.";
+        thread.IsRemoved = true;
+        foreach (var post in db.ForumPosts.Where(p => p.ThreadId == threadId))
+            post.IsRemoved = true;
+        db.SaveChanges();
+        return null;
+    }
+
+    public string? RemoveForumPost(int postId)
+    {
+        if (!IsOwner) return "Owner only.";
+        using var db = Db();
+        var post = db.ForumPosts.FirstOrDefault(p => p.Id == postId);
+        if (post is null) return "Post not found.";
+        post.IsRemoved = true;
+        db.SaveChanges();
+        return null;
+    }
+
+    public static string MaskEmailForPublic(string email)
+    {
+        if (string.IsNullOrWhiteSpace(email) || !email.Contains('@'))
+            return "Author";
+        var at = email.IndexOf('@');
+        var local = email[..at];
+        if (local.Length <= 2) return local[0] + "***";
+        return local[0] + "***" + local[^1] + email[at..];
+    }
+
+    static string ForumDisplayName(string email)
+    {
+        if (OwnerAccount.IsOwnerEmail(email))
+            return "BookPromoter AI (Owner)";
+        var at = email.IndexOf('@');
+        var local = at > 0 ? email[..at] : email;
+        if (string.IsNullOrWhiteSpace(local)) return "Member";
+        return local.Length <= 24 ? local : local[..24];
+    }
+
+    static ForumThread ToModel(DbForumThread t, int postCount = 0) => new()
+    {
+        Id = t.Id,
+        Title = t.Title,
+        AuthorEmail = t.AuthorEmail,
+        AuthorDisplayName = t.AuthorDisplayName,
+        CreatedAt = t.CreatedAt,
+        UpdatedAt = t.UpdatedAt,
+        IsPinned = t.IsPinned,
+        IsRemoved = t.IsRemoved,
+        ReplyCount = Math.Max(0, postCount - 1),
+        LastPostAt = t.UpdatedAt
+    };
+
+    static ForumPost ToModel(DbForumPost p) => new()
+    {
+        Id = p.Id,
+        ThreadId = p.ThreadId,
+        AuthorEmail = p.AuthorEmail,
+        AuthorDisplayName = p.AuthorDisplayName,
+        Body = p.Body,
+        CreatedAt = p.CreatedAt,
+        IsRemoved = p.IsRemoved,
+        IsOwnerReply = p.IsOwnerReply
+    };
 
     public bool AccountExists(string email)
     {

@@ -150,6 +150,45 @@ static class DatabaseInitializer
                 """);
             db.Database.ExecuteSqlRaw("""CREATE UNIQUE INDEX IF NOT EXISTS "IX_BrandClicks_MonthKey_Platform_Destination" ON "BrandClicks" ("MonthKey", "Platform", "Destination");""");
         }
+
+        EnsureForumTables(db);
+    }
+
+    static void EnsureForumTables(AppDbContext db)
+    {
+        if (!TableExists(db, "ForumThreads"))
+        {
+            db.Database.ExecuteSqlRaw("""
+                CREATE TABLE IF NOT EXISTS "ForumThreads" (
+                    "Id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    "Title" TEXT NOT NULL,
+                    "AuthorEmail" TEXT NOT NULL,
+                    "AuthorDisplayName" TEXT NOT NULL,
+                    "CreatedAt" TEXT NOT NULL,
+                    "UpdatedAt" TEXT NOT NULL,
+                    "IsPinned" INTEGER NOT NULL DEFAULT 0,
+                    "IsRemoved" INTEGER NOT NULL DEFAULT 0
+                );
+                """);
+        }
+
+        if (!TableExists(db, "ForumPosts"))
+        {
+            db.Database.ExecuteSqlRaw("""
+                CREATE TABLE IF NOT EXISTS "ForumPosts" (
+                    "Id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    "ThreadId" INTEGER NOT NULL,
+                    "AuthorEmail" TEXT NOT NULL,
+                    "AuthorDisplayName" TEXT NOT NULL,
+                    "Body" TEXT NOT NULL,
+                    "CreatedAt" TEXT NOT NULL,
+                    "IsRemoved" INTEGER NOT NULL DEFAULT 0,
+                    "IsOwnerReply" INTEGER NOT NULL DEFAULT 0,
+                    FOREIGN KEY ("ThreadId") REFERENCES "ForumThreads" ("Id") ON DELETE CASCADE
+                );
+                """);
+            db.Database.ExecuteSqlRaw("""CREATE INDEX IF NOT EXISTS "IX_ForumPosts_ThreadId" ON "ForumPosts" ("ThreadId");""");
+        }
     }
 
     static void RepairMailingListSettingsIndex(AppDbContext db)

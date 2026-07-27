@@ -40,7 +40,7 @@ static class FeedbackPage
             <section class="split">
                 <form method="post" action="/feedback" class="panel form">
                     <h1>Send Feedback</h1>
-                    <p class="muted">Found a bug, have an idea, or just want to tell us something? We read every submission.</p>
+                    <p class="muted">Found a bug, have an idea, or just want to tell us something? We read every submission. <strong>General Feedback</strong> also appears on the public <a href="/app-feedback">App Feedback &amp; Forum</a> page (email masked).</p>
                     <label>Category
                         <select name="category">
                             <option>Suggestion</option>

@@ -13,6 +13,7 @@ static class LandingPage
                 <div class="landing-cta-row">
                     <a class="button" href="/start">Create free account</a>
                     <a class="button secondary" href="/trial">Get 30-day access code</a>
+                    <a class="button secondary" href="/app-feedback">See feedback &amp; forum</a>
                 </div>
                 <p class="muted small-text">No credit card required to start. Request a free access code or choose a plan after signup.</p>
             </div>

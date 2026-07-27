@@ -46,6 +46,8 @@ class AppDbContext : DbContext
     public DbSet<DbProductUpdate> ProductUpdates => Set<DbProductUpdate>();
     public DbSet<DbTikTokVideo> TikTokVideos => Set<DbTikTokVideo>();
     public DbSet<DbBrandClick> BrandClicks => Set<DbBrandClick>();
+    public DbSet<DbForumThread> ForumThreads => Set<DbForumThread>();
+    public DbSet<DbForumPost> ForumPosts => Set<DbForumPost>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -439,4 +441,28 @@ class DbTikTokVideo
     public DateTime CreatedAt { get; set; }
     public DateTime? PostedAt { get; set; }
     public DbUser? User { get; set; }
+}
+
+class DbForumThread
+{
+    public int Id { get; set; }
+    public string Title { get; set; } = "";
+    public string AuthorEmail { get; set; } = "";
+    public string AuthorDisplayName { get; set; } = "";
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public bool IsPinned { get; set; }
+    public bool IsRemoved { get; set; }
+}
+
+class DbForumPost
+{
+    public int Id { get; set; }
+    public int ThreadId { get; set; }
+    public string AuthorEmail { get; set; } = "";
+    public string AuthorDisplayName { get; set; } = "";
+    public string Body { get; set; } = "";
+    public DateTime CreatedAt { get; set; }
+    public bool IsRemoved { get; set; }
+    public bool IsOwnerReply { get; set; }
 }

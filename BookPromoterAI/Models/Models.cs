@@ -351,6 +351,32 @@ class FeedbackEntry
     public string ThankYouEmail { get; set; } = ""; // AI-generated thank-you response
 }
 
+class ForumThread
+{
+    public int Id { get; set; }
+    public string Title { get; set; } = "";
+    public string AuthorEmail { get; set; } = "";
+    public string AuthorDisplayName { get; set; } = "";
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public bool IsPinned { get; set; }
+    public bool IsRemoved { get; set; }
+    public int ReplyCount { get; set; }
+    public DateTime? LastPostAt { get; set; }
+}
+
+class ForumPost
+{
+    public int Id { get; set; }
+    public int ThreadId { get; set; }
+    public string AuthorEmail { get; set; } = "";
+    public string AuthorDisplayName { get; set; } = "";
+    public string Body { get; set; } = "";
+    public DateTime CreatedAt { get; set; }
+    public bool IsRemoved { get; set; }
+    public bool IsOwnerReply { get; set; }
+}
+
 // Owner-only payout destination for subscription revenue (Stripe Connect, manual transfer, etc.)
 class OwnerPayoutSettings
 {

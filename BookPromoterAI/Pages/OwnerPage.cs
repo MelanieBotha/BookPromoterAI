@@ -370,6 +370,7 @@ static class OwnerPage
             <details class="owner-collapsible" id="owner-section-feedback"{open("feedback")}>
                 <summary class="owner-collapsible-heading">Feedback &amp; Suggestions Report</summary>
                 <div>
+                    <p class="muted" style="padding:0 4px 12px">General Feedback also appears on the public <a href="/app-feedback">/app-feedback</a> page (emails masked). Reply in the Forum tab there as owner.</p>
                     {FeedbackLogSection(store)}
                 </div>
             </details>
