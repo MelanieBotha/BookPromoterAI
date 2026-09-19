@@ -18,5 +18,8 @@ static class LandingRoutes
                 H.RenderMarketingPage(http, "Promote your books smarter", LandingPage.Render(store), store),
                 "text/html");
         });
+
+        // Marketing nav links to /#pricing; also accept /pricing.
+        app.MapGet("/pricing", () => Results.Redirect("/#pricing"));
     }
 }
