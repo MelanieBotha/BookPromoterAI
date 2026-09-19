@@ -47,6 +47,13 @@ class TumblrService
         if (!response.IsSuccessStatusCode)
         {
             var detail = string.IsNullOrWhiteSpace(body) ? "" : $" {TumblrOAuth1.Truncate(body, 120)}";
+            if (body.Contains("oauth_consumer is suspended", StringComparison.OrdinalIgnoreCase)
+                || body.Contains("consumer is suspended", StringComparison.OrdinalIgnoreCase))
+            {
+                return (false,
+                    "Tumblr suspended this app's API keys. Owner: register a new app at tumblr.com/oauth/apps, set the callback to https://bookpromoterai.us/social-accounts/oauth-callback/Tumblr, then update Railway Tumblr__ConsumerKey and Tumblr__ConsumerSecret and redeploy.",
+                    null, null);
+            }
             return (false, $"Tumblr request token failed ({(int)response.StatusCode}).{detail}", null, null);
         }
 

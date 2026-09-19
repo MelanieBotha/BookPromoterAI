@@ -34,10 +34,10 @@ static class SocialAccountRoutes
             var returnUrl = SocialConnectHelper.ResolveReturnUrl(request, form["return"].ToString());
             var kind = SocialConnectHelper.ResolveAccountKind(returnUrl);
             if (SocialAccountKinds.IsBrand(kind) && !store.IsOwner) return Results.Redirect("/my-account");
-            if (store.CheckSocialAccountLimit(kind) is not null) return Results.Redirect(returnUrl);
             var platform = form["platform"].ToString();
             var customPlatform = form["customPlatform"].ToString().Trim();
             var finalPlatform = platform == "__custom__" && !string.IsNullOrWhiteSpace(customPlatform) ? customPlatform : platform;
+            if (store.CheckSocialAccountLimit(kind, finalPlatform) is not null) return Results.Redirect(returnUrl);
             if (SocialConnectHelper.IsPlatformDisabled(finalPlatform, store.Settings, SocialAccountKinds.IsBrand(kind)))
                 return Results.Redirect(returnUrl);
             var handle = form["handle"].ToString();
@@ -121,10 +121,10 @@ static class SocialAccountRoutes
             var returnUrl = SocialConnectHelper.ResolveReturnUrl(request);
             var kind = SocialConnectHelper.ResolveAccountKind(returnUrl);
             if (SocialAccountKinds.IsBrand(kind) && !store.IsOwner) return Results.Redirect("/my-account");
-            if (store.CheckSocialAccountLimit(kind) is not null) return Results.Redirect(returnUrl);
+            var platformName = Uri.UnescapeDataString(platform);
+            if (store.CheckSocialAccountLimit(kind, platformName) is not null) return Results.Redirect(returnUrl);
             var saveUserId = SocialAccountKinds.IsBrand(kind) ? store.PrimaryOwnerUserId() : userId;
             if (saveUserId == 0) return Results.Redirect("/start");
-            var platformName = Uri.UnescapeDataString(platform);
             // TikTok is Videos-only (off the My Account bar) but must still reach its connect/setup flow.
             if (SocialConnectHelper.IsPlatformDisabled(platformName, settings, SocialAccountKinds.IsBrand(kind))
                 && !PostLimits.IsTikTok(platformName))
@@ -454,7 +454,7 @@ static class SocialAccountRoutes
             var returnUrl = SocialConnectHelper.ResolveReturnUrl(request, form["return"].ToString());
             var kind = SocialConnectHelper.ResolveAccountKind(returnUrl);
             if (SocialAccountKinds.IsBrand(kind) && !store.IsOwner) return Results.Redirect("/my-account");
-            if (store.CheckSocialAccountLimit(kind) is not null) return Results.Redirect(returnUrl);
+            if (store.CheckSocialAccountLimit(kind, "Facebook") is not null) return Results.Redirect(returnUrl);
 
             var userId = store.GetCurrentDbUser()?.Id ?? 0;
             if (userId == 0) return Results.Redirect("/start");
@@ -678,7 +678,7 @@ static class SocialAccountRoutes
             var returnUrl = SocialConnectHelper.ResolveReturnUrl(request, form["return"].ToString());
             var kind = SocialConnectHelper.ResolveAccountKind(returnUrl);
             if (SocialAccountKinds.IsBrand(kind) && !store.IsOwner) return Results.Redirect("/my-account");
-            if (store.CheckSocialAccountLimit(kind) is not null) return Results.Redirect(returnUrl);
+            if (store.CheckSocialAccountLimit(kind, "Reddit") is not null) return Results.Redirect(returnUrl);
             if (!settings.IsRedditConfigured)
                 return Results.Redirect($"/social-accounts/connect/Reddit?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Reddit API credentials are not configured.")}");
 
@@ -779,7 +779,7 @@ static class SocialAccountRoutes
             var returnUrl = SocialConnectHelper.ResolveReturnUrl(request, form["return"].ToString());
             var kind = SocialConnectHelper.ResolveAccountKind(returnUrl);
             if (SocialAccountKinds.IsBrand(kind) && !store.IsOwner) return Results.Redirect("/my-account");
-            if (store.CheckSocialAccountLimit(kind) is not null) return Results.Redirect(returnUrl);
+            if (store.CheckSocialAccountLimit(kind, "Tumblr") is not null) return Results.Redirect(returnUrl);
             if (!settings.IsTumblrConfigured)
                 return Results.Redirect($"/social-accounts/connect/Tumblr?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Tumblr API credentials are not configured.")}");
 
@@ -952,7 +952,7 @@ static class SocialAccountRoutes
             var returnUrl = SocialConnectHelper.ResolveReturnUrl(request, form["return"].ToString());
             var kind = SocialConnectHelper.ResolveAccountKind(returnUrl);
             if (SocialAccountKinds.IsBrand(kind) && !store.IsOwner) return Results.Redirect("/my-account");
-            if (store.CheckSocialAccountLimit(kind) is not null) return Results.Redirect(returnUrl);
+            if (store.CheckSocialAccountLimit(kind, "Flickr") is not null) return Results.Redirect(returnUrl);
             if (!settings.IsFlickrConfigured)
                 return Results.Redirect($"/social-accounts/connect/Flickr?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("Flickr API credentials are not configured.")}");
 
@@ -1050,7 +1050,7 @@ static class SocialAccountRoutes
             var kind = SocialConnectHelper.ResolveAccountKind(returnUrl);
             if (SocialAccountKinds.IsBrand(kind) && !store.IsOwner)
                 return Results.Redirect("/my-account");
-            if (SocialAccountKinds.IsAuthor(kind) && store.CheckSocialAccountLimit(SocialAccountKinds.Author) is not null)
+            if (SocialAccountKinds.IsAuthor(kind) && store.CheckSocialAccountLimit(SocialAccountKinds.Author, "TikTok") is not null)
                 return Results.Redirect(returnUrl);
             if (!settings.IsTikTokConfigured)
                 return Results.Redirect($"/social-accounts/connect/TikTok?return={Uri.EscapeDataString(returnUrl)}&notice={Uri.EscapeDataString("TikTok API credentials are not configured.")}");
@@ -1154,7 +1154,7 @@ static class SocialAccountRoutes
             var returnUrl = SocialConnectHelper.ResolveReturnUrl(request, form["return"].ToString());
             var kind = SocialConnectHelper.ResolveAccountKind(returnUrl);
             if (SocialAccountKinds.IsBrand(kind) && !store.IsOwner) return Results.Redirect("/my-account");
-            if (store.CheckSocialAccountLimit(kind) is not null) return Results.Redirect(returnUrl);
+            if (store.CheckSocialAccountLimit(kind, "Mastodon") is not null) return Results.Redirect(returnUrl);
 
             var instance = MastodonService.NormalizeInstance(form["instance"].ToString());
             if (string.IsNullOrWhiteSpace(instance))
@@ -1260,8 +1260,8 @@ static class SocialAccountRoutes
             var returnUrl = SocialConnectHelper.ResolveReturnUrl(request, form["return"].ToString());
             var kind = SocialConnectHelper.ResolveAccountKind(returnUrl);
             if (SocialAccountKinds.IsBrand(kind) && !store.IsOwner) return Results.Redirect("/my-account");
-            if (store.CheckSocialAccountLimit(kind) is not null) return Results.Redirect(returnUrl);
             var platformName = Uri.UnescapeDataString(platform);
+            if (store.CheckSocialAccountLimit(kind, platformName) is not null) return Results.Redirect(returnUrl);
             if (SocialConnectHelper.IsPlatformDisabled(platformName, store.Settings, SocialAccountKinds.IsBrand(kind)))
                 return Results.Redirect(returnUrl);
 

@@ -183,30 +183,30 @@ static class PostLimits
     public static string LiveReconnectHint(string platform)
     {
         if (IsBluesky(platform))
-            return "Bluesky is not connected for live posting. In My Account, remove your Bluesky account and reconnect with an app password.";
+            return "Bluesky is not connected for live posting. Use Reconnect next to Bluesky in My Account.";
         if (IsX(platform))
-            return "X is not connected for live posting. In My Account, remove your X account and reconnect with Sign in with X.";
+            return "X is not connected for live posting. Use Reconnect next to X in My Account.";
         if (IsLinkedIn(platform))
-            return "LinkedIn is not connected for live posting. In My Account, remove your LinkedIn account and reconnect with Sign in with LinkedIn.";
+            return "LinkedIn is not connected for live posting. Use Reconnect next to LinkedIn in My Account.";
         if (IsFacebook(platform))
-            return "Facebook is not connected for live posting. In My Account, remove your Facebook account and reconnect with Sign in with Facebook.";
+            return "Facebook is not connected for live posting. Use Reconnect next to Facebook in My Account.";
         if (IsReddit(platform))
-            return "Reddit is not connected for live posting. In My Account, remove your Reddit account and reconnect with Sign in with Reddit.";
+            return "Reddit is not connected for live posting. Use Reconnect next to Reddit in My Account.";
         if (IsMastodon(platform))
-            return "Mastodon is not connected for live posting. In My Account, remove your Mastodon account and reconnect.";
+            return "Mastodon is not connected for live posting. Use Reconnect next to Mastodon in My Account.";
         if (IsDiscord(platform))
-            return "Discord is not connected for live posting. In My Account, reconnect with your channel webhook URL.";
+            return "Discord is not connected for live posting. Use Reconnect next to Discord in My Account.";
         if (IsTelegram(platform))
-            return "Telegram is not connected for live posting. In My Account, reconnect with your bot token and chat ID.";
+            return "Telegram is not connected for live posting. Use Reconnect next to Telegram in My Account.";
         if (IsTumblr(platform))
-            return "Tumblr is not connected for live posting. In My Account, remove your Tumblr account and reconnect.";
+            return "Tumblr is not connected for live posting. Use Reconnect next to Tumblr in My Account.";
         if (IsWordPress(platform))
-            return "WordPress is not connected for live posting. In My Account, remove your WordPress account and reconnect with an application password.";
+            return "WordPress is not connected for live posting. Use Reconnect next to WordPress in My Account.";
         if (IsMedium(platform))
-            return "Medium is not connected for live posting. In My Account, remove your Medium account and reconnect with an integration token.";
+            return "Medium is not connected for live posting. Use Reconnect next to Medium in My Account.";
         if (IsFlickr(platform))
-            return "Flickr is not connected for live posting. In My Account, remove your Flickr account and reconnect with Sign in with Flickr.";
-        return $"Connect {platform} for live posting in My Account.";
+            return "Flickr is not connected for live posting. Use Reconnect next to Flickr in My Account.";
+        return $"Use Reconnect next to {platform} in My Account for live posting.";
     }
 
     public static string LivePostNowHint(string platform)

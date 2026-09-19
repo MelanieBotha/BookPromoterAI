@@ -81,6 +81,27 @@ static class SocialConnectHelper
         return buttons.ToString();
     }
 
+    /// <summary>True when this saved account cannot live-post and should offer Reconnect.</summary>
+    public static bool NeedsReconnect(SocialAccount account) =>
+        account.IsConnected
+        && PostLimits.RequiresLiveConnection(account.Platform)
+        && !account.IsLiveConnection;
+
+    public static string ConnectHref(string platform, string returnUrl) =>
+        $"/social-accounts/connect/{Uri.EscapeDataString(platform)}?return={Uri.EscapeDataString(returnUrl)}";
+
+    /// <summary>Reconnect button for a saved account that is no longer live.</summary>
+    public static string ReconnectButton(SocialAccount account, string returnUrl, string cssClass = "button small")
+    {
+        if (!NeedsReconnect(account)) return "";
+        var color = SocialPlatforms.Color(account.Platform);
+        return $"""
+            <a class="{cssClass}" href="{ConnectHref(account.Platform, returnUrl)}" style="background:{color}">
+                Reconnect
+            </a>
+            """;
+    }
+
     public static string RenderPlatformOption(
         string value,
         bool selected = false,
@@ -646,7 +667,13 @@ static class SocialConnectHelper
     {
         var brandContext = IsBrandContext(returnUrl);
         var brand = SocialPlatforms.Brand("Tumblr");
-        var noticeHtml = string.IsNullOrWhiteSpace(notice) ? "" : $"""<p class="notice">{H.Encode(notice)}</p>""";
+        var isError = !string.IsNullOrWhiteSpace(notice)
+            && (notice.Contains("failed", StringComparison.OrdinalIgnoreCase)
+                || notice.Contains("suspended", StringComparison.OrdinalIgnoreCase)
+                || notice.Contains("not configured", StringComparison.OrdinalIgnoreCase));
+        var noticeHtml = string.IsNullOrWhiteSpace(notice)
+            ? ""
+            : $"""<p class="notice {(isError ? "error" : "")}">{H.Encode(notice)}</p>""";
         var configured = settings?.IsTumblrConfigured == true;
         var callbackExample = settings is not null && !string.IsNullOrWhiteSpace(settings.PublicBaseUrl)
             ? TumblrService.CallbackUrl(settings.PublicBaseUrl.TrimEnd('/'))

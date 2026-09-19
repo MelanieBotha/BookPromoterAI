@@ -1,4 +1,14 @@
 {
+  "1.28.5": {
+    "title": "BookPromoter AI v1.28.5 — What's new",
+    "updated": [
+      "Show a Reconnect button next to social accounts that need a fresh login (My Account, Owner brand social, Ad Library / brand post hints)",
+      "Tumblr: clearer guidance when Tumblr suspends API keys; consistent User-Agent on Tumblr requests to reduce re-suspension risk",
+      "Allow reconnecting an existing platform even when the plan social-account limit is reached"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.28.4": {
     "title": "BookPromoter AI v1.28.4 — What's new",
     "updated": [

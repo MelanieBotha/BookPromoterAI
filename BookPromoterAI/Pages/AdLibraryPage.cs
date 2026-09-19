@@ -201,7 +201,7 @@ static class AdLibraryPage
         var postNowButton = canPostNow
             ? $"""<form method="post" action="/ad-library/post-now/{ad.Id}">{searchField}<button class="button small" type="submit">Post now</button></form>"""
             : platformNotLive && ad.PostStatus is "Pending" or "Failed"
-                ? $"""<p class="muted small-text">{H.Encode(reconnectHint)}</p>"""
+                ? $"""<p class="muted small-text">{H.Encode(reconnectHint)} <a href="{SocialConnectHelper.ConnectHref(ad.Platform, "/my-account")}">Reconnect</a></p>"""
                 : "";
 
         var inkittWallUrl = PostLimits.IsInkitt(ad.Platform) && authorAccount is not null

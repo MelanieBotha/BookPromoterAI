@@ -593,9 +593,13 @@ class AppStoreDb
         ClearUserCache();
     }
 
-    public string? CheckSocialAccountLimit(string accountKind = SocialAccountKinds.Author)
+    public string? CheckSocialAccountLimit(string accountKind = SocialAccountKinds.Author, string? forPlatform = null)
     {
         if (SocialAccountKinds.IsBrand(accountKind)) return null;
+        // Reconnecting an existing platform does not consume another plan slot.
+        if (!string.IsNullOrWhiteSpace(forPlatform)
+            && AuthorSocialAccounts.Any(a => PostLimits.PlatformsMatch(a.Platform, forPlatform)))
+            return null;
         var plan = CurrentPlan;
         if (plan?.SocialAccountLimit is int l && AuthorSocialAccounts.Count >= l) return $"You've reached the {l}-account limit on the {plan.Name} plan.";
         return null;

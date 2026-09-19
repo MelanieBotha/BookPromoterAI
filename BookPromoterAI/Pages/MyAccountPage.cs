@@ -70,7 +70,9 @@ static class MyAccountPage
                 ? """<small class="status used">Copy &amp; paste to Inkitt wall — no auto-post API</small>"""
                 : account.IsLiveConnection
                 ? """<small class="status available">Live posting enabled</small>"""
-                : account.ConnectedViaOAuth
+                : SocialConnectHelper.NeedsReconnect(account)
+                    ? """<small class="status used">Needs reconnect — tokens expired or incomplete</small>"""
+                    : account.ConnectedViaOAuth
                     ? """<small class="status used">Connected (simulated — not posting to network yet)</small>"""
                     : """<small class="status used">Manually added</small>""";
 
@@ -90,6 +92,7 @@ static class MyAccountPage
                     """;
 
             var removeFormId = $"remove-account-{account.Id}";
+            var reconnectBtn = SocialConnectHelper.ReconnectButton(account, "/my-account");
 
             accountRows.Append($"""
                 <article class="book-row account-schedule-row">
@@ -109,6 +112,7 @@ static class MyAccountPage
                     </label>
                     {autoPostField}
                     <div class="row-actions">
+                        {reconnectBtn}
                         <a class="button small" href="/social-accounts/edit/{account.Id}">Edit</a>
                         <button class="danger-button small" type="submit" form="{removeFormId}">Remove</button>
                     </div>

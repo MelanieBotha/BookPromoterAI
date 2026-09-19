@@ -45,9 +45,13 @@ static class OwnerPromoPage
         var connectedRows = new StringBuilder();
         foreach (var account in socialAccounts)
         {
+            var needsReconnect = SocialConnectHelper.NeedsReconnect(account);
             var status = account.IsLiveConnection
                 ? "Live posting"
-                : account.ConnectedViaOAuth ? "Simulated" : "Manual";
+                : needsReconnect
+                    ? "Needs reconnect"
+                    : account.ConnectedViaOAuth ? "Simulated" : "Manual";
+            var reconnectBtn = SocialConnectHelper.ReconnectButton(account, returnPath, "button small");
             connectedRows.Append($"""
                 <div class="promo-row plan-row">
                     <span>{H.Encode(account.Platform)}</span>
@@ -55,7 +59,8 @@ static class OwnerPromoPage
                         <strong>{H.Encode(account.DisplayName)}</strong>
                         <span class="muted"> @{H.Encode(account.Handle)} &middot; {status}</span>
                     </span>
-                    <span>
+                    <span class="row-actions">
+                        {reconnectBtn}
                         <a class="button secondary small" href="/social-accounts/edit/{account.Id}?return={Uri.EscapeDataString(returnPath)}">Edit</a>
                         <form method="post" action="/social-accounts/delete/{account.Id}" class="inline-form tight">
                             <input type="hidden" name="return" value="{returnPath}">
@@ -678,7 +683,7 @@ static class OwnerPromoPage
         var postNowButton = canPostNow
             ? $"""<form method="post" action="/owner/app-promo/post-now/{ad.Id}"><button class="button small" type="submit">Post now</button></form>"""
             : platformNotLive && ad.PostStatus is "Pending" or "Failed"
-                ? $"""<p class="muted small-text">{H.Encode(PostLimits.LivePostNowHint(ad.Platform))}</p>"""
+                ? $"""<p class="muted small-text">{H.Encode(PostLimits.LivePostNowHint(ad.Platform))} <a href="{SocialConnectHelper.ConnectHref(ad.Platform, "/owner-promos?section=owner-social")}">Reconnect</a></p>"""
                 : "";
         var regenButton =
             $"""<form method="post" action="/owner/app-promo/regenerate/{ad.Id}"><button class="button secondary small" type="submit">Regenerate</button></form>""";

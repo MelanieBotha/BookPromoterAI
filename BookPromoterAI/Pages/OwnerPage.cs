@@ -577,7 +577,7 @@ static class OwnerPage
                                             <li><strong>Consumer secret:</strong> {H.Encode(store.TumblrConsumerSecretStatus)}</li>
                                         </ul>
                                         """)}
-                                <p class="muted">Register an app at <a href="https://www.tumblr.com/oauth/apps" target="_blank" rel="noopener">tumblr.com/oauth/apps</a> (OAuth 1.0a).</p>
+                                <p class="muted">Register an app at <a href="https://www.tumblr.com/oauth/apps" target="_blank" rel="noopener">tumblr.com/oauth/apps</a> (OAuth 1.0a). If connect fails with <strong>oauth_consumer is suspended</strong>, Tumblr disabled the old keys — create a <strong>new</strong> app and replace the Railway variables below.</p>
                                 <p class="muted">Set this <strong>Default callback URL</strong> in your Tumblr app (must match exactly):</p>
                                 <ul class="plan-features">
                                     {string.Concat(PublicUrl.TumblrCallbackUrlsForMeta(store.Settings).Select(u => $"<li><code>{H.Encode(u)}</code></li>"))}
