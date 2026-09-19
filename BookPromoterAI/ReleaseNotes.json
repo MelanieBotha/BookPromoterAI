@@ -1,4 +1,12 @@
 {
+  "1.28.4": {
+    "title": "BookPromoter AI v1.28.4 — What's new",
+    "updated": [
+      "TikTok videos no longer auto-create on a schedule or page load — generate only when you click Generate (saves disk space on Railway)"
+    ],
+    "new": [],
+    "added": []
+  },
   "1.28.3": {
     "title": "BookPromoter AI v1.28.3 — What's new",
     "updated": [

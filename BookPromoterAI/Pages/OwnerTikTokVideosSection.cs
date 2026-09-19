@@ -8,12 +8,8 @@ static class OwnerTikTokVideosSection
     public static string Render(AppStoreDb store, string appBaseUrl, string? activeSection = null, string noticeHtml = "")
     {
         if (!store.IsOwner) return "";
-
+        _ = appBaseUrl;
         store.EnsureBrandTikTokSchedule();
-        var queued = store.EnsureBrandWeeklyVideos(appBaseUrl);
-        if (string.IsNullOrWhiteSpace(noticeHtml) && queued > 0)
-            noticeHtml = $"""<div class="notice success">Queued {queued} BookPromoter AI promo video(s) for this week.</div>""";
-
         var openAttr = string.Equals(activeSection, "owner-videos", StringComparison.OrdinalIgnoreCase) ? " open" : "";
         var (weekNum, yearNum, weekLabel) = AdWeek.For(DateTime.UtcNow);
         var thisWeek = store.BrandTikTokVideosThisWeek;
@@ -38,7 +34,7 @@ static class OwnerTikTokVideosSection
         foreach (var video in thisWeek)
             thisWeekRows.Append(RenderRow(video, live, store.IsTikTokConfigured));
         if (thisWeek.Count == 0)
-            thisWeekRows.Append("""<p class="muted">No brand videos this week yet. Set videos/week above 0 and click Generate.</p>""");
+            thisWeekRows.Append("""<p class="muted">No brand videos this week yet. Click <strong>Generate this week's videos</strong> when you want new ones.</p>""");
 
         var allRows = new StringBuilder();
         foreach (var video in all)
@@ -53,7 +49,7 @@ static class OwnerTikTokVideosSection
             <details class="owner-collapsible" id="owner-section-owner-videos"{openAttr}>
                 <summary class="owner-collapsible-heading">App Videos (TikTok)</summary>
                 <div class="panel owner-settings">
-                    <p class="muted">60-second BookPromoter AI promo videos with the app logo and narrated pitch. Send to the <strong>brand</strong> TikTok inbox (separate from author book videos on the Videos tab).</p>
+                    <p class="muted">60-second BookPromoter AI promo videos with the app logo and narrated pitch. Videos are created <strong>only when you click Generate</strong> (nothing auto-creates). Send to the <strong>brand</strong> TikTok inbox (separate from author book videos on the Videos tab).</p>
                     {noticeHtml}
                     {(!store.IsTikTokConfigured
                         ? """<div class="notice error">Configure TikTok__ClientKey / TikTok__ClientSecret first (Owner → Social Media APIs).</div>"""
@@ -68,7 +64,7 @@ static class OwnerTikTokVideosSection
                             </div>
                             """)}
                     <h3>Weekly schedule</h3>
-                    <p class="muted small-text">Owner brand cap: up to <strong>7 videos/week</strong> (not author plan limits). This week: <strong>{generatedThisWeek}</strong> generated, <strong>{sentThisWeek}</strong> sent.</p>
+                    <p class="muted small-text">Owner brand cap: up to <strong>7 videos/week</strong> (not author plan limits). Used as a limit when you click Generate. This week: <strong>{generatedThisWeek}</strong> generated, <strong>{sentThisWeek}</strong> sent.</p>
                     <form method="post" action="/owner/videos/schedule" class="form" style="margin:0.75rem 0">
                         <label>Videos per week
                             <input name="videosPerWeek" type="number" min="0" max="7" value="{videosPerWeek}" required>
@@ -82,7 +78,7 @@ static class OwnerTikTokVideosSection
                     <h3>{H.Encode(weekLabel)}</h3>
                     <div class="row-actions" style="margin:0.75rem 0">
                         <form method="post" action="/owner/videos/regenerate-week" onsubmit="{(string.IsNullOrEmpty(weekConfirm) ? "" : $"return confirm('{H.Encode(weekConfirm)}');")}">
-                            <button class="button secondary" type="submit">{H.Encode(weekActionLabel)}</button>
+                            <button class="button" type="submit">{H.Encode(weekActionLabel)}</button>
                         </form>
                     </div>
                     <div class="tiktok-video-list">{thisWeekRows}</div>

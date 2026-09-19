@@ -78,7 +78,7 @@ static class TikTokPage
         var weekActions = hasBooks
             ? $"""
                 <div class="row-actions" style="margin:0.75rem 0 1rem">
-                    <button type="button" class="button secondary" onclick="regenerateWeek(this)" data-confirm="{H.Encode(weekActionConfirm)}">{H.Encode(weekActionLabel)}</button>
+                    <button type="button" class="button" onclick="regenerateWeek(this)" data-confirm="{H.Encode(weekActionConfirm)}">{H.Encode(weekActionLabel)}</button>
                 </div>
                 """
             : "";
@@ -121,11 +121,11 @@ static class TikTokPage
                 </section>
                 <section class="panel" style="margin-bottom:1rem">
                     <h2>Weekly TikTok schedule</h2>
-                    <p class="muted small-text">Your <strong>{H.Encode(planLabel)}</strong> plan allows <strong>{H.Encode(planMaxText)}</strong> (Starter 2, Professional 4, Publisher 10, Agency unlimited). Same idea as text social posts/week.</p>
+                    <p class="muted small-text">Your <strong>{H.Encode(planLabel)}</strong> plan allows <strong>{H.Encode(planMaxText)}</strong> (Starter 2, Professional 4, Publisher 10, Agency unlimited). Videos are created only when you click <strong>Generate</strong> — nothing auto-creates in the background.</p>
                     <p class="muted small-text">This week: <strong>{generatedThisWeek}</strong> video(s) generated, <strong>{sentThisWeek}</strong> sent to inbox
                         {(planMax is int capShown ? $" (cap {capShown})" : "")}.</p>
                     <form method="post" action="/videos/schedule" class="form" style="margin-top:0.75rem">
-                        <label>Videos per week
+                        <label>Videos per week (limit when you Generate)
                             <input name="videosPerWeek" type="number" min="0" max="{inputMax}" value="{videosPerWeek}" required>
                         </label>
                         <label class="checkbox-row">
@@ -134,7 +134,7 @@ static class TikTokPage
                         </label>
                         <button class="button" type="submit">Save TikTok schedule</button>
                     </form>
-                    <p class="muted small-text" style="margin-top:0.75rem">When auto-send is on, newly Ready videos are uploaded to your TikTok inbox automatically (open the TikTok app to publish). Turn off or remove the account anytime.</p>
+                    <p class="muted small-text" style="margin-top:0.75rem">When auto-send is on, Ready videos you generate are uploaded to your TikTok inbox automatically (open the TikTok app to publish). Turn off or remove the account anytime.</p>
                 </section>
                 """;
 
@@ -143,7 +143,7 @@ static class TikTokPage
             : "";
 
         if (videos.Count == 0)
-            videoRows.Append("""<p class="muted">No videos yet. Your weekly batch will appear above, or create one manually below.</p>""");
+            videoRows.Append("""<p class="muted">No videos yet. Use <strong>Generate this week's videos</strong> above, or create one manually below.</p>""");
 
         var noBooksNotice = hasBooks
             ? ""
@@ -199,7 +199,7 @@ static class TikTokPage
                 <div>
                     <p class="eyebrow">Book promos</p>
                     <h1>Videos</h1>
-                    <p class="muted">60-second book promos auto-generate every week. Post to your TikTok inbox or download for Reels/Shorts.</p>
+                    <p class="muted">60-second book promos — create them when you want with <strong>Generate</strong>. Post to your TikTok inbox or download for Reels/Shorts.</p>
                 </div>
             </section>
             {notice}
@@ -208,7 +208,7 @@ static class TikTokPage
             {studio}
             <section class="panel">
                 <h2>This week's videos</h2>
-                <p class="muted small-text">{H.Encode(currentWeekLabel)} — up to your schedule ({videosPerWeek}/week{(planMax is int pm ? $", plan max {pm}" : ", unlimited plan")}). Refreshes every Monday. If you removed videos, use Generate / Regenerate below.</p>
+                <p class="muted small-text">{H.Encode(currentWeekLabel)} — nothing auto-creates. Click Generate below (up to {videosPerWeek}/week{(planMax is int pm ? $", plan max {pm}" : ", unlimited plan")}).</p>
                 {weekActions}
                 <div class="tiktok-video-list" id="videos-week">
                     {thisWeekRows}

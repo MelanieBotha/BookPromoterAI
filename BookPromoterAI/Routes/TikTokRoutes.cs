@@ -11,7 +11,6 @@ static class TikTokRoutes
         {
             if (!store.IsLoggedIn || !store.HasCustomerAccess) return Results.Redirect("/start");
             var baseUrl = PublicUrl.Base(request, settings);
-            var queued = store.EnsureWeeklyVideos(generator, baseUrl);
             store.ResetStuckRenderingVideos(TimeSpan.FromMinutes(15));
             // Do not await a full render on page load — that blocks the browser and times out proxies.
             KickBackgroundRender(scopes, uploads.Path, baseUrl);
@@ -39,9 +38,7 @@ static class TikTokRoutes
                             ? """<div class="notice success">TikTok account removed. Connect again anytime to push videos to your inbox.</div>"""
                     : request.Query["error"] == "1"
                         ? $"""<div class="notice error">{H.Encode(request.Query["msg"].ToString())}</div>"""
-                        : queued > 0
-                            ? $"""<div class="notice success">Queued {queued} new video(s) for this week — they will appear below when rendering finishes (usually within a few minutes).</div>"""
-                            : "";
+                        : "";
             if (!renderer.IsFfmpegAvailable)
                 notice += """<div class="notice error">FFmpeg is missing on this server — weekly videos cannot render. Redeploy using the root Dockerfile.</div>""";
             notice += speechService.IsNaturalVoiceConfigured

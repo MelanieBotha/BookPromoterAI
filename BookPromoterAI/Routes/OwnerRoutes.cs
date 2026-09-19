@@ -12,7 +12,6 @@ static class OwnerRoutes
             store.EnsureWeeklyOwnerBrandMailingDraft(baseUrl);
             store.EnsureBrandAutoPostSchedules();
             store.EnsureWeeklyBrandPosts(baseUrl);
-            store.EnsureBrandWeeklyVideos(baseUrl);
             store.ResetStuckRenderingVideos(TimeSpan.FromMinutes(15));
             KickOwnerVideoRender(scopes, uploads.Path, baseUrl);
             await store.RefreshOwnerBrandPostMetricsAsync(metrics);

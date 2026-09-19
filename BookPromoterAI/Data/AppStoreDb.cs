@@ -1465,13 +1465,7 @@ class AppStoreDb
         PostGenerator generator, VideoRenderService renderer, string uploadsDir, string appBaseUrl,
         TikTokService? tiktok = null, CancellationToken cancellationToken = default)
     {
-        using var db = Db();
-        var userIds = await db.Books.Select(b => b.UserId).Distinct().ToListAsync(cancellationToken);
-        foreach (var userId in userIds)
-            EnsureWeeklyVideos(generator, appBaseUrl, userId);
-
-        EnsureBrandWeeklyVideos(appBaseUrl);
-        RequeueFailedWeeklyVideos(generator);
+        // Videos are created only when the user clicks Generate — do not auto-queue weekly batches.
         ResetStuckRenderingVideos(TimeSpan.FromMinutes(15));
         await RenderPendingVideosAsync(renderer, uploadsDir, appBaseUrl, cancellationToken);
 
